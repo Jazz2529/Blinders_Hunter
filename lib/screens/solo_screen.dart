@@ -1,0 +1,4169 @@
+// lib/screens/solo_screen.dart
+// Corrections freeze : showDialog simple + terrain9 inline sans modal
+
+import 'dart:math' show sin, cos, Random;
+import 'dart:ui' show lerpDouble;
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/models.dart';
+import '../services/solo_controller.dart';
+import '../services/audio_service.dart';
+import '../services/engine.dart';
+import '../widgets/theme.dart';
+import '../widgets/token_widget.dart';
+import '../widgets/ability_animations.dart';
+import 'home_screen.dart';
+import '../widgets/terrain_widget.dart';
+import '../data/tokens_data.dart';
+import '../data/characters_data.dart';
+import '../data/game_data.dart'; // cardImagePath, characterImagePath, terrainImagePath
+
+// ─────────────────────────────────────────────
+// SETUP
+// ─────────────────────────────────────────────
+class SoloSetupScreen extends StatefulWidget {
+  final String playerName, playerTokenId;
+  const SoloSetupScreen({super.key, required this.playerName, required this.playerTokenId});
+  @override State<SoloSetupScreen> createState() => _SoloSetupState();
+}
+
+class _SoloSetupState extends State<SoloSetupScreen> with SingleTickerProviderStateMixin {
+  AiDifficulty _diff = AiDifficulty.normal;
+  String? _forcedCharId;               // null = aléatoire
+  late TabController _tabs;
+  bool _showCharPicker = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: 3, vsync: this);
+  }
+  @override void dispose() { _tabs.dispose(); super.dispose(); }
+
+  List<CharacterCard> get _filteredChars {
+    final tab = _tabs.index;
+    return kAllCharacters.where((c) {
+      if (tab == 0) return true;
+      if (tab == 1) return c.faction == Faction.hunter;
+      if (tab == 2) return c.faction == Faction.shadow;
+      return c.faction == Faction.neutral;
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Scaffold(
+      backgroundColor: kBg0,
+      appBar: AppBar(backgroundColor: kBg2, elevation: 0,
+        title: Text('Mode Solo', style: cinzel(16, c: kGold2))),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+          // ── Difficulté ────────────────────────────────────
+          const SectionLabel('DIFFICULTÉ'),
+          const SizedBox(height: 10),
+          Row(children: [
+            _DiffBtn(AiDifficulty.easy,   '😴 Facile',    _diff, (d) => setState(() => _diff = d)),
+            const SizedBox(width: 8),
+            _DiffBtn(AiDifficulty.normal, '⚔️ Normal',    _diff, (d) => setState(() => _diff = d)),
+            const SizedBox(width: 8),
+            _DiffBtn(AiDifficulty.hard,   '💀 Difficile', _diff, (d) => setState(() => _diff = d)),
+          ]),
+
+          const OrnamentDivider(),
+
+          // ── Personnage ────────────────────────────────────
+          const SectionLabel('TON PERSONNAGE'),
+          const SizedBox(height: 10),
+
+          // Carte sélectionnée
+          GestureDetector(
+            onTap: () => setState(() => _showCharPicker = !_showCharPicker),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _forcedCharId != null
+                  ? factionBg(_charOf(_forcedCharId!)?.faction.name ?? '').withValues(alpha: 0.3)
+                  : kBg2,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _forcedCharId != null
+                    ? factionColor(_charOf(_forcedCharId!)?.faction.name ?? '')
+                    : kBord2,
+                  width: _forcedCharId != null ? 2 : 1),
+              ),
+              child: Row(children: [
+                // Miniature illustration
+                if (_forcedCharId != null) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(width: 52, height: 52,
+                      child: _charImg(_forcedCharId!) ?? Container(color: kBg3,
+                        child: Center(child: Text(_charOf(_forcedCharId!)?.icon ?? '?',
+                          style: const TextStyle(fontSize: 24))))),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(_charOf(_forcedCharId!)?.name ?? '', style: cinzel(14, c: kGold2, fw: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    _FactionBadgeSmall(_charOf(_forcedCharId!)?.faction.name ?? ''),
+                    const SizedBox(height: 4),
+                    Text(_charOf(_forcedCharId!)?.ability ?? '',
+                      style: body(10, c: kTextSub), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ])),
+                ] else ...[
+                  const Text('🎲', style: TextStyle(fontSize: 28)),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Aléatoire', style: cinzel(14, c: kText)),
+                    Text('Rôle et personnage assignés au hasard', style: body(11, c: kTextSub)),
+                  ])),
+                ],
+                Icon(_showCharPicker ? Icons.expand_less : Icons.expand_more, color: kGold),
+              ]),
+            ),
+          ),
+
+          if (_forcedCharId != null) ...[
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: () => setState(() { _forcedCharId = null; }),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(Icons.close, size: 14, color: kTextDim),
+                const SizedBox(width: 4),
+                Text('Repasser en aléatoire', style: body(11, c: kTextDim)),
+              ]),
+            ),
+          ],
+
+          // Picker de personnage
+          if (_showCharPicker) ...[
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: kBg2, borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: kBord)),
+              child: Column(children: [
+                TabBar(
+                  controller: _tabs,
+                  onTap: (_) => setState(() {}),
+                  indicatorColor: kGold,
+                  labelColor: kGold,
+                  unselectedLabelColor: kTextSub,
+                  labelStyle: const TextStyle(fontFamily: 'Cinzel', fontSize: 10),
+                  tabs: const [
+                    Tab(text: 'Tous'),
+                    Tab(text: '🔵 Hunter'),
+                    Tab(text: '🔴 Shadow'),
+                  ],
+                ),
+                SizedBox(
+                  height: 240,
+                  child: GridView.builder(
+                    padding: const EdgeInsets.all(8),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4, childAspectRatio: 0.65,
+                      crossAxisSpacing: 6, mainAxisSpacing: 6),
+                    itemCount: _filteredChars.length,
+                    itemBuilder: (_, i) {
+                      final c = _filteredChars[i];
+                      final sel = _forcedCharId == c.id;
+                      final fc = factionColor(c.faction.name);
+                      final img = _charImg(c.id);
+                      return GestureDetector(
+                        onTap: () => setState(() {
+                          _forcedCharId = c.id;
+                          _showCharPicker = false;
+                        }),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          decoration: BoxDecoration(
+                            color: sel ? fc.withValues(alpha: 0.15) : kBg3,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: sel ? fc : kBord, width: sel ? 2 : 1),
+                            boxShadow: sel ? [BoxShadow(color: fc.withValues(alpha: 0.3), blurRadius: 6)] : null,
+                          ),
+                          child: Column(children: [
+                            Expanded(child: ClipRRect(
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(7)),
+                              child: img ?? Container(color: factionBg(c.faction.name),
+                                child: Center(child: Text(c.icon,
+                                  style: const TextStyle(fontSize: 22)))),
+                            )),
+                            Padding(
+                              padding: const EdgeInsets.all(3),
+                              child: Text(c.name,
+                                style: cinzel(8, c: sel ? fc : kTextSub, fw: sel ? FontWeight.w700 : FontWeight.normal),
+                                textAlign: TextAlign.center,
+                                maxLines: 2, overflow: TextOverflow.ellipsis),
+                            ),
+                          ]),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ]),
+            ),
+          ],
+
+          const OrnamentDivider(),
+
+          // ── Composition ───────────────────────────────────
+          Container(padding: const EdgeInsets.all(14), decoration: surfaceDecor(),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const SectionLabel('COMPOSITION (5 joueurs)'),
+              const SizedBox(height: 8),
+              _tokenRow(widget.playerTokenId, widget.playerName,
+                _forcedCharId != null ? _charOf(_forcedCharId!)?.name ?? 'Choisi' : 'Rôle aléatoire'),
+              _tokenRow('jason',  'Bot 1', 'Rôle aléatoire'),
+              _tokenRow('carla',  'Bot 2', 'Rôle aléatoire'),
+              _tokenRow('raph',   'Bot 3', 'Rôle aléatoire'),
+              _tokenRow('marin',  'Bot 4', 'Rôle aléatoire'),
+              const SizedBox(height: 6),
+              Text('2 Hunters · 2 Shadows · 1 Neutre',
+                style: body(12, c: kTextSub).copyWith(fontStyle: FontStyle.italic)),
+            ])),
+
+          const SizedBox(height: 24),
+          BHButton(label: '⚔  Lancer la partie', onTap: _launch, gold: true),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
+
+  CharacterCard? _charOf(String id) =>
+    kAllCharacters.where((c) => c.id == id).firstOrNull;
+
+  Widget? _charImg(String id) {
+    final path = characterImagePath(id);
+    if (path == null) return null;
+    return Image.asset(path, fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => const SizedBox.shrink());
+  }
+
+  Widget _tokenRow(String tokenId, String name, String role) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(children: [
+      TokenWidget(tokenId: tokenId, size: 32),
+      const SizedBox(width: 10),
+      Expanded(child: Text(name, style: body(13, fw: FontWeight.w600))),
+      Text(role, style: body(12, c: kTextSub)),
+    ]),
+  );
+
+  void _launch() {
+    final ctrl = SoloController(
+      difficulty: _diff,
+      humanName: widget.playerName,
+      humanToken: widget.playerTokenId,
+      forcedCharacterId: _forcedCharId,
+      characterPool: null,
+    );
+    ctrl.startGame();
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+      builder: (_) => ChangeNotifierProvider.value(value: ctrl, child: const SoloGameScreen())));
+  }
+}
+
+// ── Bouton difficulté compact ─────────────────────────────────────────────────
+class _DiffBtn extends StatelessWidget {
+  final AiDifficulty value, current;
+  final String label;
+  final void Function(AiDifficulty) onTap;
+  const _DiffBtn(this.value, this.label, this.current, this.onTap);
+
+  @override
+  Widget build(BuildContext ctx) {
+    final sel = value == current;
+    return Expanded(child: GestureDetector(
+      onTap: () => onTap(value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: sel ? kGold.withValues(alpha: 0.12) : kBg2,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: sel ? kGold2 : kBord2, width: sel ? 2 : 1)),
+        child: Text(label, textAlign: TextAlign.center,
+          style: cinzel(11, c: sel ? kGold2 : kTextSub)),
+      ),
+    ));
+  }
+}
+
+// ── Badge faction petit ───────────────────────────────────────────────────────
+class _FactionBadgeSmall extends StatelessWidget {
+  final String faction;
+  const _FactionBadgeSmall(this.faction);
+  @override
+  Widget build(BuildContext ctx) {
+    final fc = factionColor(faction);
+    final lbl = faction == 'hunter' ? '🔵 HUNTER'
+        : faction == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: fc.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(5)),
+      child: Text(lbl, style: cinzel(8, c: fc)),
+    );
+  }
+}
+
+
+
+// ─────────────────────────────────────────────
+// JEU SOLO
+// ─────────────────────────────────────────────
+class SoloGameScreen extends StatefulWidget {
+  const SoloGameScreen({super.key});
+  @override State<SoloGameScreen> createState() => _SoloGameScreenState();
+}
+
+class _SoloGameScreenState extends State<SoloGameScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Couper la musique lobby → lancer la musique de partie
+    audio.fadeOutMusic(ms: 400).then((_) => audio.playGameMusic());
+  }
+
+  @override
+  Widget build(BuildContext ctx) => Consumer<SoloController>(
+    builder: (_, ctrl, __) {
+      final s = ctrl.state;
+      if (s == null) return const Scaffold(backgroundColor: kBg0,
+        body: Center(child: CircularProgressIndicator(color: kGold)));
+      if (s.isOver) return SoloGameOverScreen(ctrl: ctrl);
+      if (s.phase == GamePhase.roleReveal) return _RoleRevealScreen(ctrl: ctrl);
+
+      // ── Animation plein écran : révélation d'un joueur ──────────
+      if (s.pendingRevealAnimation != null) {
+        final rp = s.players.firstWhere(
+          (p) => p.uid == s.pendingRevealAnimation,
+          orElse: () => s.players.first);
+        return _RevealFullScreen(player: rp, onDone: () {
+          ctrl.state!.pendingRevealAnimation = null;
+          ctrl.notifyListeners();
+        });
+      }
+
+      // ── Vision Suprême : révèle secrètement la carte d'un joueur ─
+      if (s.privateRevealTargetUid != null) {
+        final rp = s.players.firstWhere(
+          (p) => p.uid == s.privateRevealTargetUid,
+          orElse: () => s.players.first);
+        return _RevealFullScreen(player: rp, onDone: () {
+          ctrl.state!.privateRevealTargetUid = null;
+          ctrl.notifyListeners();
+        });
+      }
+
+      // ── Overlay de pouvoir (Art'Cade flammes, etc.) ──────────────
+      final overlay = s.abilityOverlay;
+      final baseScaffold = Scaffold(
+        backgroundColor: kBg0,
+        appBar: AppBar(
+          backgroundColor: kBg2, elevation: 0,
+          title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(s.isHuman ? '⚔️ Ton tour' : '🤖 ${s.current.name} joue…',
+              style: cinzel(15, c: s.isHuman ? kGold2 : kTextSub)),
+            Text(s.phase.name, style: body(11, c: kTextSub)),
+          ]),
+          actions: [
+            // BOUTON MA CARTE — simple et fiable
+            TextButton(
+              onPressed: () => _showMyCard(ctx, ctrl),
+              style: TextButton.styleFrom(
+                backgroundColor: kGold.withValues(alpha: 0.15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Text('🃏', style: TextStyle(fontSize: 15)),
+                const SizedBox(width: 4),
+                Text('Carte', style: cinzel(10, c: kGold)),
+              ]),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Text('📜', style: TextStyle(fontSize: 18)),
+              onPressed: () => _showLog(ctx, ctrl),
+            ),
+          ],
+        ),
+        body: _GameLayout(ctrl: ctrl, s: s),
+      );
+
+      // Pas d'overlay → retourner le scaffold simple
+      if (overlay == null) return baseScaffold;
+
+      // Overlay actif → Stack avec animation par-dessus le jeu
+      return Stack(children: [
+        baseScaffold,
+        // Art'Cade: géré directement dans _MiniBoard sur la tuile
+        if (overlay == 'oceane_notes')
+          OceaneNotesOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'raph_petals')
+          RaphPetalsOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'monkey_demon_eyes')
+          MonkeyDemonEyesOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'gege_ghost')
+          _GegeGhostOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'richard2_swap')
+          _RichardSwapOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'scott_counter')
+          _ScottCounterOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+          _MathieuBulletOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'hongyi_dumbbell')
+          HongYiDumbbellOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'vlad_mountain')
+          VladMountainOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'travert_shockwave')
+          TravertShockwaveOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'leo_flames_all')
+          LeoFlamesAllOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'cambou_sheep')
+          CambouSheepOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'carapatte_food')
+          CarapatteFoodOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'augustin_wheat')
+          AugustinWheatOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'fijacked_city')
+          FijackedCityOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'louna_shield')
+          LounaShieldOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'marion_plants')
+          MarionPlantsOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
+        if (overlay == 'amelia_light')
+          AmeliaLightOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'albane_clock')
+          AlbaneClockOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+      ]);
+    },
+  );
+
+  // CORRECTION : showDialog simple, données copiées AVANT l'ouverture
+  void _showMyCard(BuildContext ctx, SoloController ctrl) {
+    final s = ctrl.state;
+    if (s == null) return;
+    final Player me;
+    try { me = s.players.firstWhere((p) => !p.isBot); } catch (_) { return; }
+    final c = me.character;
+    if (c == null) return;
+
+    final fc  = factionColor(c.faction.name);
+    final fbg = factionBg(c.faction.name);
+    final imgPath = characterImagePath(c.id);
+    final wColor = me.wounds >= 8 ? kRed : me.wounds >= 5 ? kGold : kGreen;
+
+    showDialog(
+      context: ctx,
+      barrierDismissible: true,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          constraints: BoxConstraints(maxWidth: 820, maxHeight: MediaQuery.of(dialogCtx).size.height * 0.88),
+          decoration: BoxDecoration(
+            color: kBg2,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: fc, width: 2.5),
+            boxShadow: [BoxShadow(color: fc.withValues(alpha: 0.3), blurRadius: 20)],
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+
+            // ── Illustration pleine hauteur gauche ────────────
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(left: Radius.circular(14)),
+              child: SizedBox(
+                width: 300,
+                child: imgPath != null
+                  ? Image.asset(imgPath, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: fbg,
+                        child: Center(child: Text(c.icon,
+                          style: const TextStyle(fontSize: 64)))))
+                  : Container(color: fbg,
+                      child: Center(child: Text(c.icon,
+                        style: const TextStyle(fontSize: 64)))),
+              ),
+            ),
+
+            // ── Infos droite ──────────────────────────────────
+            Expanded(child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                // Nom + fermer
+                Row(children: [
+                  Expanded(child: Text(c.name,
+                    style: cinzel(20, c: fc, fw: FontWeight.w900))),
+                  GestureDetector(
+                    onTap: () => Navigator.of(dialogCtx).pop(),
+                    child: const Icon(Icons.close, color: kTextSub, size: 20)),
+                ]),
+                const SizedBox(height: 6),
+                // Badge faction
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: fc.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6)),
+                  child: Text(
+                    c.faction.name == 'hunter' ? '🔵 HUNTER'
+                    : c.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE',
+                    style: cinzel(9, c: fc)),
+                ),
+                const SizedBox(height: 10),
+                // Blessures
+                Row(children: [
+                  const Text('🗡', style: TextStyle(fontSize: 14)),
+                  const SizedBox(width: 6),
+                  Text('${me.wounds} blessures',
+                    style: cinzel(15, c: wColor, fw: FontWeight.w700)),
+                ]),
+                Divider(color: kBord, height: 18),
+                // Capacité
+                Text('CAPACITÉ', style: cinzel(8, c: kTextSub, ls: 2)),
+                const SizedBox(height: 3),
+                Flexible(child: Text(c.ability, style: body(12, c: kText))),
+                Divider(color: kBord, height: 18),
+                // Objectif
+                Text('🏆 OBJECTIF', style: cinzel(8, c: kTextSub, ls: 2)),
+                const SizedBox(height: 3),
+                Text(c.winCondition, style: body(12, c: kGold2),
+                  maxLines: 3, overflow: TextOverflow.ellipsis),
+                // Équipements
+                if (me.equipment.isNotEmpty) ...[
+                  Divider(color: kBord, height: 14),
+                  Text('ÉQUIPEMENTS', style: cinzel(8, c: kTextSub, ls: 2)),
+                  const SizedBox(height: 4),
+                  ...me.equipment.map((e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Row(children: [
+                      const Text('⚙️', style: TextStyle(fontSize: 11)),
+                      const SizedBox(width: 5),
+                      Flexible(child: Text(e.name, style: body(11))),
+                    ]),
+                  )),
+                ],
+              ]),
+            )),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  void _showDiceRef(BuildContext ctx) {
+    showDialog(context: ctx, builder: (_) => Dialog(
+      backgroundColor: kBg2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('🎲 RÉFÉRENCE DES DÉS', style: cinzel(14, c: kGold, fw: FontWeight.w900)),
+          const SizedBox(height: 16),
+          Text('DÉPLACEMENT (D4 + D6)', style: cinzel(11, c: kGold2)),
+          const SizedBox(height: 6),
+          ...List.generate(4, (d4) => Row(children: [
+            ...List.generate(6, (d6) {
+              final sum = (d4+1) + (d6+1);
+              return Container(width: 36, height: 32, margin: const EdgeInsets.all(2),
+                decoration: BoxDecoration(color: kBg3, borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: kGold.withValues(alpha: 0.3))),
+                child: Center(child: Text('$sum', style: body(11, c: kGold2))));
+            }),
+          ])),
+          const SizedBox(height: 6),
+          Text('D4 : 1-4  ×  D6 : 1-6  → somme 2-10', style: body(10, c: kTextSub)),
+          const Divider(height: 20, color: Colors.white12),
+          Text('ATTAQUE |D4 − D6|', style: cinzel(11, c: kRed)),
+          const SizedBox(height: 6),
+          Wrap(spacing: 4, runSpacing: 4, children: [
+            for (int d4 = 1; d4 <= 4; d4++)
+              for (int d6 = 1; d6 <= 6; d6++)
+                Container(width: 32, height: 28,
+                  decoration: BoxDecoration(color: kBg3, borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: kRed.withValues(alpha: 0.4))),
+                  child: Center(child: Text('${(d4-d6).abs()}', style: body(10, c: kRed)))),
+          ]),
+          const SizedBox(height: 6),
+          Text('D4 : 1-4  ×  D6 : 1-6  → |D4−D6| = 0-5', style: body(10, c: kTextSub)),
+          const SizedBox(height: 12),
+          Align(alignment: Alignment.centerRight,
+            child: TextButton(onPressed: () => Navigator.pop(ctx),
+              child: Text('Fermer', style: body(13, c: kGold)))),
+        ]),
+      ),
+    ));
+  }
+
+  void _showLog(BuildContext ctx, SoloController ctrl) {
+    final logs = List<LogEntry>.from(ctrl.state?.log.reversed.take(50).toList() ?? []);
+    showModalBottomSheet(
+      context: ctx,
+      backgroundColor: kBg2,
+      builder: (_) => ListView(
+        padding: const EdgeInsets.all(14),
+        children: logs.map((l) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Text(l.message, style: TextStyle(fontSize: 12, color: switch (l.cls) {
+            'death' => kRed, 'important' => kGold,
+            'player' => kGreen, 'bot' => const Color(0xFFA07AF0), _ => kTextSub,
+          })),
+        )).toList(),
+      ),
+    );
+  }
+}  // end _SoloGameScreenState
+
+
+
+
+// ═══════════════════════════════════════════════════════════
+// CLÉMENCE — Pouvoir Constructeur
+// ═══════════════════════════════════════════════════════════
+class _ClemenceBuilderWidget extends StatelessWidget {
+  final SoloController ctrl;
+  final int step;
+  final List<String> offered;
+  final String? chosen;
+  const _ClemenceBuilderWidget({
+    required this.ctrl, required this.step,
+    required this.offered, this.chosen});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final eg = GameEngine.instance;
+    const purple = Color(0xFF9B59B6);
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A0A2E),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: purple, width: 2.5),
+        boxShadow: [BoxShadow(color: purple.withValues(alpha: 0.35), blurRadius: 18)],
+      ),
+      child: Column(children: [
+        Text('🎨 CLÉMENCE', style: cinzel(18, c: purple, fw: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text(step == 1
+          ? 'Choix 1/2 — Sélectionnez un effet'
+          : 'Choix 2/2 — Sélectionnez un effet',
+          style: body(11, c: kTextSub), textAlign: TextAlign.center),
+        if (step == 2 && chosen != null) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: purple.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8)),
+            child: Text('✅ Effet 1 : ${eg.builderEffectLabel(chosen!)}',
+              style: body(11, c: purple)),
+          ),
+        ],
+        const SizedBox(height: 16),
+        ...offered.map((eff) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: BHButton(
+            label: eg.builderEffectLabel(eff),
+            onTap: () => ctrl.clemenceChooseEffect(eff),
+          ),
+        )),
+      ]),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// JEANNE — Sélection récompense secrète
+// ═══════════════════════════════════════════════════════════
+class _JeanneRewardWidget extends StatelessWidget {
+  final SoloController ctrl;
+  final List<String> rewards;
+  const _JeanneRewardWidget({required this.ctrl, required this.rewards});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final eg = GameEngine.instance;
+    const ruby = Color(0xFFAA1144);
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A0A2E),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: ruby, width: 2.5),
+        boxShadow: [BoxShadow(color: ruby.withValues(alpha: 0.35), blurRadius: 18)],
+      ),
+      child: Column(children: [
+        Text('🔮 JEANNE', style: cinzel(18, c: ruby, fw: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text('Choisissez secrètement la récompense du tueur',
+          style: body(11, c: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 16),
+        ...rewards.map((r) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: BHButton(
+            label: eg.jeanneRewardLabel(r),
+            onTap: () => ctrl.jeanneChooseReward(r),
+          ),
+        )),
+      ]),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// MR CASINO — Pari pair/impair
+// ═══════════════════════════════════════════════════════════
+class _CasinoWidget extends StatefulWidget {
+  final SoloController ctrl;
+  const _CasinoWidget({required this.ctrl});
+  @override State<_CasinoWidget> createState() => _CasinoWidgetState();
+}
+
+class _CasinoWidgetState extends State<_CasinoWidget>
+    with SingleTickerProviderStateMixin {
+  bool? _bet;       // null=pas choisi, true=impair, false=pair
+  int?  _result;
+  bool? _won;
+  bool  _rolling = false;
+  late AnimationController _ac;
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1400));
+  }
+  @override void dispose() { _ac.dispose(); super.dispose(); }
+
+  void _roll(bool betOdd) {
+    if (_rolling) return;
+    setState(() { _bet = betOdd; _result = null; _won = null; _rolling = true; });
+    _ac.forward(from: 0).then((_) {
+      final d = GameEngine.instance.rollD6();
+      setState(() { _result = d; _won = betOdd == (d % 2 == 1); _rolling = false; });
+    });
+  }
+
+  void _confirm() {
+    if (_won == null) return;
+    final s = widget.ctrl.state!;
+    if (_won!) {
+      s.pendingTargetAction = 'casino_win';
+      s.phase = GamePhase.chooseTarget;
+    } else {
+      widget.ctrl.applyDamageToHuman(2, reason: '🎰 Casino — pari perdu');
+      s.pendingTargetAction = null;
+      s.phase = GamePhase.move; // peut encore se déplacer après
+    }
+    widget.ctrl.notifyListeners();
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    const gold = Color(0xFFFFD700);
+    const dark = Color(0xFF1A0A2E);
+
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: dark,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: gold, width: 2.5),
+        boxShadow: [BoxShadow(color: gold.withValues(alpha: 0.35), blurRadius: 18)],
+      ),
+      child: Column(children: [
+        Text('🎰 MR CASINO', style: cinzel(20, c: gold, fw: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text('Gagnez → infligez 3 blessures   ·   Perdez → subissez 2',
+          style: body(11, c: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 20),
+
+        // ── Étape 1: Choisir pair ou impair ──────────────────
+        if (_bet == null) ...[
+          Row(children: [
+            Expanded(child: _BetButton(label: 'IMPAIR\n1 · 3 · 5',
+              color: const Color(0xFF7B2FBE),
+              onTap: () => _roll(true))),
+            const SizedBox(width: 12),
+            Expanded(child: _BetButton(label: 'PAIR\n2 · 4 · 6',
+              color: const Color(0xFF1B6CA8),
+              onTap: () => _roll(false))),
+          ]),
+        ],
+
+        // ── Étape 2: Animation du dé ─────────────────────────
+        if (_bet != null) ...[
+          // Badge du pari
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            decoration: BoxDecoration(
+              color: (_bet! ? const Color(0xFF7B2FBE) : const Color(0xFF1B6CA8))
+                  .withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: _bet! ? const Color(0xFF7B2FBE) : const Color(0xFF1B6CA8))),
+            child: Text('Pari : ${_bet! ? "IMPAIR" : "PAIR"}',
+              style: cinzel(13, c: gold, fw: FontWeight.w700)),
+          ),
+          const SizedBox(height: 16),
+
+          // Dé animé façon D6
+          AnimatedBuilder(
+            animation: _ac,
+            builder: (_, __) {
+              final displayVal = _result ?? ((_ac.value * 12).floor() % 6 + 1);
+              final done = _result != null;
+              final faceColor = !done ? gold
+                  : (_won! ? kGreen : kRed);
+              return Column(children: [
+                // Dé (carré avec coins arrondis)
+                Container(
+                  width: 90, height: 90,
+                  decoration: BoxDecoration(
+                    color: faceColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: faceColor, width: 3),
+                    boxShadow: [BoxShadow(
+                        color: faceColor.withValues(alpha: 0.4),
+                        blurRadius: 16)],
+                  ),
+                  child: Center(child: Text('$displayVal',
+                    style: TextStyle(
+                      fontSize: 44,
+                      fontFamily: 'Cinzel',
+                      fontWeight: FontWeight.w900,
+                      color: faceColor))),
+                ),
+                const SizedBox(height: 10),
+                if (_rolling)
+                  Text('Lancement...', style: body(12, c: kTextSub))
+                else if (done) ...[
+                  Text(
+                    displayVal % 2 == 1 ? 'IMPAIR' : 'PAIR',
+                    style: cinzel(15, c: faceColor, fw: FontWeight.w900)),
+                  const SizedBox(height: 6),
+                  Text(_won!
+                      ? '🎉 Vous avez gagné !'
+                      : '💔 Vous avez perdu…',
+                    style: cinzel(14, c: faceColor, fw: FontWeight.w700)),
+                ],
+              ]);
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // ── Étape 3: Résultat ────────────────────────────────
+          if (_result != null) ...[
+            if (_won!)
+              Text('Choisissez un joueur pour lui infliger 3 blessures',
+                style: body(12, c: kGreen), textAlign: TextAlign.center)
+            else
+              Text('Vous subissez 2 blessures', style: body(12, c: kRed),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            BHButton(
+              label: _won! ? '🎯 Choisir une cible (3 blessures)' : '💀 Continuer',
+              gold: _won!, danger: !_won!, onTap: _confirm),
+          ],
+        ],
+      ]),
+    );
+  }
+}
+
+// Bouton de pari stylisé
+class _BetButton extends StatelessWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  const _BetButton({required this.label, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext ctx) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color, width: 2),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 10)],
+      ),
+      child: Text(label,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontFamily: 'Cinzel', fontSize: 14,
+          fontWeight: FontWeight.w900, color: color,
+          height: 1.6)),
+    ),
+  );
+}
+
+
+
+// ═══════════════════════════════════════════════════
+// FIFI — Sélecteur de dés style molette
+// ═══════════════════════════════════════════════════
+class _FifiDiceWidget extends StatefulWidget {
+  final SoloController ctrl;
+  const _FifiDiceWidget({required this.ctrl});
+  @override State<_FifiDiceWidget> createState() => _FifiDiceState();
+}
+
+class _FifiDiceState extends State<_FifiDiceWidget> {
+  int _move = 7;   // déplacement : 2-10
+  int _atk  = 3;   // attaque     : 0-5
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: kBg2, borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kGreen, width: 2.5),
+        boxShadow: [BoxShadow(color: kGreen.withValues(alpha: 0.3), blurRadius: 14)],
+      ),
+      child: Column(children: [
+        Text('🍀 FIFI', style: cinzel(20, c: kGreen, fw: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text('Choisissez vos valeurs pour ce tour',
+          style: body(12, c: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 20),
+
+        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+          // Déplacement
+          _DiceSelector(
+            label: '🚶 DÉPLACEMENT',
+            value: _move,
+            min: 2, max: 10,
+            color: kGold2,
+            onChanged: (v) => setState(() => _move = v),
+          ),
+          Container(width: 1, height: 120, color: kBord),
+          // Attaque
+          _DiceSelector(
+            label: '⚔️ ATTAQUE',
+            value: _atk,
+            min: 0, max: 5,
+            color: kRed,
+            onChanged: (v) => setState(() => _atk = v),
+          ),
+        ]),
+
+        const SizedBox(height: 20),
+        BHButton(
+          label: '✅ Confirmer — Dépl. $_move · Atk. $_atk',
+          gold: true,
+          onTap: () {
+            final s = widget.ctrl.state!;
+            s.fifiGoldenTurn = true;
+            s.fifiMoveResult = _move;
+            s.fifiAtkResult  = _atk;
+            s.fifiMoveD4 = (_move / 2).ceil().clamp(1, 4);
+            s.fifiMoveD6 = (_move - s.fifiMoveD4).clamp(1, 6);
+            s.fifiAtkD4  = (_atk / 2).ceil().clamp(0, 4);
+            s.fifiAtkD6  = (_atk - s.fifiAtkD4).clamp(0, 6);
+            s.pendingTargetAction = null;
+            s.phase = GamePhase.move;
+            widget.ctrl.notifyListeners();
+          },
+        ),
+      ]),
+    );
+  }
+}
+
+// Dé façon molette avec flèches haut/bas
+class _DiceSelector extends StatelessWidget {
+  final String label;
+  final int value, min, max;
+  final Color color;
+  final void Function(int) onChanged;
+  const _DiceSelector({
+    required this.label, required this.value,
+    required this.min, required this.max,
+    required this.color, required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext ctx) {
+    final canUp   = value < max;
+    final canDown = value > min;
+    return Column(children: [
+      Text(label, style: cinzel(10, c: kTextSub), textAlign: TextAlign.center),
+      const SizedBox(height: 10),
+      // Flèche haut
+      GestureDetector(
+        onTap: canUp ? () => onChanged(value + 1) : null,
+        child: Icon(Icons.keyboard_arrow_up_rounded,
+          size: 32, color: canUp ? color : kBord2)),
+      // Carré dé
+      AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        width: 72, height: 72,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color, width: 2.5),
+          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 10)],
+        ),
+        child: Center(child: Text('$value',
+          style: TextStyle(
+            fontSize: 34, fontFamily: 'Cinzel',
+            fontWeight: FontWeight.w900, color: color))),
+      ),
+      // Flèche bas
+      GestureDetector(
+        onTap: canDown ? () => onChanged(value - 1) : null,
+        child: Icon(Icons.keyboard_arrow_down_rounded,
+          size: 32, color: canDown ? color : kBord2)),
+      const SizedBox(height: 4),
+      Text('$min – $max', style: body(9, c: kTextDim)),
+    ]);
+  }
+}
+
+
+// ═══════════════════════════════════════════════════
+// CAPTAIN RICARD — Compteur de sacrifice
+// ═══════════════════════════════════════════════════
+class _CaptainRicardWidget extends StatefulWidget {
+  final SoloController ctrl;
+  const _CaptainRicardWidget({required this.ctrl});
+  @override State<_CaptainRicardWidget> createState() => _CaptainRicardState();
+}
+
+class _CaptainRicardState extends State<_CaptainRicardWidget> {
+  int _sacrifice = 1;
+  String? _targetUid;
+
+  @override
+  Widget build(BuildContext ctx) {
+    final s = widget.ctrl.state!;
+    final me = s.current;
+    final maxSacrifice = (me.character!.hp - me.wounds - 1).clamp(1, 8);
+    final targets = s.players.where((p) => p.alive && p.uid != me.uid).toList();
+
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: kBg2, borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kGold, width: 2)),
+      child: Column(children: [
+        Text('🍾 CAPTAIN RICARD', style: cinzel(16, c: kGold2, fw: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text('Sacrifiez des PV pour soigner un joueur', style: body(12, c: kTextSub)),
+        const SizedBox(height: 16),
+        // Compteur
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          GestureDetector(
+            onTap: () => setState(() => _sacrifice = (_sacrifice - 1).clamp(1, maxSacrifice)),
+            child: Container(width: 40, height: 40,
+              decoration: BoxDecoration(color: kBg3, borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: kBord2)),
+              child: const Center(child: Text('−', style: TextStyle(fontSize: 22, color: kRed))))),
+          const SizedBox(width: 16),
+          Column(children: [
+            Text('$_sacrifice', style: cinzel(36, c: kRed, fw: FontWeight.w900)),
+            Text('PV sacrifiés', style: body(10, c: kTextSub)),
+          ]),
+          const SizedBox(width: 16),
+          GestureDetector(
+            onTap: () => setState(() => _sacrifice = (_sacrifice + 1).clamp(1, maxSacrifice)),
+            child: Container(width: 40, height: 40,
+              decoration: BoxDecoration(color: kBg3, borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: kBord2)),
+              child: const Center(child: Text('+', style: TextStyle(fontSize: 22, color: kGreen))))),
+        ]),
+        const SizedBox(height: 6),
+        Text('→ soigne $_sacrifice blessures', style: cinzel(14, c: kGreen)),
+        const SizedBox(height: 16),
+        // Cible
+        Text('Choisissez qui soigner :', style: body(12, c: kTextSub)),
+        const SizedBox(height: 8),
+        ...targets.map((t) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: GestureDetector(
+            onTap: () => setState(() => _targetUid = t.uid),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _targetUid == t.uid ? kGold.withValues(alpha: 0.12) : kBg3,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _targetUid == t.uid ? kGold : kBord2,
+                  width: _targetUid == t.uid ? 2 : 1)),
+              child: Row(children: [
+                TokenWidget(tokenId: t.token, size: 28), const SizedBox(width: 8),
+                Expanded(child: Text(t.name, style: body(13))),
+                Text('🗡 ${t.wounds}', style: body(12, c: kTextSub)),
+              ]),
+            ),
+          ),
+        )),
+        const SizedBox(height: 12),
+        BHButton(
+          label: _targetUid == null ? "🍾 Choisissez une cible d'abord" : '🍾 Sacrifier $_sacrifice PV → Soigner $_sacrifice',
+          danger: _targetUid != null,
+          onTap: _targetUid == null ? () {} : () {
+            final target = s.players.firstWhere((p) => p.uid == _targetUid);
+            widget.ctrl.state!.current.character; // access
+            widget.ctrl.applyDamageToHuman(_sacrifice);
+            widget.ctrl.healPlayer(_targetUid!, _sacrifice);
+            widget.ctrl.state!.current.abilityUsed = true;
+            widget.ctrl.logAbility('🍾 Captain Ricard sacrifie $_sacrifice PV → soigne ${target.name} de $_sacrifice');
+            widget.ctrl.state!.pendingTargetAction = null;
+            widget.ctrl.state!.phase = GamePhase.move;
+            widget.ctrl.notifyListeners();
+          },
+        ),
+        BHButton(label: 'Annuler', outlined: true, onTap: () {
+          widget.ctrl.state!.pendingTargetAction = null;
+          widget.ctrl.state!.phase = GamePhase.ability;
+          widget.ctrl.notifyListeners();
+        }),
+      ]),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ÉCRAN DE RÉVÉLATION DE RÔLE — s'affiche 5 secondes au démarrage
+// ═══════════════════════════════════════════════════════════════════
+class _RoleRevealScreen extends StatefulWidget {
+  final SoloController ctrl;
+  const _RoleRevealScreen({required this.ctrl});
+  @override State<_RoleRevealScreen> createState() => _RoleRevealScreenState();
+}
+
+class _RoleRevealScreenState extends State<_RoleRevealScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _bgAc;
+  late AnimationController _cardAc;
+  late AnimationController _textAc;
+
+  @override
+  void initState() {
+    super.initState();
+    _bgAc   = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _cardAc = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+    _textAc = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+
+    // Séquence : bg → carte → texte
+    _bgAc.forward().then((_) =>
+      _cardAc.forward().then((_) =>
+        Future.delayed(const Duration(milliseconds: 150), () {
+          if (mounted) _textAc.forward();
+        })
+      )
+    );
+    // Auto-dismiss après 5 secondes
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) widget.ctrl.confirmRoleReveal();
+    });
+  }
+
+  @override
+  void dispose() { _bgAc.dispose(); _cardAc.dispose(); _textAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final s = widget.ctrl.state;
+    if (s == null) return const SizedBox.shrink();
+    final me = s.players.firstWhere((p) => !p.isBot, orElse: () => s.players.first);
+    final char = me.character;
+    if (char == null) return const SizedBox.shrink();
+
+    final faction = char.faction.name;
+    final fc  = factionColor(faction);
+    final fbg = factionBg(faction);
+    final imgPath = characterImagePath(char.id);
+
+    final roleLabel = switch (faction) {
+      'hunter'  => 'HUNTER',
+      'shadow'  => 'SHADOW',
+      'neutral' => 'NEUTRE',
+      _         => faction.toUpperCase(),
+    };
+    final roleEmoji = switch (faction) {
+      'hunter'  => '🔵', 'shadow' => '🔴', 'neutral' => '🟡', _ => '⚪',
+    };
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: FadeTransition(
+        opacity: CurvedAnimation(parent: _bgAc, curve: Curves.easeIn),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.center, radius: 1.3,
+              colors: [fbg, Colors.black.withValues(alpha: 0.97)],
+            ),
+          ),
+          child: SafeArea(
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+
+              // ── Texte rôle ─────────────────────────────
+              FadeTransition(
+                opacity: CurvedAnimation(parent: _textAc, curve: Curves.easeIn),
+                child: Column(children: [
+                  Text('TU ES UN', style: cinzel(13, c: fc.withValues(alpha: 0.75), ls: 6)),
+                  const SizedBox(height: 6),
+                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text(roleEmoji, style: const TextStyle(fontSize: 30)),
+                    const SizedBox(width: 10),
+                    Text(roleLabel, style: cinzel(44, c: fc, fw: FontWeight.w900).copyWith(
+                      shadows: [Shadow(color: fc.withValues(alpha: 0.8), blurRadius: 24)])),
+                    const SizedBox(width: 10),
+                    Text(roleEmoji, style: const TextStyle(fontSize: 30)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text(char.name, style: cinzel(20, c: kGold2, fw: FontWeight.w700)),
+                ]),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── Carte personnage ────────────────────────
+              AnimatedBuilder(
+                animation: _cardAc,
+                builder: (_, child) => Transform.translate(
+                  offset: Offset(0, (1 - CurvedAnimation(parent: _cardAc, curve: Curves.easeOutBack).value) * 60),
+                  child: Transform.scale(
+                    scale: CurvedAnimation(parent: _cardAc, curve: Curves.easeOutBack).value.clamp(0.0, 1.0),
+                    child: child,
+                  ),
+                ),
+                child: Container(
+                  width: 230,
+                  decoration: BoxDecoration(
+                    color: kBg2,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: fc, width: 3),
+                    boxShadow: [
+                      BoxShadow(color: fc.withValues(alpha: 0.5), blurRadius: 28, spreadRadius: 2),
+                      const BoxShadow(color: Colors.black54, blurRadius: 10),
+                    ],
+                  ),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    // Illustration
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                      child: SizedBox(
+                        height: 180, width: double.infinity,
+                        child: imgPath != null
+                          ? Image.asset(imgPath, fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(color: fbg,
+                                child: Center(child: Text(char.icon,
+                                  style: const TextStyle(fontSize: 60)))))
+                          : Container(color: fbg, child: Center(
+                              child: Text(char.icon, style: const TextStyle(fontSize: 60)))),
+                      ),
+                    ),
+                    // Stats
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Row(children: [
+                          Expanded(child: Text(char.name,
+                            style: cinzel(15, c: kGold2, fw: FontWeight.w900),
+                            overflow: TextOverflow.ellipsis)),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: fc.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(7),
+                              border: Border.all(color: fc.withValues(alpha: 0.6))),
+                            child: Text('${char.hp} PV', style: cinzel(11, c: fc))),
+                        ]),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity, padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: fbg.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(8)),
+                          child: Text(char.ability,
+                            style: body(10, c: kText), textAlign: TextAlign.center)),
+                        const SizedBox(height: 6),
+                        Container(
+                          width: double.infinity, padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(color: kBg3,
+                            borderRadius: BorderRadius.circular(8)),
+                          child: Column(children: [
+                            Text('🏆 OBJECTIF', style: cinzel(8, c: kTextSub, ls: 1)),
+                            const SizedBox(height: 3),
+                            Text(char.winCondition,
+                              style: body(10, c: kGold2),
+                              textAlign: TextAlign.center),
+                          ])),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // ── Bouton ──────────────────────────────────
+              FadeTransition(
+                opacity: CurvedAnimation(parent: _textAc, curve: Curves.easeIn),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 48),
+                  child: GestureDetector(
+                    onTap: () => widget.ctrl.confirmRoleReveal(),
+                    child: Container(
+                      width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: fc.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: fc, width: 2),
+                        boxShadow: [BoxShadow(color: fc.withValues(alpha: 0.3), blurRadius: 12)]),
+                      child: Text("J'ai compris — Commencer !",
+                        textAlign: TextAlign.center,
+                        style: cinzel(15, c: fc, fw: FontWeight.w700)),
+                    ),
+                  ),
+                ),
+              ),
+
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+// ─────────────────────────────────────────────
+// LAYOUT PC — tout visible sur 1 écran
+// Gauche : plateau + classement
+// Droite : actions + log
+// ─────────────────────────────────────────────
+class _GameLayout extends StatelessWidget {
+  final SoloController ctrl;
+  final SoloState s;
+  const _GameLayout({required this.ctrl, required this.s});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return LayoutBuilder(builder: (ctx, bc) {
+      final w = bc.maxWidth;
+      final h = bc.maxHeight;
+      final isWide = w > 600;
+
+      if (isWide) {
+        // ── Layout PC : 3 zones ──────────────────────────────────
+        // GAUCHE : plateau + leaderboard
+        // DROITE : carte perso (colonne) + actions (colonne)
+        final leftW  = (w * 0.45).clamp(260.0, 460.0);
+        final rightW = w - leftW - 1;
+
+        return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+
+          // ── Gauche : plateau + classement ────────────────────
+          SizedBox(width: leftW, child: Column(children: [
+            SizedBox(height: (h * 0.14).clamp(70, 100),
+              child: _HpLeaderboard(ctrl: ctrl)),
+            Expanded(child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 4, 8),
+              child: _MiniBoard(ctrl: ctrl),
+            )),
+          ])),
+
+          Container(width: 1, color: kBord),
+
+          // ── Droite : header + actions + log ─────────────────
+          SizedBox(width: rightW, child: Column(children: [
+            _TurnHeader(ctrl: ctrl, s: s),
+            Expanded(child: _ActionColumn(ctrl: ctrl, s: s)),
+            SizedBox(height: (h * 0.18).clamp(60, 110),
+              child: _LogStrip(ctrl: ctrl)),
+          ])),
+
+        ]);
+
+      } else {
+        // ── Layout mobile : colonne ─────────────────────────────
+        return Column(children: [
+          SizedBox(height: (h * 0.11).clamp(60, 85),
+            child: _HpLeaderboard(ctrl: ctrl)),
+          SizedBox(height: (h * 0.38).clamp(130, 280),
+            child: _MiniBoard(ctrl: ctrl)),
+          Expanded(child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: _ActionColumn(ctrl: ctrl, s: s),
+          )),
+          SizedBox(height: (h * 0.09).clamp(44, 60),
+            child: _LogStrip(ctrl: ctrl)),
+        ]);
+      }
+    });
+  }
+}
+
+// Header de tour (colonne droite PC)
+class _TurnHeader extends StatelessWidget {
+  final SoloController ctrl;
+  final SoloState s;
+  const _TurnHeader({required this.ctrl, required this.s});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: kBg2,
+        border: Border(bottom: BorderSide(color: kBord)),
+      ),
+      child: Row(children: [
+        TokenWidget(tokenId: s.current.token, size: 30),
+        const SizedBox(width: 8),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            s.isHuman ? '⚔️ Ton tour' : '🤖 Tour de ${s.current.name}',
+            style: cinzel(12, c: s.isHuman ? kGold2 : kTextSub),
+          ),
+          Text(_phaseLabel(s.phase), style: body(10, c: kTextDim)),
+        ])),
+        // Bouton ma carte
+        if (s.isHuman) _MyCardBtn(ctrl: ctrl),
+      ]),
+    );
+  }
+
+  String _phaseLabel(GamePhase p) => switch (p.name) {
+    'ability'      => 'Phase : Capacité',
+    'move'         => 'Phase : Déplacement',
+    'zoneEffect'   => 'Phase : Effet terrain',
+    'cardDrawn'    => 'Phase : Carte piochée',
+    'attack'       => 'Phase : Attaque',
+    _              => p.name,
+  };
+}
+
+// Bouton compact "Ma carte"
+class _MyCardBtn extends StatelessWidget {
+  final SoloController ctrl;
+  const _MyCardBtn({required this.ctrl});
+
+  @override
+  Widget build(BuildContext ctx) => GestureDetector(
+    onTap: () => _showMyCard(ctx, ctrl),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: kGold.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: kGold.withValues(alpha: 0.4)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Text('🃏', style: TextStyle(fontSize: 14)),
+        const SizedBox(width: 4),
+        Text('Carte', style: cinzel(9, c: kGold)),
+      ]),
+    ),
+  );
+
+  void _showMyCard(BuildContext ctx, SoloController ctrl) {
+    final s = ctrl.state; if (s == null) return;
+    final Player me;
+    try { me = s.players.firstWhere((p) => !p.isBot); } catch (_) { return; }
+    final c = me.character; if (c == null) return;
+    final fc = factionColor(c.faction.name);
+    showDialog(
+      context: ctx, barrierDismissible: true,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(20),
+        child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(padding: const EdgeInsets.only(bottom: 4),
+            child: Text('CARTE SECRÈTE', style: cinzel(10, c: fc, ls: 3))),
+          CharacterCardFull(
+            characterId: c.id, characterName: c.name, faction: c.faction.name,
+            hp: c.hp, wounds: me.wounds, ability: c.ability, winCondition: c.winCondition,
+            equipmentNames: me.equipment.map((e) => e.name).toList(), hideHp: false,
+          ),
+          const SizedBox(height: 10),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            style: TextButton.styleFrom(
+              backgroundColor: kBg2.withValues(alpha: 0.9),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10)),
+            child: Text('Fermer', style: cinzel(12, c: fc))),
+        ])),
+      ),
+    );
+  }
+}
+
+// Colonne d'actions — pas de scroll sur PC
+class _ActionColumn extends StatelessWidget {
+  final SoloController ctrl;
+  final SoloState s;
+  const _ActionColumn({required this.ctrl, required this.s});
+
+  @override
+  Widget build(BuildContext ctx) => AnimatedSwitcher(
+    duration: const Duration(milliseconds: 300),
+    transitionBuilder: (child, anim) => FadeTransition(
+      opacity: anim,
+      child: SlideTransition(
+        position: Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
+          .animate(anim),
+        child: child)),
+    child: KeyedSubtree(
+      key: ValueKey(s.phase.name + (s.isHuman ? 'h' : 'b')),
+      child: s.isHuman && !s.botThinking
+        ? _SoloActionPanel(ctrl: ctrl)
+        : _BotPanel(ctrl: ctrl),
+    ),
+  );
+}
+
+
+// ─── Carte personnage joueur (colonne gauche du panel droit) ──────────────────
+class _PlayerCardSide extends StatelessWidget {
+  final SoloController ctrl;
+  const _PlayerCardSide({required this.ctrl});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final s = ctrl.state!;
+    final me = s.players.firstWhere((p) => !p.isBot, orElse: () => s.players.first);
+    final c = me.character;
+    if (c == null) return const SizedBox.shrink();
+
+    final fc  = factionColor(c.faction.name);
+    final fbg = factionBg(c.faction.name);
+    final img = characterImagePath(c.id);
+    final woundColor = me.wounds >= 10 ? kRed : me.wounds >= 6 ? kGold : kGreen;
+
+    return Container(
+      color: kBg1,
+      child: Column(children: [
+        // Illustration
+        Expanded(
+          flex: 5,
+          child: Container(
+            decoration: BoxDecoration(
+              border: me.revealed ? Border.all(color: fc, width: 2) : null,
+            ),
+            child: img != null
+              ? Image.asset(img, fit: BoxFit.cover, width: double.infinity,
+                  errorBuilder: (_, __, ___) => _fallback(c, fbg))
+              : _fallback(c, fbg),
+          ),
+        ),
+        // Infos compactes
+        Container(
+          width: double.infinity,
+          color: kBg2,
+          padding: const EdgeInsets.all(8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Nom + faction
+            Text(c.name, style: cinzel(11, c: fc, fw: FontWeight.w900),
+              overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 3),
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: fc.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4)),
+                child: Text(
+                  c.faction.name == 'hunter' ? '🔵 HUNTER'
+                  : c.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE',
+                  style: cinzel(7, c: fc)),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            // Blessures
+            Row(children: [
+              Text('🗡', style: const TextStyle(fontSize: 12)),
+              const SizedBox(width: 4),
+              Text('${me.wounds} blessures',
+                style: body(11, c: woundColor, fw: FontWeight.w700)),
+            ]),
+            const SizedBox(height: 6),
+            // Objectif
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: kBg3, borderRadius: BorderRadius.circular(6)),
+              child: Column(children: [
+                Text('🏆 OBJECTIF', style: cinzel(7, c: kTextSub, ls: 1)),
+                const SizedBox(height: 2),
+                Text(c.winCondition, style: body(9, c: kGold2),
+                  textAlign: TextAlign.center, maxLines: 3,
+                  overflow: TextOverflow.ellipsis),
+              ]),
+            ),
+            // Équipements
+            if (me.equipment.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              ...me.equipment.map((e) => Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text('⚙️ ${e.name}', style: body(9, c: kTextSub),
+                  overflow: TextOverflow.ellipsis),
+              )),
+            ],
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _fallback(CharacterCard c, Color fbg) => Container(
+    color: fbg,
+    child: Center(child: Text(c.icon, style: const TextStyle(fontSize: 48))));
+}
+
+// ─────────────────────────────────────────────
+// CLASSEMENT BLESSURES (PV max cachés)
+// ─────────────────────────────────────────────
+class _HpLeaderboard extends StatelessWidget {
+  final SoloController ctrl;
+  const _HpLeaderboard({required this.ctrl});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final s = ctrl.state!;
+    // Trie par blessures croissantes (moins blessé = en tête)
+    final players = List<Player>.from(s.players);
+    players.sort((a, b) {
+      if (!a.alive && b.alive) return 1;
+      if (a.alive && !b.alive) return -1;
+      return a.wounds.compareTo(b.wounds);
+    });
+
+    return Container(
+      color: kBg1,
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('🗡 BLESSURES', style: cinzel(8, c: kGold, ls: 2)),
+        const SizedBox(height: 6),
+        Row(children: players.map((p) => Expanded(
+          child: _WoundsColumn(
+            player: p,
+            isCurrent: s.players.indexOf(p) == s.currentIdx,
+            isMe: !p.isBot,
+            isFlashing: s.woundFlashUid == p.uid,
+            isMarked: s.markedPlayerUid == p.uid,
+            onTap: (target) { _showOpponentCard(ctx, target); },
+          ),
+        )).toList()),
+      ]),
+    );
+  }
+
+  void _showOpponentCard(BuildContext ctx, Player p) {
+    final c = p.character;
+    if (c == null) return;
+    showDialog(
+      context: ctx,
+      barrierDismissible: true,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          CharacterCardFull(
+            characterId: c.id,
+            characterName: c.name,
+            faction: c.faction.name,
+            hp: c.hp,
+            wounds: p.wounds,
+            ability: c.ability,
+            winCondition: c.winCondition,
+            equipmentNames: p.equipment.map((e) => e.name).toList(),
+            hideHp: false, // révélé = on voit tout
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            style: TextButton.styleFrom(
+              backgroundColor: kBg2.withValues(alpha: 0.9),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            ),
+            child: Text('Fermer', style: cinzel(12, c: kGold)),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _WoundsColumn extends StatefulWidget {
+  final Player player;
+  final bool isCurrent, isMe, isFlashing, isMarked;
+  final void Function(Player)? onTap;
+  const _WoundsColumn({required this.player, required this.isCurrent,
+    required this.isMe, this.isFlashing = false, this.isMarked = false, this.onTap});
+  @override State<_WoundsColumn> createState() => _WoundsColumnState();
+}
+
+class _WoundsColumnState extends State<_WoundsColumn>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _flashAc;
+  late Animation<Color?> _flashColor;
+
+  @override
+  void initState() {
+    super.initState();
+    _flashAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 600));
+    _flashColor = ColorTween(begin: Colors.transparent, end: kRed.withValues(alpha: 0.5))
+        .animate(CurvedAnimation(parent: _flashAc, curve: Curves.easeOut));
+  }
+
+  @override
+  void didUpdateWidget(_WoundsColumn old) {
+    super.didUpdateWidget(old);
+    if (widget.isFlashing && !old.isFlashing) {
+      _flashAc.forward(from: 0).then((_) => _flashAc.reverse());
+    }
+  }
+
+  @override void dispose() { _flashAc.dispose(); super.dispose(); }
+
+  String _equipIcon(String effect) => switch (effect) {
+    'hache_berserker'    => '🪓',
+    'sniper'             => '🔫',
+    'bazooka'            => '💥',
+    'dague_voleur'       => '🗡',
+    'lance_lumiere'      => '✨',
+    'sainte_tunique'     => '🛡',
+    'tenebres_card_immune'=> '🔺',
+    'terrain9_immune'    => '👂',
+    'triple_dice_choice' => '⏱',
+    _                    => '⚔',
+  };
+
+  @override
+  Widget build(BuildContext ctx) {
+    final p     = widget.player;
+    final isMe  = widget.isMe;
+    final woundColor = p.wounds >= 10 ? kRed : p.wounds >= 6 ? kGold : kGreen;
+    // Blessures toujours visibles — mais PAS les PV max
+
+    return GestureDetector(
+      onTap: (!isMe && p.revealed && p.alive && widget.onTap != null)
+          ? () => widget.onTap!(p) : null,
+      child: AnimatedBuilder(
+        animation: _flashAc,
+        builder: (_, child) => Container(
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+          decoration: BoxDecoration(
+            color: widget.isFlashing
+              ? (_flashColor.value ?? Colors.transparent)
+              : (widget.isCurrent ? kGold.withValues(alpha: 0.1) : Colors.transparent),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: widget.isCurrent ? kGold.withValues(alpha: 0.5) : Colors.transparent)),
+          child: child,
+        ),
+        child: Opacity(
+          opacity: p.alive ? 1.0 : 0.35,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            // Cadre coloré selon faction si révélé
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              padding: EdgeInsets.all(p.revealed ? 2.5 : 0),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: p.revealed ? [
+                  BoxShadow(
+                    color: factionColor(p.character!.faction.name).withValues(alpha: 0.7),
+                    blurRadius: 10, spreadRadius: 1)
+                ] : null,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: p.revealed ? Border.all(
+                    color: factionColor(p.character!.faction.name), width: 2.5) : null,
+                ),
+                child: Stack(alignment: Alignment.topRight, children: [
+                  TokenWidget(tokenId: p.token, size: 30, isDead: !p.alive),
+                  if (isMe) const Positioned(top: 0, right: 0,
+                    child: Text('★', style: TextStyle(fontSize: 8, color: kGold))),
+                  if (!isMe && p.revealed && p.alive) const Positioned(top: 0, right: 0,
+                    child: Text('👁', style: TextStyle(fontSize: 8))),
+                  if (widget.isMarked) const Positioned(top: 0, left: 0,
+                    child: Text('💀', style: TextStyle(fontSize: 9))),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 3),
+            TweenAnimationBuilder<int>(
+              tween: IntTween(begin: 0, end: p.wounds),
+              duration: const Duration(milliseconds: 500),
+              builder: (_, val, __) => Text(
+                !p.alive ? '💀' : '🗡 $val',
+                style: TextStyle(
+                  fontSize: 10, fontFamily: 'Cinzel',
+                  fontWeight: FontWeight.w700,
+                  color: p.alive ? woundColor : kTextDim,
+                ),
+              ),
+            ),
+            // Équipements — icônes compactes
+            if (p.equipment.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 1,
+                  children: p.equipment.map((eq) => Tooltip(
+                    message: eq.name,
+                    child: Text(_equipIcon(eq.effect),
+                      style: const TextStyle(fontSize: 9)),
+                  )).toList(),
+                ),
+              ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// PLATEAU AVEC IMAGES ET ADJACENCES
+// ─────────────────────────────────────────────
+class _MiniBoard extends StatelessWidget {
+  final SoloController ctrl;
+  const _MiniBoard({required this.ctrl});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final s = ctrl.state!;
+    final human = s.players.firstWhere((p) => !p.isBot, orElse: () => s.current);
+    final humanZone = human.zoneIndex;
+
+    final playerData = s.players.where((p) => p.alive).map((p) => {
+      'zoneIndex': p.zoneIndex,
+      'tokenId': p.token,
+      'alive': p.alive,
+      'revealed': p.revealed,
+      'faction': p.character?.faction.name ?? '',
+    }).toList();
+
+    return Container(
+      color: kBg1,
+      padding: const EdgeInsets.fromLTRB(8, 2, 8, 4),
+      child: Column(children: [
+        Expanded(
+          child: LayoutBuilder(builder: (ctx, bc) {
+            // Position de la tuile zone6 dans la grille 3×2
+            final zone6idx = s.terrainLayout.indexWhere((t) => t.effect == 'lumiere');
+            final idx = zone6idx < 0 ? 4 : zone6idx;
+            const gap = 4.0; const cols = 3; const rows = 2;
+            final tileW = (bc.maxWidth  - gap * (cols - 1)) / cols;
+            final tileH = (bc.maxHeight - gap * (rows - 1)) / rows;
+            final col = idx % cols; final row = idx ~/ cols;
+            final tx = col * (tileW + gap);
+            final ty = row * (tileH + gap);
+
+            return Stack(children: [
+              GameBoard(
+                terrainLayout: s.terrainLayout,
+                players: playerData,
+                humanZoneIndex: humanZone,
+                showAdjacent: true,
+                trappedZones: {
+                  for (final e in s.trappedZones.entries)
+                    e.key: switch(e.value) {
+                      '2'            => '🦞',
+                      'freeze'       => '🥷',
+                      'ability_block'=> '🏕️',
+                      _              => '⚠️',
+                    }
+                },
+              ),
+              // Flammes Art'Cade sur la tuile Chapelle Sacrée
+              if (s.abilityOverlay == 'artcade_flames')
+                Positioned(
+                  left: tx, top: ty, width: tileW, height: tileH,
+                  child: ArtcadeFlameOverlay(onDone: () {
+                    ctrl.state!.abilityOverlay = null;
+                    ctrl.notifyListeners();
+                  }),
+                ),
+            ]);
+          }),
+        ),
+        const SizedBox(height: 2),
+        const AdjacencyLegend(),
+      ]),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// BOT PANEL
+// ─────────────────────────────────────────────
+class _BotPanel extends StatelessWidget {
+  final SoloController ctrl;
+  const _BotPanel({required this.ctrl});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final s = ctrl.state!;
+    final last = s.log.isNotEmpty ? s.log.last.message : '';
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      const SizedBox(height: 10),
+      TokenWidget(tokenId: s.current.token, size: 48),
+      const SizedBox(height: 4),
+      Text('${s.current.name} réfléchit…', style: cinzel(13, c: kTextSub)),
+      const SizedBox(height: 12),
+      const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 20),
+        child: LinearProgressIndicator(backgroundColor: kBord2, color: kGold, minHeight: 4),
+      ),
+      const SizedBox(height: 10),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Text(last, style: body(12, c: kTextSub),
+          textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+      ),
+      // Vision = secret total, Lumière/Ténèbres = visible
+      if (ctrl.state!.pendingCard != null && !ctrl.state!.pendingCardIsSecret)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: _CardWidget(card: ctrl.state!.pendingCard!),
+        )
+      else if (ctrl.state!.pendingCard != null && ctrl.state!.pendingCardIsSecret)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A0A2E).withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.purple.shade400, width: 1.5)),
+            child: Row(children: [
+              const Text('🔮', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 10),
+              Expanded(child: Text(
+                '${ctrl.state!.current.name} a pioché une carte Vision secrète.',
+                style: body(12, c: Colors.purple.shade200))),
+            ]),
+          ),
+        ),
+    ]);
+  }
+}
+
+// ─────────────────────────────────────────────
+// PANEL D'ACTION HUMAIN
+// CORRECTION principale : terrain9 géré INLINE sans modal
+// ─────────────────────────────────────────────
+class _SoloActionPanel extends StatefulWidget {
+  final SoloController ctrl;
+  const _SoloActionPanel({required this.ctrl});
+  @override State<_SoloActionPanel> createState() => _SoloActionPanelState();
+}
+
+class _SoloActionPanelState extends State<_SoloActionPanel> {
+  int? _d4, _d6, _sum;
+  int? _d4b, _d6b, _sum2; // Albane: second roll
+  bool _albaneChose = false; // true = lancer choisi, afficher zones si sum==7
+  int? _atkD4, _atkD6, _atkDmg;
+  String? _atkTarget;
+  // Pour terrain9 et steal : on montre les cibles inline
+  bool _showingTargetList = false;
+  String? _targetContext; // 'terrain9' | 'terrain_steal' | 'card' | 'ability'
+
+  SoloController get ctrl => widget.ctrl;
+  SoloState get s => ctrl.state!;
+
+  @override
+  Widget build(BuildContext ctx) => Column(mainAxisSize: MainAxisSize.min, children: [
+    Text(_phaseLabel(), style: cinzel(11, c: kGold, ls: 2)),
+    const SizedBox(height: 10),
+    ..._buildActions(ctx),
+  ]);
+
+  String _phaseLabel() => switch (s.phase.name) {
+    'ability'      => 'Capacité unique',
+    'move'         => 'Déplacement',
+    'zoneEffect'   => 'Effet du terrain',
+    'cardChoice'   => 'Choisir un deck',
+    'cardDrawn'    => 'Carte piochée',
+    'chooseTarget' => 'Choisir une cible',
+    'attack'       => 'Attaque',
+    _              => s.phase.name,
+  };
+
+  List<Widget> _buildActions(BuildContext ctx) {
+    final me = s.current;
+
+    // ── Choix de passif (Luc / Peintre) ──────────────────────
+    // ── Animation dé de pouvoir ──────────────────────────────
+    if (s.abilityDiceResult != null) {
+      return [_AbilityDiceRoll(
+        ctrl: ctrl,
+        result: Map<String,int>.from(s.abilityDiceResult!),
+      )];
+    }
+    if (s.pendingTargetAction == 'choose_passive') {
+      return _buildPassiveChoice(ctx);
+    }
+    // ── Choix Inès ────────────────────────────────────────────
+    if (s.pendingTargetAction == 'ines_choose') {
+      return _buildInesChoice(ctx);
+    }
+    // ── Mr Casino: pari pair/impair ───────────────────────────
+    if (s.pendingTargetAction == 'casino_bet') {
+      return [_CasinoWidget(ctrl: ctrl)];
+    }
+    // ── Fifi: molette dés ─────────────────────────────────────
+    if (s.pendingTargetAction == 'fifi_dice_picker') {
+      return [_FifiDiceWidget(ctrl: ctrl)];
+    }
+    // ── Captain Ricard: compteur sacrifice ───────────────────
+    if (s.pendingTargetAction == 'captain_ricard_counter') {
+      return [_CaptainRicardWidget(ctrl: ctrl)];
+    }
+    // ── Si on attend une cible via ability ──────────────────
+    // Ces pouvoirs ont besoin de choisir une cible → afficher liste directement
+    final abilityTargetActions = {
+      'ability_vladimir', 'ability_hong_yi', 'ability_travert',
+      'ability_carapatte', 'ability_elaia', 'casino_win',
+      'ability_julien', 'ability_jazzon', 'ability_marin_shadow',
+      'ability_enceinte', 'ability_ingenieur', 'terrain_damage9',
+      'ability_set5', 'ability_raph_heal', 'ability_tristan', 'ability_marin',
+      'corne_des_woods_victim', 'corne_des_woods', 'creation_marin', 'heal_other_d4',
+      'clemence_target', 'jeanne_mark_target', 'equip_choice',
+      'swap_zone_pick1', 'swap_zone_pick2', 'jeanne_mark_target',
+    };
+    if (abilityTargetActions.contains(s.pendingTargetAction)) {
+      return _buildInlineTargetList(ctx);
+    }
+    // ── Si on attend une cible (inline, sans modal) ──────────
+    if (_showingTargetList) {
+      return _buildInlineTargetList(ctx);
+    }
+
+    switch (s.phase) {
+      // ── CAPACITÉ ──────────────────────────────────────────
+      case GamePhase.ability:
+        // Clémence : afficher le widget de construction si le builder est actif
+        if (s.builderStep > 0 && s.builderStep < 3) {
+          return [_ClemenceBuilderWidget(ctrl: ctrl, step: s.builderStep,
+            offered: s.builderOffered, chosen: s.builderEffect1)];
+        }
+        // Jeanne étape 2 : choisir la récompense secrète
+        if (s.jeanneStep == 2 && s.builderOffered.isNotEmpty) {
+          return [_JeanneRewardWidget(ctrl: ctrl, rewards: s.builderOffered)];
+        }
+        final c = me.character!;
+        final freq = c.abilityRepeatable ? '🔄 Chaque tour' : '🔒 1 fois par partie';
+        // Passifs auto-activés (pas besoin d'appuyer)
+        final autoPassives = {'heal2_same_hunter','heal_per_equip_eot',
+          'last_hunter_buff','no_attack_buff','heal_on_same_terrain','death_heal_allies',
+          'lumiere_copy','carla_passive','scott_passive','gege_passive','baleine_passive',
+          'fifi_ete_passive','allied_invulnerable','infinite_range','revealed_plus1_dmg',
+          'tenebres_heal_instead','attack_discard_equip','rat_passive','reduce_all_by1',
+          'zero_wound_steal','slime_passive','heal1_on_own_attack','remi_canada_passive',
+          'mathieu_passive','third_attack_bonus','counter_roll_cancel','draw_on_hit_dual_target',
+          'chameleon_passive','counter_attack_passive','zero_wound_power','builder_power',
+          'prophete_mark'};
+        final isAutoPassive = me.revealed && autoPassives.contains(c.abilityEffect);
+        return [
+          // Indicateurs d'état spéciaux Shadow
+          if (s.fifiGoldenTurn)
+            _StatusBanner('🍀 Tour parfait actif — dés au maximum !', kGreen),
+          if (s.raphShadowMultiAtk)
+            _StatusBanner('⚔️ Mode multi-attaque actif (subis autant que tu infliges)', kRed),
+          if (s.ninjaExtraTurns > 0)
+            _StatusBanner('🥷 ${s.ninjaExtraTurns} tours bonus restants', kGold),
+          if (s.fifiGoldenTurn)
+            _StatusBanner('🍀 Tour parfait actif — choisissez vos dés !', kGreen),
+          // Passif auto
+          if (isAutoPassive)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: kGreen.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: kGreen.withValues(alpha: 0.4))),
+              child: Row(children: [
+                const Text('✅', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Passif actif automatiquement — aucune action requise',
+                  style: body(11, c: kGreen))),
+              ]),
+            ),
+          // Info capacité
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: surfaceDecor(),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Text('⚡ CAPACITÉ UNIQUE', style: cinzel(9, c: kGold, ls: 1)),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: c.abilityRepeatable
+                      ? kGreen.withValues(alpha: 0.2) : kGold.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Text(freq, style: body(9,
+                    c: c.abilityRepeatable ? kGreen : kGold)),
+                ),
+              ]),
+              const SizedBox(height: 4),
+              Text(c.ability, style: body(12)),
+            ]),
+          ),
+          // Équipements actifs
+          if (me.equipment.isNotEmpty)
+            _EquipmentPanel(player: me),
+          if (!me.revealed)
+            BHButton(label: '🃏 Se révéler',
+              onTap: () {
+                if (me.character!.abilityEffect == 'chameleon_passive') {
+                  _showJasonDisguiseChoice();
+                  return;
+                }
+                ctrl.humanReveal(); setState(() {});
+              }),
+          if (me.revealed && !me.abilityUsed && !isAutoPassive)
+            BHButton(label: '⚡ Activer ma capacité',
+              onTap: () => _handleAbility()),
+          if (me.revealed && me.abilityUsed && !c.abilityRepeatable)
+            Padding(padding: const EdgeInsets.only(bottom: 8),
+              child: Text('Capacité utilisée pour cette partie.',
+                style: body(12, c: kTextSub))),
+          BHButton(label: 'Passer → Déplacement',
+            onTap: () { ctrl.humanSkipAbility(); setState(() {}); }, outlined: true),
+        ];
+
+      // ── DÉPLACEMENT ───────────────────────────────────────
+      case GamePhase.move:
+        final hasBoussole = me.equipment.any((e) => e.effect == 'double_dice_choice');
+        final hasDoubleMove = (s.hasDoubleMove && me.revealed || hasBoussole) && !_albaneChose;
+        final isDemiSel = me.character?.abilityEffect == 'stay_retrigger_terrain' && me.revealed;
+        final isVoiture = (me.character?.abilityEffect == 'swap_position' && me.revealed)
+            || me.equipment.any((e) => e.effect == 'swap_position_equip');
+        final isRichard = me.character?.abilityEffect == 'swap_terrains' && me.revealed;
+        return [
+          // Options spéciales avant de lancer les dés
+          if (isDemiSel && _sum == null)
+            BHButton(label: '🧂 Rester sur place (réactive terrain)',
+              onTap: () { ctrl.humanUseAbility(); ctrl.humanSkipAbility(); setState(() {}); }),
+          if (isVoiture && _sum == null)
+            BHButton(label: '🚗 Échanger de place avec un joueur',
+              onTap: () => setState(() { _showingTargetList = true; _targetContext = 'voiture'; })),
+          if (isRichard && _sum == null)
+            BHButton(label: '🔀 Échanger 2 terrains au lieu de bouger',
+              onTap: () => setState(() { _showingTargetList = true; _targetContext = 'richard'; })),
+          if (_sum == null)
+            if (s.fifiGoldenTurn && s.fifiMoveResult > 0)
+              BHButton(label: '🍀 Fifi — Déplacer (résultat: ${s.fifiMoveResult})', gold: true,
+                onTap: () {
+                  setState(() { _d4 = s.fifiMoveD4; _d6 = s.fifiMoveD6; _sum = s.fifiMoveResult; });
+                })
+            else if (hasDoubleMove)
+              // Albane / Boussole : lancer les deux d'un coup
+              BHButton(
+                label: hasBoussole ? '🧭 Boussole — lancer 2 dés (choisir le meilleur)' : '⏱ Albane — lancer 2 dés (choisir le meilleur)',
+                gold: true,
+                onTap: () {
+                  final r1 = GameEngine.instance.rollMove();
+                  final r2 = GameEngine.instance.rollMove();
+                  setState(() {
+                    _d4 = r1['d4'] as int; _d6 = r1['d6'] as int; _sum = r1['sum'] as int;
+                    _d4b = r2['d4'] as int; _d6b = r2['d6'] as int; _sum2 = r2['sum'] as int;
+                  });
+                })
+            else
+              BHButton(label: '🎲 Lancer les dés (d4 + d6)', onTap: _rollDice)
+          else if (_sum2 != null) ...[
+            // Albane / Boussole : choisir entre les 2 résultats
+            Row(children: [
+              Expanded(child: _DiceWidget(d4: _d4!, d6: _d6!, sum: _sum!, isAttack: false)),
+              const SizedBox(width: 8),
+              Expanded(child: _DiceWidget(d4: _d4b!, d6: _d6b!, sum: _sum2!, isAttack: false)),
+            ]),
+            const SizedBox(height: 8),
+            BHButton(label: '✅ Choisir lancer 1 ($_sum)', gold: true,
+              onTap: () {
+                setState(() { _sum2 = null; _d4b = null; _d6b = null; _albaneChose = true; });
+                if (_sum != 7) _applyMove(_sum!);
+              }),
+            BHButton(label: '✅ Choisir lancer 2 ($_sum2)', gold: true,
+              onTap: () {
+                final chosen = _sum2!;
+                setState(() { _sum = chosen; _sum2 = null; _d4b = null; _d6b = null; _albaneChose = true; });
+                if (chosen != 7) _applyMove(chosen);
+              }),
+          ] else ...[
+            _DiceWidget(d4: _d4!, d6: _d6!, sum: _sum!, isAttack: false),
+            const SizedBox(height: 10),
+            if (_sum == 7) ..._buildZoneChoices()
+            else _buildAutoMove(),
+          ],
+        ];
+
+      // ── CHOIX DE CARTE (terrain 4-5 : Marché des Ombres) ─────
+      case GamePhase.cardChoice:
+        return [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: surfaceDecor(),
+            child: Column(children: [
+              Text('🏪 Marché des Ombres', style: cinzel(14, c: kGold2)),
+              const SizedBox(height: 4),
+              Text('Choisissez le type de carte à piocher', style: body(12, c: kTextSub)),
+            ]),
+          ),
+          const SizedBox(height: 8),
+          BHButton(label: '🔵 Carte Lumière',
+            onTap: () { ctrl.humanDrawCard(DeckType.lumiere); setState(() {}); }),
+          BHButton(label: '🔴 Carte Ténèbres',
+            onTap: () { ctrl.humanDrawCard(DeckType.tenebres); setState(() {}); }),
+          BHButton(label: '🔮 Carte Vision',
+            onTap: () { ctrl.humanDrawCard(DeckType.vision); setState(() {}); }),
+        ];
+
+      // ── EFFET TERRAIN ─────────────────────────────────────
+      case GamePhase.zoneEffect:
+        final terrain = ctrl.terrainOf(me);
+        return [
+          if (terrain != null) Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(10),
+            decoration: surfaceDecor(),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${terrain.icon} ${terrain.name}', style: cinzel(13, c: kGold2)),
+              const SizedBox(height: 3),
+              Text(terrain.desc, style: body(12, c: kTextSub)),
+            ]),
+          ),
+          // CORRECTION : terrain9 et steal déclenchent la liste inline
+          if (terrain?.effect == 'choice') ...[
+            BHButton(label: '✨ Lumière',
+              onTap: () { ctrl.humanDrawCard(DeckType.lumiere); setState(() {}); }),
+            BHButton(label: '🌑 Ténèbres',
+              onTap: () { ctrl.humanDrawCard(DeckType.tenebres); setState(() {}); }),
+            BHButton(label: '🔮 Vision',
+              onTap: () { ctrl.humanDrawCard(DeckType.vision); setState(() {}); }),
+          ] else if (terrain?.effect == 'damage9') ...[
+            BHButton(label: '🏹 Infliger 2 dégâts → choisir une cible',
+              onTap: () {
+                // Ne PAS appeler humanApplyTerrainEffect() ici — ça change la phase
+                // On set directement pendingTargetAction dans le state
+                ctrl.state!.pendingTargetAction = 'terrain_damage9';
+                setState(() { _showingTargetList = true; _targetContext = 'terrain9'; });
+              }),
+            BHButton(label: 'Ignorer → Attaquer',
+              onTap: () { ctrl.humanSkipTerrain(); setState(() {}); }, outlined: true),
+          ] else if (terrain?.effect == 'steal') ...[
+            BHButton(label: '🗼 Voler un équipement → choisir une cible',
+              onTap: () => setState(() {
+                _showingTargetList = true;
+                _targetContext = 'terrain_steal';
+              })),
+            BHButton(label: 'Ignorer → Attaquer',
+              onTap: () { ctrl.humanSkipTerrain(); setState(() {}); }, outlined: true),
+          ] else ...[
+            BHButton(label: 'Appliquer l\'effet',
+              onTap: () { ctrl.humanApplyTerrainEffect(); setState(() {}); }),
+            BHButton(label: 'Ignorer → Attaquer',
+              onTap: () { ctrl.humanSkipTerrain(); setState(() {}); }, outlined: true),
+          ],
+        ];
+
+      // ── CARTE PIOCHÉE ─────────────────────────────────────
+      case GamePhase.cardDrawn:
+        final card = s.pendingCard;
+        if (card == null) return [];
+        final isVision = card.deck == DeckType.vision;
+        return [
+          if (isVision)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A0A2E).withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.purple.shade300, width: 1.5)),
+              child: Row(children: [
+                const Text('🔮', style: TextStyle(fontSize: 16)),
+                const SizedBox(width: 8),
+                Text('Carte Vision — secrète, visible uniquement par toi',
+                  style: body(11, c: Colors.purple.shade200)),
+              ]),
+            ),
+          _CardWidget(card: card),
+          const SizedBox(height: 10),
+          BHButton(label: '✅ Appliquer l\'effet',
+            onTap: () => _applyCard()),
+          // Pas de bouton "Ignorer" — une carte piochée doit être appliquée
+        ];
+
+      // ── CHOOSE TARGET (via controller state) ──────────────
+      case GamePhase.chooseTarget:
+        // Vérifier d'abord les widgets spéciaux avant la liste de cibles
+        if (s.pendingTargetAction == 'casino_bet') return [_CasinoWidget(ctrl: ctrl)];
+        if (s.pendingTargetAction == 'fifi_dice_picker') return [_FifiDiceWidget(ctrl: ctrl)];
+        if (s.pendingTargetAction == 'captain_ricard_counter') return [_CaptainRicardWidget(ctrl: ctrl)];
+        return _buildInlineTargetList(ctx);
+
+      // ── ATTAQUE ───────────────────────────────────────────
+      case GamePhase.attack:
+        final targets = s.raphShadowMultiAtk
+          ? ctrl.humanAttackTargets
+          : ctrl.humanAttackTargets;
+        final alreadyAttacked = s.hasAttackedThisTurn && !s.raphShadowMultiAtk;
+        final hasHache = me.hache && me.equipment.any((e) => e.effect == 'hache_berserker');
+        final mustAttack = hasHache && !s.hasAttackedThisTurn && targets.isNotEmpty;
+        final isMathieu = me.character?.abilityEffect == 'third_attack_bonus';
+        return [
+          // Compteur Mathieu
+          if (isMathieu && !alreadyAttacked)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: kBg3, borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: me.attackCount >= 2 ? kRed : kGold.withValues(alpha: 0.4))),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text('⚔️ Attaques : ', style: body(11, c: kTextSub)),
+                ...List.generate(3, (i) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: Icon(
+                    i < (me.attackCount % 3) ? Icons.circle : Icons.circle_outlined,
+                    size: 14,
+                    color: me.attackCount % 3 >= 2 && i == 2 ? kRed : kGold),
+                )),
+                if (me.attackCount % 3 >= 2)
+                  Text('  ⚡ Prochaine = +3 dmg!', style: body(11, c: kRed)),
+              ]),
+            ),
+          // Équipements actifs
+          if (me.equipment.isNotEmpty && !alreadyAttacked)
+            _EquipmentPanel(player: me),
+          if (alreadyAttacked)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: kBg3, borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: kBord2)),
+              child: Row(children: [
+                const Text('⚔️', style: TextStyle(fontSize: 16)),
+                const SizedBox(width: 8),
+                Text('Tu as déjà attaqué ce tour.', style: body(13, c: kTextSub)),
+              ]),
+            )
+          else if (targets.isEmpty)
+            Padding(padding: const EdgeInsets.only(bottom: 8),
+              child: Text('Aucune cible accessible.', style: body(13, c: kTextSub))),
+          if (!alreadyAttacked && _atkDmg == null) ...[
+            // Hache info
+            if (hasHache)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: kRed.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: kRed.withValues(alpha: 0.4))),
+                child: Row(children: [
+                  const Text('🪓', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                    'Hache du Berserker — tu DOIS attaquer. Dés : d4 seulement.',
+                    style: body(11, c: kRed))),
+                ]),
+              ),
+            // Bazooka: affiche les cibles à portée (info) + bouton unique pour tout attaquer
+            if (me.bazooka) ...[
+              if (targets.isNotEmpty) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: kRed.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: kRed.withValues(alpha: 0.3))),
+                  child: Row(children: [
+                    const Text('💥', style: TextStyle(fontSize: 13)),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(
+                      'Bazooka — ${targets.length} joueur${targets.length > 1 ? "s" : ""} à portée : ${targets.map((t) => t.name).join(", ")}',
+                      style: body(11, c: kRed))),
+                  ]),
+                ),
+                BHButton(
+                  label: '💥 Attaquer (tous les joueurs à portée)',
+                  danger: true,
+                  onTap: () {
+                    audio.playDice();
+                    final r = GameEngine.instance.rollAttack();
+                    setState(() { _atkD4 = (r['d4'] as num).toInt(); _atkD6 = (r['d6'] as num).toInt(); _atkDmg = (r['sum'] as num).toInt(); _atkTarget = '__bazooka__'; });
+                  }),
+              ] else
+                Padding(padding: const EdgeInsets.only(bottom: 8),
+                  child: Text('Aucune cible à portée.', style: body(13, c: kTextSub))),
+            ],
+            // Attaque normale (sans bazooka)
+            if (!me.bazooka)
+              ...targets.map((t) => _TargetBtn(
+                player: t, danger: true,
+                prefix: hasHache ? '🪓 Attaquer ' : 'Attaquer ',
+                onTap: () => hasHache ? _startHacheAtk(t.uid) : _startAtk(t.uid),
+              )),
+          ] else if (!alreadyAttacked) ...[
+            _DiceWidget(d4: _atkD4!, d6: _atkD6!, sum: _atkDmg!, isAttack: true),
+            const SizedBox(height: 10),
+            // Pas de bouton Annuler — une attaque lancée ne peut pas être annulée
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: kRed.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: kRed.withValues(alpha: 0.3))),
+              child: Row(children: [
+                const Text('⚠️', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  'Dés lancés — tu dois confirmer l\'attaque.',
+                  style: body(11, c: kRed))),
+              ]),
+            ),
+            BHButton(label: '💥 Confirmer l\'attaque', danger: true, onTap: _confirmAtk),
+          ],
+          const SizedBox(height: 4),
+          if (mustAttack)
+            Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: kRed.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: kRed.withValues(alpha: 0.5))),
+              child: Row(children: [
+                const Text('🪓', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Tu DOIS attaquer avant de terminer le tour !',
+                  style: body(11, c: kRed))),
+              ]),
+            )
+          else
+            _PulseButton(
+              label: 'Terminer le tour →',
+              onTap: () { ctrl.humanEndTurn(); setState(() {}); },
+            ),
+        ];
+
+      default: return [];
+    }
+  }
+
+  // ── Liste de cibles INLINE (correction freeze terrain9) ──
+  List<Widget> _buildInlineTargetList(BuildContext ctx) {
+    final me = s.current;
+    final context = _targetContext ?? s.pendingTargetAction ?? '';
+    bool needsEquip = context.contains('steal');
+
+    var targets = s.players.where((p) => p.alive && p.uid != me.uid).toList();
+    if (needsEquip) targets = targets.where((p) => p.equipment.isNotEmpty).toList();
+    // Clémence peut se cibler elle-même
+    if (context == 'clemence_target') {
+      targets = s.players.where((p) => p.alive).toList();
+    }
+    // Terrain 9 : peut aussi se cibler soi-même
+    if (context == 'terrain9') {
+      targets = s.players.where((p) => p.alive).toList();
+    }
+
+    // Richard II : sélection d'une zone à échanger avec la sienne
+    if (context == 'swap_zone_pick1' || context == 'swap_zone_pick2') {
+      final myZoneIdx = s.current.zoneIndex;
+      return [
+        Container(padding: const EdgeInsets.all(10), decoration: surfaceDecor(),
+          child: Text('👑 Richard II — Choisissez la zone à échanger avec la vôtre',
+            style: cinzel(12, c: kGold2))),
+        const SizedBox(height: 8),
+        ...s.terrainLayout.asMap().entries.where((e) => e.key != myZoneIdx).map((entry) {
+          final idx = entry.key;
+          final terrain = entry.value;
+          final playersHere = s.players.where((p) => p.alive && p.zoneIndex == idx).map((p) => p.token).join(' ');
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: BHButton(
+              label: 'Zone ${idx + 1} — ${terrain.icon} ${terrain.name}${playersHere.isNotEmpty ? "  ($playersHere)" : ""}',
+              onTap: () {
+                setState(() { _showingTargetList = false; _targetContext = null; });
+                ctrl.humanChooseSwapZone(idx);
+              },
+            ),
+          );
+        }),
+      ];
+    }
+
+    // Choix d'équipement (pince_attrape / peau_banane avec plusieurs items)
+    if (context == 'equip_choice') {
+      final mode = s.equipChoiceMode ?? 'steal';
+      final srcUid = mode == 'steal' ? s.equipChoiceTargetUid : s.equipChoiceActorUid;
+      final src = srcUid != null ? s.players.firstWhere((p) => p.uid == srcUid, orElse: () => s.current) : s.current;
+      final equipList = src.equipment;
+      final title2 = mode == 'steal' ? '🗡 Choisissez l\'équipement à voler' : '🍌 Choisissez l\'équipement à donner';
+      return [
+        Container(padding: const EdgeInsets.all(10), decoration: surfaceDecor(),
+          child: Text(title2, style: cinzel(12, c: kGold2))),
+        const SizedBox(height: 8),
+        ...equipList.asMap().entries.map((entry) => BHButton(
+          label: entry.value.name,
+          onTap: () { setState(() { _showingTargetList = false; _targetContext = null; }); ctrl.humanResolveEquipChoice(entry.key); },
+        )),
+      ];
+    }
+
+    // Vlad: uniquement les joueurs adjacents
+    if (context == 'ability_vladimir') {
+      const adjMap = [[1,5],[0,2],[1,3],[2,4],[3,5],[4,0]];
+      final myZone = me.zoneIndex.clamp(0, 5);
+      final adjZones = adjMap[myZone];
+      targets = targets.where((p) =>
+        p.zoneIndex == me.zoneIndex || adjZones.contains(p.zoneIndex)
+      ).toList();
+    }
+
+    String title = 'Choisir une cible';
+    if (context == 'terrain9')            title = '🏹 Qui infliger 2 dégâts ?';
+    if (context.contains('steal'))        title = '🗼 Voler l\'équipement de qui ?';
+    if (context.contains('heal'))         title = '💚 Qui soigner ?';
+    if (context == 'ability_vladimir')    title = '💨 Vlad — Joueur adjacent (D4)';
+    if (context == 'ability_travert')     title = '🎲 Travert — Choisissez une cible (D6) — UNIQUE';
+    if (context == 'ability_hong_yi')     title = '⚡ Hong Yi — Cible (8 mutuels)';
+    if (context == 'ability_carapatte')   title = '🐢 Carapatte — Cible (D6 lifesteal)';
+    if (context == 'ability_set5')        title = '📍 Marion — Choisissez un joueur (placé à 5 blessures)';
+    if (context == 'ability_raph_heal')   title = '🥷 Raph (Soleil Levant) — Choisissez qui soigner de 3 (vous subissez 2)';
+    if (context == 'ability_tristan')     title = '🔄 Tristan — Choisissez un joueur (échange un équipement au hasard)';
+    if (context == 'heal_other_d4')       title = '🍓 Fraise Tagada — Choisissez qui soigner (D4)';
+    if (context == 'creation_marin')      title = '🩸 Création de Marin — Choisissez une cible';
+    if (context == 'corne_des_woods')     title = '🌳 Corne des Woods — Qui doit attaquer ?';
+    if (context == 'corne_des_woods_victim') title = '🌳 Corne des Woods — Choisissez la victime';
+    if (context == 'clemence_target')        title = '🎨 Clémence — Choisissez une cible';
+    if (context == 'jeanne_mark_target')     title = '🔮 Jeanne — Choisissez qui marquer';
+    if (context == 'jeanne_mark_target')     title = '🔮 Jeanne — Marquez un joueur';
+    if (context == 'ability_julien')      title = '😈 Julien — Choisissez une cible (2 dégâts)';
+    if (context == 'ability_marin')       title = '🗡️ Marin — Choisissez une cible (3 dégâts + dague)';
+    if (context == 'ability_hong_yi')     title = '⚡ Hong Yi — Cible (9 blessures mutuelles) — UNIQUE';
+    if (context == 'casino_win')          title = '🎰 Mr Casino — Infligez 3 blessures à qui ?';
+    if (context == 'swap_zone_pick1')     title = '👑 Richard II — Zone 1';
+    if (context == 'swap_zone_pick2')     title = '👑 Richard II — Zone 2';
+
+    return [
+      Container(
+        padding: const EdgeInsets.all(10),
+        decoration: surfaceDecor(),
+        child: Text(title, style: cinzel(12, c: kGold2)),
+      ),
+      const SizedBox(height: 8),
+      if (targets.isEmpty)
+        Padding(padding: const EdgeInsets.only(bottom: 8),
+          child: Text('Aucune cible valide.', style: body(13, c: kTextSub)))
+      else
+        ...targets.map((t) => _TargetBtn(
+          player: t,
+          onTap: () => _resolveTarget(t),
+        )),
+      BHButton(label: 'Annuler',  outlined: true,
+        onTap: () {
+          // Pour les capacités, revenir à la phase ability
+          final isAbility = context.startsWith('ability_');
+          if (isAbility) {
+            ctrl.state!.pendingTargetAction = null;
+            ctrl.state!.phase = GamePhase.ability;
+            ctrl.notifyListeners();
+          } else if (_targetContext != null) {
+            ctrl.humanSkipTerrain();
+          }
+          setState(() { _showingTargetList = false; _targetContext = null; });
+        }),
+    ];
+  }
+
+
+  // ── Choix passif Luc / Peintre ───────────────────────────────────────────
+  List<Widget> _buildPassiveChoice(BuildContext ctx) {
+    void choose(String passive, String label) {
+      ctrl.state!.lucPassive = passive;
+      ctrl.state!.pendingTargetAction = null;
+      ctrl.humanSkipAbility();
+      setState(() {});
+    }
+    return [
+      Container(padding: const EdgeInsets.all(10), decoration: surfaceDecor(),
+        child: Text('Choisissez votre forme passive :', style: cinzel(12, c: kGold))),
+      const SizedBox(height: 8),
+      BHButton(label: '💚 Soignez 1 blessure au début de chaque tour',
+        onTap: () => choose('heal1_per_turn', '+1 soin/tour')),
+      BHButton(label: '⚔️ +1 blessure sur chaque attaque',
+        onTap: () => choose('plus1_dmg', '+1 dégât/attaque')),
+      BHButton(label: '🃏 Piochez 1 carte supplémentaire',
+        onTap: () => choose('extra_card', '+1 carte/pioche')),
+    ];
+  }
+
+  // ── Choix passif Inès ─────────────────────────────────────────────────────
+  List<Widget> _buildInesChoice(BuildContext ctx) {
+    void choose(String passive, String label) {
+      ctrl.state!.current.copiedEffect = passive;
+      ctrl.state!.pendingTargetAction = null;
+      setState(() {});
+    }
+    return [
+      Container(padding: const EdgeInsets.all(10), decoration: surfaceDecor(),
+        child: Text('Inès — choisissez votre bonus :', style: cinzel(12, c: kGold))),
+      const SizedBox(height: 8),
+      BHButton(label: '🛡️ Subir 1 blessure de moins',
+        onTap: () => choose('ines_minus1_recv', '−1 reçu')),
+      BHButton(label: '⚔️ Infliger 1 blessure de plus',
+        onTap: () => choose('ines_plus1_atk', '+1 infligé')),
+    ];
+  }
+
+  void _resolveTarget(Player target) {
+    // Capturer le context AVANT setState (qui efface _targetContext)
+    final context = _targetContext ?? s.pendingTargetAction ?? '';
+    // Effacer l'état local SEULEMENT après avoir capturé le context
+    setState(() { _showingTargetList = false; _targetContext = null; });
+    // Ne PAS effacer pendingTargetAction ici — chaque branche le fait elle-même
+
+    if (context == 'terrain9') {
+      ctrl.state!.pendingTargetAction = 'terrain_damage9';
+      ctrl.humanApplyTerrainTarget(target.uid);
+    } else if (context == 'terrain_steal') {
+      ctrl.state!.pendingTargetAction = 'terrain_steal';
+      ctrl.humanApplyTerrainTarget(target.uid);
+    } else if (context == 'casino_win') {
+      ctrl.state!.pendingTargetAction = null;
+      ctrl.applyDamageToPlayer(target.uid, 3);
+      ctrl.logAbility('🎰 Mr Casino inflige 3 blessures à ${target.name} !');
+      ctrl.state!.phase = GamePhase.move;
+      ctrl.notifyListeners();
+    } else if (context == 'voiture') {
+      // Voiture de Clem (capacité) ou Portail du Nether (équipement) : échange de position
+      final p = ctrl.state!.current;
+      final tmp = p.zoneIndex; p.zoneIndex = target.zoneIndex; target.zoneIndex = tmp;
+      p.abilityUsed = true;
+      ctrl.logAbility('🚗 ${p.name} échange sa place avec ${target.name}');
+      ctrl.state!.skipMovement = true;
+      ctrl.state!.phase = GamePhase.zoneEffect;
+      ctrl.notifyListeners();
+    } else if (context == 'jeanne_mark_target') {
+      ctrl.humanChooseTarget(target.uid);
+    } else if (context == 'clemence_target') {
+      ctrl.humanChooseTarget(target.uid);
+    } else if (context == 'jeanne_mark_target') {
+      ctrl.jeanneChooseTarget(target.uid);
+    } else if (context.startsWith('ability_')) {
+      // Pour les abilities, pendingTargetAction est encore valide
+      // car humanUseAbility lit l'effet depuis le character, pas le pendingTargetAction
+      ctrl.humanUseAbility(target: target);
+    } else {
+      ctrl.humanApplyCard(target: target);
+    }
+    setState(() {});
+  }
+
+  // ── Helpers ──────────────────────────────────────────────
+
+  void _applyMove(int sum) {
+    // Applique le mouvement avec le résultat choisi
+    const m = {2: 0, 3: 0, 4: 1, 5: 1, 6: 2, 8: 3, 9: 4, 10: 5};
+    if (sum == 7) {
+      // Stay in choose mode — handled by _buildZoneChoices
+      setState(() { _sum = 7; _sum2 = null; });
+      return;
+    }
+    final tid = m[sum];
+    int idx = tid != null ? s.terrainLayout.indexWhere((t) => t.id == tid) : -1;
+    if (idx == -1 || idx == s.current.zoneIndex) idx = (s.current.zoneIndex + 1) % 6;
+    ctrl.humanMove(idx);
+    // Augustin: se soigne de 2 si 7
+    if (sum == 7 && s.current.character?.abilityEffect == 'heal_on_same_terrain' && s.current.revealed) {
+      ctrl.state!.players[ctrl.state!.currentIdx].wounds =
+        (ctrl.state!.players[ctrl.state!.currentIdx].wounds - 2).clamp(0, 999);
+    }
+    setState(() { _d4 = _d6 = _sum = null; _sum2 = null; _d4b = null; _d6b = null; _albaneChose = false; });
+  }
+
+  void _rollDice() {
+    audio.playDice();
+    final r = GameEngine.instance.rollMove();
+    setState(() { _d4 = r['d4']; _d6 = r['d6']; _sum = r['sum']; });
+    // Augustin: passif sur résultat 7
+    if (r['sum'] == 7 && s.current.character?.abilityEffect == 'heal_on_same_terrain' && s.current.revealed) {
+      ctrl.healPlayer(s.current.uid, 2);
+    }
+  }
+
+  List<Widget> _buildZoneChoices() => List.generate(6, (i) {
+    if (i == s.current.zoneIndex) return const SizedBox.shrink();
+    final t = s.terrainLayout[i];
+    return BHButton(
+      label: '${t.icon} ${t.num} — ${t.name}',
+      onTap: () { ctrl.humanMove(i); setState(() { _d4 = _d6 = _sum = null; _sum2 = null; _d4b = null; _d6b = null; }); },
+    );
+  });
+
+  Widget _buildAutoMove() {
+    const m = {2: 0, 3: 0, 4: 1, 5: 1, 6: 2, 8: 3, 9: 4, 10: 5};
+    final tid = m[_sum];
+    int idx = tid != null ? s.terrainLayout.indexWhere((t) => t.id == tid) : -1;
+    if (idx == -1 || idx == s.current.zoneIndex) idx = (s.current.zoneIndex + 1) % 6;
+    final t = s.terrainLayout[idx];
+    return BHButton(
+      label: '→ ${t.icon} ${t.name}  (${t.desc})',
+      onTap: () { ctrl.humanMove(idx); setState(() { _d4 = _d6 = _sum = null; _sum2 = null; _d4b = null; _d6b = null; }); },
+    );
+  }
+
+  void _showJulienChoice() {
+    showDialog(context: context, builder: (dctx) => AlertDialog(
+      backgroundColor: kBg2,
+      title: Text('😈 Julien', style: cinzel(16, c: kGold2)),
+      content: Text('Infliger 2 blessures à un joueur, ou se soigner de 1 blessure ?',
+        style: body(13)),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(dctx);
+            setState(() { _showingTargetList = true; _targetContext = 'ability_julien'; });
+          },
+          child: Text('⚔️ Attaquer', style: cinzel(12, c: kRed)),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(dctx);
+            ctrl.humanUseAbility(); ctrl.humanSkipAbility(); setState(() {});
+          },
+          child: Text('💚 Se soigner', style: cinzel(12, c: kGreen)),
+        ),
+      ],
+    ));
+  }
+
+  void _showJasonDisguiseChoice() {
+    final hunters = s.players
+        .where((p) => p.character?.faction == Faction.hunter && p.character != null)
+        .map((p) => p.character!)
+        .toList();
+    final shadows = s.players
+        .where((p) => p.character?.faction == Faction.shadow && p.character != null)
+        .map((p) => p.character!)
+        .toList();
+    if (hunters.isEmpty || shadows.isEmpty) {
+      ctrl.humanReveal(); setState(() {});
+      return;
+    }
+    final hunterPick = hunters[Random().nextInt(hunters.length)];
+    final shadowPick = shadows[Random().nextInt(shadows.length)];
+    showDialog(context: context, builder: (dctx) => AlertDialog(
+      backgroundColor: kBg2,
+      title: Text('🦎 Jason — Choisissez votre déguisement', style: cinzel(15, c: kGold2)),
+      content: Text('Les autres joueurs verront ce personnage à la place du vôtre.',
+        style: body(12, c: kTextSub)),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(dctx);
+            ctrl.humanRevealAsDisguise(hunterPick); setState(() {});
+          },
+          child: Text('${hunterPick.icon} ${hunterPick.name} (Hunter)', style: cinzel(12, c: kGold)),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(dctx);
+            ctrl.humanRevealAsDisguise(shadowPick); setState(() {});
+          },
+          child: Text('${shadowPick.icon} ${shadowPick.name} (Shadow)', style: cinzel(12, c: kRed)),
+        ),
+      ],
+    ));
+  }
+
+  void _handleAbility() {
+    final me = s.current;
+    // Julien : choix explicite entre attaquer une cible ou se soigner
+    if (me.character!.abilityEffect == 'damage2_or_heal1') {
+      _showJulienChoice();
+      return;
+    }
+    final needsTarget = ['damage2_choice', 'damage2_then_heal3', 'set_wounds5', 'steal_equip_choice', 'swap_equipment', 'damage3_give_dague']
+        .contains(me.character!.abilityEffect);
+    // Peio / Élise : déclenchent déjà leur propre transition de phase (pioche
+    // de carte / effet de terrain) — ne PAS appeler humanSkipAbility() après,
+    // ça écraserait la phase qu'elles viennent de définir.
+    if (me.character!.abilityEffect == 'self1_trigger_terrain' ||
+        me.character!.abilityEffect == 'draw_light') {
+      ctrl.humanUseAbility();
+      setState(() {});
+      return;
+    }
+    if (needsTarget) {
+      // Laisser le controller définir pendingTargetAction correctement
+      ctrl.humanUseAbility();
+      setState(() {});
+    } else {
+      ctrl.humanUseAbility(); ctrl.humanSkipAbility(); setState(() {});
+    }
+  }
+
+  void _applyCard() {
+    final card = s.pendingCard; if (card == null) return;
+    final needsTarget = [
+      'heal_other_d6', 'set_marker7_choice', 'banane_demonique', 'vampirisation',
+      'blue_shell', 'veuve_noire', 'peau_banane', 'pince_attrape', 'trebuchet',
+      'vision_shadow_2', 'vision_shadow_1', 'vision_hunter_1', 'vision_hunter_2',
+    ].contains(card.effect);
+    if (needsTarget) {
+      setState(() { _showingTargetList = true; _targetContext = 'card'; });
+    } else {
+      ctrl.humanApplyCard(); setState(() {});
+    }
+  }
+
+  void _startHacheAtk(String targetId) {
+    final r = ctrl.rollHacheAttack(); // d4 seulement
+    setState(() {
+      _atkD4 = r['d4']!; _atkD6 = 0; _atkDmg = r['damage']; _atkTarget = targetId;
+    });
+  }
+
+  void _startAtk(String targetId) {
+    audio.playDice();
+    final s = ctrl.state!;
+    if (s.fifiGoldenTurn) {
+      // 🍀 Fifi — tour parfait : dégâts forcés selon les dés choisis
+      setState(() {
+        _atkD4 = s.fifiAtkD4; _atkD6 = s.fifiAtkD6;
+        _atkDmg = s.fifiAtkResult; _atkTarget = targetId;
+      });
+      return;
+    }
+    final r = GameEngine.instance.rollAttack();
+    setState(() {
+      _atkD4 = r['d4']; _atkD6 = r['d6'];
+      _atkDmg = r['damage']; _atkTarget = targetId;
+    });
+  }
+
+  void _confirmAtk() {
+    if (_atkDmg == null) return;
+    audio.playDamage();
+    if (_atkTarget == '__bazooka__') {
+      // Bazooka: une seule méthode qui attaque tous sans rebuild intermédiaire
+      ctrl.humanBazookaAttack(_atkDmg!);
+    } else if (_atkTarget != null) {
+      ctrl.humanAttack(_atkTarget!, _atkDmg!);
+    }
+    setState(() { _atkD4 = _atkD6 = _atkDmg = null; _atkTarget = null; });
+  }
+}
+
+// ─────────────────────────────────────────────
+// WIDGETS PARTAGÉS
+// ─────────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════
+// ANIMATION DÉ DE POUVOIR (Vlad D4, Travert D6, Carapatte D6...)
+// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+// ANIMATION RÉVÉLATION PLEIN ÉCRAN
+// ═══════════════════════════════════════════════════════════════════
+class _RevealFullScreen extends StatefulWidget {
+  final Player player;
+  final VoidCallback onDone;
+  const _RevealFullScreen({required this.player, required this.onDone});
+  @override State<_RevealFullScreen> createState() => _RevealFullScreenState();
+}
+
+class _RevealFullScreenState extends State<_RevealFullScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _enterAc, _pulseAc;
+  late Animation<double> _scale, _fade, _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _enterAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 500));
+    _pulseAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+    _scale = Tween<double>(begin: 0.3, end: 1.0)
+        .animate(CurvedAnimation(parent: _enterAc, curve: Curves.easeOutBack));
+    _fade  = CurvedAnimation(parent: _enterAc, curve: Curves.easeOut);
+    _pulse = Tween<double>(begin: 1.0, end: 1.05)
+        .animate(CurvedAnimation(parent: _pulseAc, curve: Curves.easeInOut));
+    _enterAc.forward();
+    // Auto-dismiss après 3.5s
+    Future.delayed(const Duration(milliseconds: 3500), () {
+      if (mounted) widget.onDone();
+    });
+  }
+
+  @override
+  void dispose() { _enterAc.dispose(); _pulseAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final p  = widget.player;
+    final c  = p.character;
+    final fc = c != null ? factionColor(c.faction.name) : kGold;
+    final fb = c != null ? factionBg(c.faction.name) : kBg2;
+    final imgPath = c != null ? characterImagePath(c.id) : null;
+    final fLabel  = c?.faction.name == 'hunter' ? '🔵 HUNTER'
+        : c?.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE';
+
+    return GestureDetector(
+      onTap: widget.onDone,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_enterAc, _pulseAc]),
+        builder: (_, __) => FadeTransition(
+          opacity: _fade,
+          child: Container(
+            color: Colors.black87,
+            child: Stack(children: [
+              // Fond coloré
+              Positioned.fill(child: Container(
+                decoration: BoxDecoration(gradient: RadialGradient(
+                  center: Alignment.center, radius: 1.2,
+                  colors: [fc.withValues(alpha: 0.2), Colors.transparent])))),
+
+              // Carte centrée
+              Center(child: ScaleTransition(scale: _scale,
+                child: ScaleTransition(scale: _pulse,
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 460),
+                    margin: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: kBg2,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: fc, width: 3),
+                      boxShadow: [
+                        BoxShadow(color: fc.withValues(alpha: 0.7), blurRadius: 50),
+                        BoxShadow(color: fc.withValues(alpha: 0.3), blurRadius: 100),
+                      ]),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      // Illustration
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
+                        child: SizedBox(height: 240, width: double.infinity,
+                          child: imgPath != null
+                            ? Image.asset(imgPath, fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(color: fb,
+                                  child: Center(child: Text(c?.icon ?? '?',
+                                    style: const TextStyle(fontSize: 72)))))
+                            : Container(color: fb,
+                                child: Center(child: Text(c?.icon ?? '?',
+                                  style: const TextStyle(fontSize: 72)))))),
+                      // Infos
+                      Padding(padding: const EdgeInsets.all(20),
+                        child: Column(children: [
+                        Text('${p.name} s\'est révélé !',
+                          style: cinzel(22, c: fc, fw: FontWeight.w900),
+                          textAlign: TextAlign.center),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: fc.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: fc, width: 1.5)),
+                          child: Text(fLabel, style: cinzel(14, c: fc, fw: FontWeight.w700))),
+                        if (c != null) ...[
+                          const SizedBox(height: 8),
+                          Text('Il est ${c.name}',
+                            style: cinzel(16, c: kGold2, fw: FontWeight.w700)),
+                        ],
+                        const SizedBox(height: 8),
+                        Text('Toucher pour continuer', style: body(10, c: kTextDim)),
+                      ])),
+                    ]),
+                  ),
+                ))),
+
+              // Particules ✨
+              for (final pos in [
+                [0.05, 0.08], [0.92, 0.08], [0.05, 0.92], [0.92, 0.92],
+                [0.5, 0.04], [0.5, 0.96], [0.04, 0.5], [0.96, 0.5],
+              ])
+                Positioned(
+                  left: pos[0] * MediaQuery.of(ctx).size.width,
+                  top:  pos[1] * MediaQuery.of(ctx).size.height,
+                  child: AnimatedBuilder(animation: _pulseAc,
+                    builder: (_, __) => Opacity(
+                      opacity: (_pulseAc.value * 0.8).clamp(0.0, 1.0),
+                      child: Text('✨',
+                        style: TextStyle(fontSize: 14 + _pulseAc.value * 10))))),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+
+
+class _AbilityDiceRoll extends StatefulWidget {
+  final SoloController ctrl;
+  final Map<String, int> result;
+  const _AbilityDiceRoll({required this.ctrl, required this.result});
+  @override State<_AbilityDiceRoll> createState() => _AbilityDiceRollState();
+}
+
+class _AbilityDiceRollState extends State<_AbilityDiceRoll>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ac;
+  bool _revealed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Même durée que Casino : 1400ms de défilement rapide
+    _ac = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1400));
+
+    _ac.forward().then((_) {
+      if (!mounted) return;
+      setState(() => _revealed = true);
+      // Auto-dismiss après 2s
+      Future.delayed(const Duration(milliseconds: 2000), () {
+        if (!mounted) return;
+        widget.ctrl.state!.abilityDiceResult = null;
+        widget.ctrl.notifyListeners();
+      });
+    });
+  }
+
+  @override void dispose() { _ac.dispose(); super.dispose(); }
+
+  Widget _dieBox(int val, int sides, Color color) => Container(
+    width: 90, height: 90,
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: sides == 4
+          ? BorderRadius.circular(10)
+          : BorderRadius.circular(18),
+      border: Border.all(color: color, width: 3),
+      boxShadow: [BoxShadow(color: color.withValues(alpha: 0.45), blurRadius: 16)],
+    ),
+    child: Center(child: Text('$val',
+      style: TextStyle(fontSize: 44, fontFamily: 'Cinzel',
+        fontWeight: FontWeight.w900, color: color))),
+  );
+
+  @override
+  Widget build(BuildContext ctx) {
+    final d      = widget.result['d'] ?? 6;
+    final result = widget.result['result'] ?? 0;
+    final dmg    = widget.result['dmg'] ?? 0;
+    final d4val  = widget.result['d4val'];
+    final d6val  = widget.result['d6val'];
+    final isBombe = d4val != null && d6val != null;
+    final isD4   = d == 4 && !isBombe;
+    final sides  = isD4 ? 4 : 6;
+    final color  = dmg >= 6 ? kRed : dmg >= 3 ? kGold : kGreen;
+    final label  = isBombe ? 'BOMBE  D4 + D6' : (isD4 ? 'D4' : 'D6');
+
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A0A2E),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color, width: 2.5),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 18)],
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(label, style: cinzel(13, c: kTextSub, ls: 2)),
+        const SizedBox(height: 14),
+
+        // ── Dé(s) ─────────────────────────────────────────────
+        AnimatedBuilder(
+          animation: _ac,
+          builder: (_, __) {
+            if (_revealed) {
+              // Résultat final — même style que Casino
+              if (isBombe) {
+                return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  _dieBox(d4val!, 4, color),
+                  Padding(padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text('+', style: cinzel(24, c: kGold))),
+                  _dieBox(d6val!, 6, color),
+                  Padding(padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text('=$result', style: cinzel(24, c: kGold))),
+                ]);
+              }
+              return _dieBox(result, sides, color);
+            }
+            // Défilement rapide de chiffres — EXACTEMENT comme Casino
+            final spinning = ((_ac.value * 18).floor() % sides) + 1;
+            return _dieBox(spinning, sides, kBord2);
+          },
+        ),
+
+        const SizedBox(height: 14),
+
+        // ── Texte résultat ─────────────────────────────────────
+        if (_revealed) ...[
+          Text(
+            isBombe
+              ? 'Zone $result — 2 blessures'
+              : dmg > 0
+                ? '$dmg blessure${dmg > 1 ? "s" : ""}'
+                : 'Soigne ${ -dmg } blessure${ -dmg > 1 ? "s" : "" }',
+            style: cinzel(18, c: color, fw: FontWeight.w900)),
+        ] else
+          Text('Lancement...', style: body(13, c: kTextSub)),
+      ]),
+    );
+  }
+}
+
+
+class _DiceWidget extends StatefulWidget {
+  final int d4, d6, sum;
+  final bool isAttack;
+  const _DiceWidget({required this.d4, required this.d6, required this.sum, required this.isAttack});
+  @override State<_DiceWidget> createState() => _DiceWidgetState();
+}
+
+class _DiceWidgetState extends State<_DiceWidget>
+    with TickerProviderStateMixin {
+  late AnimationController _rollAc;  // animation dés qui roulent (0.5s)
+  late AnimationController _revealAc; // apparition résultat
+  late Animation<double> _rollD4x, _rollD4y;
+  late Animation<double> _rollD6x, _rollD6y;
+  late Animation<double> _rollRotD4, _rollRotD6;
+  late Animation<double> _revealScale, _revealFade;
+  bool _showResult = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // ── Phase 1 : dés qui bougent (500ms) ──
+    _rollAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 500));
+    _rollD4x = TweenSequence([
+      TweenSequenceItem(tween: Tween<double>(begin: -60, end: 30), weight: 40),
+      TweenSequenceItem(tween: Tween<double>(begin: 30, end: -15), weight: 30),
+      TweenSequenceItem(tween: Tween<double>(begin: -15, end: 0),  weight: 30),
+    ]).animate(CurvedAnimation(parent: _rollAc, curve: Curves.easeInOut));
+    _rollD4y = TweenSequence([
+      TweenSequenceItem(tween: Tween<double>(begin: -30, end: 20), weight: 40),
+      TweenSequenceItem(tween: Tween<double>(begin: 20, end: -10), weight: 30),
+      TweenSequenceItem(tween: Tween<double>(begin: -10, end: 0),  weight: 30),
+    ]).animate(CurvedAnimation(parent: _rollAc, curve: Curves.easeIn));
+    _rollD6x = TweenSequence([
+      TweenSequenceItem(tween: Tween<double>(begin: 60, end: -25), weight: 40),
+      TweenSequenceItem(tween: Tween<double>(begin: -25, end: 15), weight: 30),
+      TweenSequenceItem(tween: Tween<double>(begin: 15, end: 0),   weight: 30),
+    ]).animate(CurvedAnimation(parent: _rollAc, curve: Curves.easeInOut));
+    _rollD6y = TweenSequence([
+      TweenSequenceItem(tween: Tween<double>(begin: 20, end: -30), weight: 40),
+      TweenSequenceItem(tween: Tween<double>(begin: -30, end: 15), weight: 30),
+      TweenSequenceItem(tween: Tween<double>(begin: 15, end: 0),   weight: 30),
+    ]).animate(CurvedAnimation(parent: _rollAc, curve: Curves.easeIn));
+    _rollRotD4 = Tween<double>(begin: -2.0, end: 0)
+        .animate(CurvedAnimation(parent: _rollAc, curve: Curves.easeOut));
+    _rollRotD6 = Tween<double>(begin: 2.0, end: 0)
+        .animate(CurvedAnimation(parent: _rollAc, curve: Curves.easeOut));
+
+    // ── Phase 2 : révélation résultat ──
+    _revealAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 350));
+    _revealScale = Tween<double>(begin: 0.5, end: 1.0)
+        .animate(CurvedAnimation(parent: _revealAc, curve: Curves.easeOutBack));
+    _revealFade = CurvedAnimation(parent: _revealAc, curve: Curves.easeOut);
+
+    // Lancer : roll → puis révéler
+    _rollAc.forward().then((_) {
+      if (mounted) setState(() => _showResult = true);
+      _revealAc.forward();
+    });
+  }
+
+  @override void dispose() {
+    _rollAc.dispose(); _revealAc.dispose(); super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      // ── Les deux dés qui bougent ──────────────
+      SizedBox(height: 70,
+        child: AnimatedBuilder(
+          animation: _rollAc,
+          builder: (_, __) => Stack(alignment: Alignment.center, children: [
+            // d4
+            Transform.translate(
+              offset: Offset(_rollD4x.value, _rollD4y.value),
+              child: Transform.rotate(angle: _rollRotD4.value,
+                child: _RollingDie(
+                  value: widget.d4, label: 'd4',
+                  color: widget.isAttack ? kRed : kGold,
+                  rolling: !_showResult,
+                )),
+            ),
+            // d6
+            Transform.translate(
+              offset: Offset(_rollD6x.value + 60, _rollD6y.value),
+              child: Transform.rotate(angle: _rollRotD6.value,
+                child: _RollingDie(
+                  value: widget.d6, label: 'd6',
+                  color: widget.isAttack ? kRed : kGold,
+                  rolling: !_showResult,
+                )),
+            ),
+          ]),
+        ),
+      ),
+      // ── Résultat (apparaît après le roll) ─────
+      if (_showResult)
+        AnimatedBuilder(
+          animation: _revealAc,
+          builder: (_, child) => FadeTransition(
+            opacity: _revealFade,
+            child: Transform.scale(scale: _revealScale.value, child: child),
+          ),
+          child: _buildContent(),
+        ),
+    ]);
+  }
+
+  Widget _buildContent() => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: widget.isAttack ? kShadow.withValues(alpha: 0.1) : kGold.withValues(alpha: 0.07),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: widget.isAttack
+        ? kShadow.withValues(alpha: 0.6) : kGold.withValues(alpha: 0.4)),
+    ),
+    child: Column(children: [
+      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        _Face(value: widget.d4, label: 'd4'),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(widget.isAttack ? '−' : '+', style: cinzel(20, c: kTextDim))),
+        _Face(value: widget.d6, label: 'd6'),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text('=', style: cinzel(20, c: kTextDim))),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: (widget.isAttack ? kRed : kGold).withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: widget.isAttack ? kRed : kGold),
+          ),
+          child: Text('${widget.sum}',
+            style: cinzel(28, c: widget.isAttack ? kRed : kGold2, fw: FontWeight.w900)),
+        ),
+      ]),
+      const SizedBox(height: 6),
+      Text(widget.isAttack
+        ? '|d4(${widget.d4}) − d6(${widget.d6})| = ${widget.sum} dégâts'
+        : 'd4(${widget.d4}) + d6(${widget.d6}) = ${widget.sum}',
+        style: body(11, c: kTextSub)),
+      if (!widget.isAttack && widget.sum == 7)
+        Padding(padding: const EdgeInsets.only(top: 4),
+          child: Text('🎯 Choisis ta destination !', style: cinzel(11, c: kGold))),
+      if (widget.isAttack && widget.sum == 0)
+        Padding(padding: const EdgeInsets.only(top: 4),
+          child: Text('Attaque ratée !', style: body(11, c: kTextDim))),
+    ]),
+  );
+}
+
+class _Face extends StatelessWidget {
+  final int value; final String label;
+  const _Face({required this.value, required this.label});
+  @override
+  Widget build(BuildContext ctx) => Container(
+    width: 48, height: 48,
+    decoration: BoxDecoration(
+      color: kBg3, borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: kBord2, width: 1.5)),
+    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      Text('$value', style: cinzel(20, c: kGold2, fw: FontWeight.w900)),
+      Text(label, style: body(8, c: kTextDim)),
+    ]),
+  );
+}
+
+
+/// Dé animé — affiche des valeurs aléatoires qui défilent pendant le roll
+class _RollingDie extends StatefulWidget {
+  final int value;
+  final String label;
+  final Color color;
+  final bool rolling;
+  const _RollingDie({required this.value, required this.label,
+    required this.color, required this.rolling});
+  @override State<_RollingDie> createState() => _RollingDieState();
+}
+
+class _RollingDieState extends State<_RollingDie> {
+  int _display = 1;
+  late final Stream<int> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = Stream.periodic(const Duration(milliseconds: 60), (i) => i);
+    _stream.listen((i) {
+      if (mounted && widget.rolling) {
+        setState(() => _display = (i % 6) + 1);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final shown = widget.rolling ? _display : widget.value;
+    return Container(
+      width: 52, height: 52,
+      decoration: BoxDecoration(
+        color: kBg3,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: widget.rolling ? kBord2 : widget.color,
+          width: widget.rolling ? 1.5 : 2.5),
+        boxShadow: widget.rolling ? null : [
+          BoxShadow(color: widget.color.withValues(alpha: 0.4), blurRadius: 8)
+        ],
+      ),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Text('$shown',
+          style: cinzel(22,
+            c: widget.rolling ? kTextDim : widget.color,
+            fw: FontWeight.w900)),
+        Text(widget.label, style: body(8, c: kTextDim)),
+      ]),
+    );
+  }
+}
+
+/// Carte piochée affichée avec illustration
+/// showAsSecret = true → carte Vision vue par les autres (dos affiché)
+class _CardWidget extends StatelessWidget {
+  final GameCard card;
+  final bool showAsSecret;
+  const _CardWidget({required this.card, this.showAsSecret = false});
+
+  @override
+  Widget build(BuildContext ctx) {
+    // Carte Vision secrète → afficher le dos
+    if (showAsSecret) {
+      return Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A2E1A),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF3A6020), width: 1.5),
+        ),
+        child: Column(children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+            child: Image.asset(
+              'assets/images/cards/vision_other.png',
+              height: 160, width: double.infinity, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                height: 100, color: const Color(0xFF1A2E1A),
+                child: const Center(child: Text('🔮', style: TextStyle(fontSize: 40))))),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(children: [
+              Text('CARTE VISION', style: cinzel(11, c: const Color(0xFF7B4FD4), ls: 2)),
+              const SizedBox(height: 4),
+              Text('Un joueur a pioché une carte Vision secrète',
+                style: body(12, c: kTextSub), textAlign: TextAlign.center),
+            ]),
+          ),
+        ]),
+      );
+    }
+
+    // Carte normale → afficher l'illustration
+    final dc = deckColor(card.deck.name);
+    final imgPath = anyCardImagePath(card.effect);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: dc.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: dc.withValues(alpha: 0.6)),
+        boxShadow: [BoxShadow(color: dc.withValues(alpha: 0.15), blurRadius: 10)],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Illustration
+        if (imgPath != null)
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+            child: SizedBox(
+              height: 180, width: double.infinity,
+              child: Image.asset(imgPath, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 80, color: dc.withValues(alpha: 0.1),
+                  child: Center(child: Text(deckIcon(card.deck.name),
+                    style: const TextStyle(fontSize: 40))))),
+            ),
+          )
+        else
+          Container(
+            height: 80, width: double.infinity,
+            decoration: BoxDecoration(
+              color: dc.withValues(alpha: 0.1),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+            ),
+            child: Center(child: Text(deckIcon(card.deck.name),
+              style: const TextStyle(fontSize: 40))),
+          ),
+
+        // Infos
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text(deckLabel(card.deck.name), style: cinzel(9, c: dc, ls: 1)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: dc.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  card.type == CardType.equipement ? '⚔ Équipement' : '✨ Usage unique',
+                  style: body(9, c: dc)),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Text(card.name, style: cinzel(15, c: kGold2, fw: FontWeight.w900)),
+            const SizedBox(height: 5),
+            Text(card.text, style: body(12)),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+class _TargetBtn extends StatelessWidget {
+  final Player player; final VoidCallback onTap;
+  final bool danger; final String prefix;
+  const _TargetBtn({required this.player, required this.onTap,
+    this.danger = false, this.prefix = ''});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final hpColor = player.wounds >= 10 ? kRed : player.wounds >= 6 ? kGold : kGreen;
+    // Pas de % basé sur les PV max (info secrète)
+    return Container(
+      width: double.infinity, margin: const EdgeInsets.only(bottom: 8),
+      child: ElevatedButton(
+        onPressed: onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: danger ? kShadow.withValues(alpha: 0.12) : kBg3,
+          foregroundColor: danger ? kRed : kText,
+          side: BorderSide(color: danger ? kShadow : kBord2),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          elevation: 0, alignment: Alignment.centerLeft),
+        child: Row(children: [
+          TokenWidget(tokenId: player.token, size: 30),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('$prefix${player.name} (${player.token})', style: TextStyle(
+              fontFamily: 'Cinzel', fontSize: 13,
+              fontWeight: FontWeight.w700, color: danger ? kRed : kText)),
+            const SizedBox(height: 4),
+            // Blessures uniquement — pas de barre basée sur les PV max
+            Text('${player.wounds} blessure${player.wounds > 1 ? "s" : ""}',
+              style: body(10, c: hpColor)),
+          ])),
+          const SizedBox(width: 8),
+          Text('🗡 ${player.wounds}',
+            style: TextStyle(fontSize: 11, fontFamily: 'Cinzel', color: hpColor)),
+        ]),
+      ),
+    );
+  }
+}
+
+class _InfoCard extends StatelessWidget {
+  final String icon, label, text;
+  const _InfoCard(this.icon, this.label, this.text);
+  @override
+  Widget build(BuildContext ctx) => Container(
+    width: double.infinity, padding: const EdgeInsets.all(10),
+    decoration: surfaceDecor(border: kBord),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(icon, style: const TextStyle(fontSize: 14)), const SizedBox(width: 8),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: cinzel(9, c: kTextSub, ls: 1)),
+        const SizedBox(height: 2),
+        Text(text, style: body(12)),
+      ])),
+    ]),
+  );
+}
+
+// ─────────────────────────────────────────────
+// LOG STRIP
+// ─────────────────────────────────────────────
+class _LogStrip extends StatelessWidget {
+  final SoloController ctrl;
+  const _LogStrip({required this.ctrl});
+  @override
+  Widget build(BuildContext ctx) {
+    final logs = ctrl.state!.log.reversed.take(2).toList();
+    return Container(
+      color: kBg1,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+        children: logs.map((l) => Text(l.message,
+          style: TextStyle(fontSize: 11, color: switch (l.cls) {
+            'death' => kRed, 'important' => kGold,
+            'player' => kGreen, _ => kTextSub,
+          }),
+          maxLines: 1, overflow: TextOverflow.ellipsis)).toList()),
+    );
+  }
+}
+
+
+
+
+// ─── Bannière de statut ───────────────────────────────────────────────────────
+class _StatusBanner extends StatelessWidget {
+  final String message;
+  final Color color;
+  const _StatusBanner(this.message, this.color);
+
+  @override
+  Widget build(BuildContext ctx) => Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 6),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: color.withValues(alpha: 0.4)),
+    ),
+    child: Text(message, style: body(11, c: color)),
+  );
+}
+
+// ─── Panel équipements actifs ─────────────────────────────────────────────────
+class _EquipmentPanel extends StatelessWidget {
+  final Player player;
+  const _EquipmentPanel({required this.player});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: kGold.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: kGold.withValues(alpha: 0.3)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('⚔️ ÉQUIPEMENTS ACTIFS', style: cinzel(9, c: kGold, ls: 1)),
+        const SizedBox(height: 6),
+        ...player.equipment.map((eq) => Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(children: [
+            Text(_icon(eq.effect), style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 8),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(eq.name, style: cinzel(11, c: kGold2)),
+              Text(_effectDesc(eq.effect), style: body(10, c: kTextSub)),
+            ])),
+          ]),
+        )),
+      ]),
+    );
+  }
+
+  String _icon(String e) => switch (e) {
+    'hache_berserker'     => '🪓',
+    'sniper'              => '🔫',
+    'bazooka'             => '💥',
+    'dague_voleur'        => '🗡',
+    'lance_lumiere'       => '✨',
+    'sainte_tunique'      => '🛡',
+    'tenebres_card_immune'=> '🔺',
+    'terrain9_immune'     => '👂',
+    'triple_dice_choice'  => '⏱',
+    _                     => '⚔',
+  };
+
+  String _effectDesc(String e) => switch (e) {
+    'hache_berserker'     => 'Tu DOIS attaquer — dés : d4 seulement',
+    'sniper'              => 'Attaque uniquement les zones hors de portée',
+    'bazooka'             => 'Attaque touche aussi tous les joueurs à portée',
+    'dague_voleur'        => '+1 blessure sur chaque attaque qui touche',
+    'lance_lumiere'       => '+2 blessures sur chaque attaque qui touche',
+    'sainte_tunique'      => '−1 blessure reçue et infligée',
+    'tenebres_card_immune'=> 'Immunisé aux cartes Ténèbres (sauf Bombe)',
+    'terrain9_immune'     => "Immunisé à l'effet du terrain 9",
+    'triple_dice_choice'  => 'Lance 2 fois les dés au déplacement — choisis',
+    _                     => 'Effet passif actif',
+  };
+}
+
+// ─── Bouton pulsé ────────────────────────────────────────────────────────────
+class _PulseButton extends StatefulWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _PulseButton({required this.label, required this.onTap});
+  @override State<_PulseButton> createState() => _PulseButtonState();
+}
+
+class _PulseButtonState extends State<_PulseButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ac;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this,
+      duration: const Duration(milliseconds: 900))
+      ..repeat(reverse: true);
+    _scale = Tween<double>(begin: 1.0, end: 1.04)
+        .animate(CurvedAnimation(parent: _ac, curve: Curves.easeInOut));
+  }
+
+  @override void dispose() { _ac.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) => AnimatedBuilder(
+    animation: _scale,
+    builder: (_, child) => Transform.scale(scale: _scale.value, child: child),
+    child: BHButton(label: widget.label, onTap: widget.onTap, outlined: true),
+  );
+}
+
+// ─────────────────────────────────────────────
+// GAME OVER
+// ─────────────────────────────────────────────
+// Audio handled in SoloGameOverScreen init
+class SoloGameOverScreen extends StatefulWidget {
+  final SoloController ctrl;
+  const SoloGameOverScreen({super.key, required this.ctrl});
+  @override State<SoloGameOverScreen> createState() => _SoloGameOverScreenState();
+}
+
+class _SoloGameOverScreenState extends State<SoloGameOverScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _bgAc;
+  late AnimationController _contentAc;
+
+  @override
+  void initState() {
+    super.initState();
+    // Win/lose music
+    final isWinner = widget.ctrl.state?.winnerIds.contains(widget.ctrl.state?.players.firstWhere((p) => !p.isBot, orElse: () => widget.ctrl.state!.players.first).uid) ?? false;
+    if (isWinner) audio.playWin(); else audio.playLose();
+    audio.fadeOutMusic();
+    
+    super.initState();
+    _bgAc = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _contentAc = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _bgAc.forward().then((_) => _contentAc.forward());
+  }
+
+  @override void dispose() { _bgAc.dispose(); _contentAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final s = widget.ctrl.state!;
+    final iWon = s.winnerIds.contains('human');
+    final winners = s.players.where((p) => s.winnerIds.contains(p.uid)).toList();
+    final losers = s.players.where((p) => !s.winnerIds.contains(p.uid)).toList();
+
+    // Determine winning faction
+    String winFaction = '';
+    if (winners.isNotEmpty) {
+      winFaction = winners.first.character?.faction.name ?? '';
+      // If mixed (neutrals), use first winner's faction
+    }
+    final fc = factionColor(winFaction.isEmpty ? 'hunter' : winFaction);
+    final fbg = factionBg(winFaction.isEmpty ? 'hunter' : winFaction);
+
+    final factionLabel = switch(winFaction) {
+      'hunter'  => 'LES HUNTERS',
+      'shadow'  => 'LES SHADOWS',
+      'neutral' => 'LES NEUTRES',
+      _         => 'LES JOUEURS',
+    };
+    final factionEmoji = switch(winFaction) {
+      'hunter' => '🔵', 'shadow' => '🔴', 'neutral' => '🟡', _ => '⚔️',
+    };
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: FadeTransition(
+        opacity: CurvedAnimation(parent: _bgAc, curve: Curves.easeIn),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.topCenter, radius: 1.5,
+              colors: [fc.withValues(alpha: 0.25), Colors.black],
+            ),
+          ),
+          child: SafeArea(
+            child: FadeTransition(
+              opacity: CurvedAnimation(parent: _contentAc, curve: Curves.easeIn),
+              child: Column(children: [
+                const Spacer(),
+
+                // ── Titre victoire ───────────────────────────────
+                Column(children: [
+                  Text(factionEmoji, style: const TextStyle(fontSize: 64)),
+                  const SizedBox(height: 8),
+                  Text('$factionLabel', style: cinzel(32, c: fc, fw: FontWeight.w900).copyWith(
+                    shadows: [Shadow(color: fc.withValues(alpha: 0.8), blurRadius: 24)])),
+                  const SizedBox(height: 4),
+                  Text('ONT GAGNÉ !', style: cinzel(22, c: kGold2, fw: FontWeight.w700, ls: 4)),
+                  const SizedBox(height: 8),
+                  Text(s.winnerMessage ?? '', style: body(13, c: kTextSub),
+                    textAlign: TextAlign.center,
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                ]),
+
+                const SizedBox(height: 24),
+
+                // ── Cartes des gagnants (centrées) ─────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 10, runSpacing: 10,
+                    children: winners.map((w) {
+                      final c2 = w.character;
+                      final imgPath = c2 != null ? characterImagePath(c2.id) : null;
+                      final wFc = factionColor(c2?.faction.name ?? '');
+                      return Container(
+                        width: 120,
+                        decoration: BoxDecoration(
+                          color: kBg2,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: wFc, width: 2.5),
+                          boxShadow: [BoxShadow(color: wFc.withValues(alpha: 0.4), blurRadius: 10)],
+                        ),
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          // Illustration
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                            child: SizedBox(
+                              height: 130, width: double.infinity,
+                              child: imgPath != null
+                                ? Image.asset(imgPath, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(color: fbg,
+                                      child: Center(child: Text(c2?.icon ?? '?',
+                                        style: const TextStyle(fontSize: 40)))))
+                                : Container(color: fbg, child: Center(
+                                    child: Text(c2?.icon ?? '?', style: const TextStyle(fontSize: 40)))),
+                            ),
+                          ),
+                          // Infos
+                          Padding(
+                            padding: const EdgeInsets.all(7),
+                            child: Column(children: [
+                              Text(c2?.name ?? w.name,
+                                style: cinzel(11, c: wFc, fw: FontWeight.w700),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis),
+                              const SizedBox(height: 3),
+                              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                TokenWidget(tokenId: w.token, size: 16),
+                                const SizedBox(width: 4),
+                                Flexible(child: Text(w.name,
+                                  style: body(9, c: kTextSub),
+                                  overflow: TextOverflow.ellipsis)),
+                              ]),
+                            ]),
+                          ),
+                        ]),
+                      );
+                    }).toList(),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // ── Perdants ─────────────────────────────────────
+                if (losers.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(children: [
+                      Text('ÉLIMINÉS', style: cinzel(10, c: kTextDim, ls: 3)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8, runSpacing: 6, alignment: WrapAlignment.center,
+                        children: losers.map((p) => Row(mainAxisSize: MainAxisSize.min, children: [
+                          TokenWidget(tokenId: p.token, size: 22, isDead: true),
+                          const SizedBox(width: 4),
+                          Text(p.name, style: body(11, c: kTextDim)),
+                        ])).toList(),
+                      ),
+                    ]),
+                  ),
+
+                const Spacer(),
+
+                // ── Bouton rejouer ───────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  child: Column(children: [
+                    GestureDetector(
+                      onTap: () => widget.ctrl.startGame(),
+                      child: Container(
+                        width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: fc.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: fc, width: 2)),
+                        child: Text('↺ Rejouer', textAlign: TextAlign.center,
+                          style: cinzel(16, c: fc, fw: FontWeight.w700))),
+                    ),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () => Navigator.of(ctx).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => HomeScreen()), (_) => false),
+                      child: Container(
+                        width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: kBord2)),
+                        child: Text('🏠 Menu principal', textAlign: TextAlign.center,
+                          style: cinzel(14, c: kTextSub))),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+// ─── Gège Fantôme overlay ─────────────────────────────────────────────────────
+class _GegeGhostOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const _GegeGhostOverlay({required this.onDone});
+  @override State<_GegeGhostOverlay> createState() => _GegeGhostOverlayState();
+}
+class _GegeGhostOverlayState extends State<_GegeGhostOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ac;
+  late Animation<double> _opacity;
+  late Animation<double> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 25),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 25),
+    ]).animate(_ac);
+    _slide = Tween(begin: 0.0, end: -60.0).animate(
+      CurvedAnimation(parent: _ac, curve: Curves.easeOut));
+    _ac.forward().then((_) => widget.onDone());
+  }
+  @override void dispose() { _ac.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) => AnimatedBuilder(
+    animation: _ac,
+    builder: (_, __) => Positioned.fill(
+      child: IgnorePointer(
+        child: Center(
+          child: Transform.translate(
+            offset: Offset(0, _slide.value),
+            child: Opacity(
+              opacity: _opacity.value,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Text('👻', style: TextStyle(fontSize: 72)),
+                const SizedBox(height: 8),
+                Text('Gège attaque !',
+                  style: TextStyle(fontSize: 18, color: Colors.white70,
+                    fontWeight: FontWeight.bold,
+                    shadows: [Shadow(color: Colors.black, blurRadius: 8)])),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// RICHARD II — Animation d'échange de terrains
+// ═══════════════════════════════════════════════════════════
+class _RichardSwapOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const _RichardSwapOverlay({required this.onDone});
+  @override State<_RichardSwapOverlay> createState() => _RichardSwapOverlayState();
+}
+class _RichardSwapOverlayState extends State<_RichardSwapOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ac;
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800));
+    _ac.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+  @override void dispose() { _ac.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    const purple = Color(0xFF9B59B6);
+    return AnimatedBuilder(
+      animation: _ac,
+      builder: (_, __) {
+        final t = _ac.value;
+        final opacity = t < 0.1 ? t * 10 : t > 0.85 ? (1.0 - t) / 0.15 : 1.0;
+        // Deux tuiles qui se croisent
+        final offset1 = Offset(lerpDouble(-80, 80, t)!, 0);
+        final offset2 = Offset(lerpDouble(80, -80, t)!, 0);
+        // Particules
+        final particles = List.generate(12, (i) {
+          final angle = (i / 12) * 6.28 + t * 3.14;
+          final r = 80 + 40 * t;
+          return Offset(cos(angle) * r, sin(angle) * r * 0.5);
+        });
+        return Positioned.fill(
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: opacity.clamp(0.0, 1.0),
+              child: CustomPaint(
+                painter: _SwapPainter(offset1, offset2, particles, purple, t),
+                child: Center(
+                  child: Text('👑', style: TextStyle(
+                    fontSize: 48 + 20 * sin(t * 3.14),
+                    shadows: [Shadow(color: purple.withValues(alpha: 0.8), blurRadius: 20)],
+                  )),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SwapPainter extends CustomPainter {
+  final Offset o1, o2;
+  final List<Offset> particles;
+  final Color color;
+  final double t;
+  _SwapPainter(this.o1, this.o2, this.particles, this.color, this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final paint = Paint()..color = color.withValues(alpha: 0.7)..style = PaintingStyle.fill;
+    // Tuile 1
+    final rect1 = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: center + o1, width: 60, height: 60), const Radius.circular(10));
+    canvas.drawRRect(rect1, paint..color = color.withValues(alpha: 0.5));
+    // Tuile 2
+    final rect2 = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: center + o2, width: 60, height: 60), const Radius.circular(10));
+    canvas.drawRRect(rect2, paint..color = color.withValues(alpha: 0.5));
+    // Particules
+    paint.color = color.withValues(alpha: 0.6 * (1 - t));
+    for (final p in particles) {
+      canvas.drawCircle(center + p, 4, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SwapPainter old) => true;
+}
+
+// ═══════════════════════════════════════════════════════════
+// MATHIEU — Animation point qui fonce sur l'écran (3e attaque)
+// ═══════════════════════════════════════════════════════════
+class _MathieuBulletOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const _MathieuBulletOverlay({required this.onDone});
+  @override State<_MathieuBulletOverlay> createState() => _MathieuBulletOverlayState();
+}
+class _MathieuBulletOverlayState extends State<_MathieuBulletOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ac;
+  late Animation<double> _scale;
+  late Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _scale = Tween(begin: 0.05, end: 4.0).animate(
+      CurvedAnimation(parent: _ac, curve: Curves.easeIn));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 70),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_ac);
+    _ac.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+  @override void dispose() { _ac.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) => AnimatedBuilder(
+    animation: _ac,
+    builder: (_, __) => Positioned.fill(
+      child: IgnorePointer(
+        child: Opacity(
+          opacity: _opacity.value,
+          child: Center(
+            child: Transform.scale(
+              scale: _scale.value,
+              child: Container(
+                width: 60, height: 60,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFCC0000),
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: Color(0x88FF0000), blurRadius: 30, spreadRadius: 10)],
+                ),
+                child: const Center(child: Text('⚔️', style: TextStyle(fontSize: 28))),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCOTT — Animation contre-attaque (bouclier + flash)
+// ═══════════════════════════════════════════════════════════
+class _ScottCounterOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const _ScottCounterOverlay({required this.onDone});
+  @override State<_ScottCounterOverlay> createState() => _ScottCounterOverlayState();
+}
+class _ScottCounterOverlayState extends State<_ScottCounterOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ac;
+  late Animation<double> _opacity;
+  late Animation<double> _scale;
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 55),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_ac);
+    _scale = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.3, end: 1.2), weight: 25),
+      TweenSequenceItem(tween: Tween(begin: 1.2, end: 1.0), weight: 15),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 60),
+    ]).animate(CurvedAnimation(parent: _ac, curve: Curves.elasticOut));
+    _ac.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+  @override void dispose() { _ac.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext ctx) => AnimatedBuilder(
+    animation: _ac,
+    builder: (_, __) => Positioned.fill(
+      child: IgnorePointer(
+        child: Opacity(
+          opacity: _opacity.value,
+          child: Center(
+            child: Transform.scale(
+              scale: _scale.value,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Text('🛡️', style: TextStyle(fontSize: 64)),
+                const SizedBox(height: 8),
+                Text('CONTRE-ATTAQUE !',
+                  style: TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.w900, color: Colors.orange,
+                    shadows: [Shadow(color: Colors.black, blurRadius: 8)],
+                  )),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
