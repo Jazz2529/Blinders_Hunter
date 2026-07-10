@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/game_provider.dart';
+import '../services/display_settings.dart';
 import '../models/models.dart';
 import '../widgets/theme.dart';
 import '../widgets/token_widget.dart';
@@ -307,39 +308,74 @@ class GameScreen extends StatelessWidget {
         body: LayoutBuilder(builder: (bctx, constraints) {
           final screenH = constraints.maxHeight;
           final screenW = constraints.maxWidth;
-          final boardH = (screenH * 0.28).clamp(160.0, 260.0);
-          return Column(children:[
-          if (gs != null)
-            SizedBox(
-              height: boardH,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-                child: Column(children: [
-                  Expanded(child: LayoutBuilder(builder: (lctx, bc) {
-                    final zone6idx = gs.terrainLayout.indexWhere((t) => t.effect == 'lumiere');
-                    final idx = zone6idx < 0 ? 4 : zone6idx;
-                    const gap = 4.0; const cols = 3; const rows = 2;
-                    final tileW = (bc.maxWidth  - gap * (cols - 1)) / cols;
-                    final tileH = (bc.maxHeight - gap * (rows - 1)) / rows;
-                    final col = idx % cols; final row = idx ~/ cols;
-                    final tx = col * (tileW + gap); final ty = row * (tileH + gap);
-                    return Stack(children: [
-                      GameBoard(
-                        terrainLayout: gs.terrainLayout,
-                        players: playerData,
-                        humanZoneIndex: gp.me?.zoneIndex ?? 0,
-                        showAdjacent: true,
-                      ),
-                      if (overlay == 'artcade_flames')
-                        Positioned(left: tx, top: ty, width: tileW, height: tileH,
-                          child: ArtcadeFlameOverlay(onDone: () => gp.clearAbilityOverlay())),
-                    ]);
-                  })),
+          final isMobile = DisplaySettings.instance.isMobileFor(screenW);
+          final boardH = isMobile
+              ? (screenH * 0.22).clamp(120.0, 190.0)
+              : (screenH * 0.28).clamp(160.0, 260.0);
+
+          // Plateau (commun PC / mobile)
+          Widget boardWidget() {
+            final g = gs!;
+            return SizedBox(
+            height: boardH,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(isMobile ? 4 : 8, isMobile ? 3 : 6, isMobile ? 4 : 8, 0),
+              child: Column(children: [
+                Expanded(child: LayoutBuilder(builder: (lctx, bc) {
+                  final zone6idx = g.terrainLayout.indexWhere((t) => t.effect == 'lumiere');
+                  final idx = zone6idx < 0 ? 4 : zone6idx;
+                  const gap = 4.0; const cols = 3; const rows = 2;
+                  final tileW = (bc.maxWidth  - gap * (cols - 1)) / cols;
+                  final tileH = (bc.maxHeight - gap * (rows - 1)) / rows;
+                  final col = idx % cols; final row = idx ~/ cols;
+                  final tx = col * (tileW + gap); final ty = row * (tileH + gap);
+                  return Stack(children: [
+                    GameBoard(
+                      terrainLayout: g.terrainLayout,
+                      players: playerData,
+                      humanZoneIndex: gp.me?.zoneIndex ?? 0,
+                      showAdjacent: true,
+                    ),
+                    if (overlay == 'artcade_flames')
+                      Positioned(left: tx, top: ty, width: tileW, height: tileH,
+                        child: ArtcadeFlameOverlay(onDone: () => gp.clearAbilityOverlay())),
+                  ]);
+                })),
+                if (!isMobile) ...[
                   const SizedBox(height: 2),
                   const AdjacencyLegend(),
-                ]),
-              ),
+                ],
+              ]),
             ),
+          );
+          }
+
+          // ── LAYOUT TÉLÉPHONE : plateau compact, joueurs en ligne, action max ──
+          if (isMobile) {
+            return Column(children: [
+              if (gs != null) boardWidget(),
+              SizedBox(
+                height: 62,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  children: gp.playerList.map((p) => _PlayerChip(p: p, gp: gp)).toList(),
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Container(
+                    color: kBg2,
+                    child: isMyTurn ? _ActionPanel(gp: gp) : _WaitPanel(gp: gp),
+                  ),
+                ),
+              ),
+            ]);
+          }
+
+          // ── LAYOUT PC : inchangé ──
+          return Column(children:[
+          if (gs != null) boardWidget(),
           Expanded(child: screenW > 600
             ? GridView.count(
                 crossAxisCount: 2, childAspectRatio: 4.5,
@@ -2217,7 +2253,7 @@ class _PlayerChip extends StatelessWidget {
               mainAxisSize: MainAxisSize.min, children: [
                 Text(c.name, style: cinzel(15, c: kGold)),
                 const SizedBox(height: 6),
-                Text('\${p.wounds} / \${c.hp} PV', style: body(13, c: kRed)),
+                Text('${p.wounds} / ${c.hp} PV', style: body(13, c: kRed)),
                 const SizedBox(height: 8),
                 Text(c.ability, style: body(11, c: kTextSub), textAlign: TextAlign.center),
                 const SizedBox(height: 12),

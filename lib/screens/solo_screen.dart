@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../services/solo_controller.dart';
+import '../services/display_settings.dart';
 import '../services/audio_service.dart';
 import '../services/engine.dart';
 import '../widgets/theme.dart';
@@ -1384,7 +1385,7 @@ class _GameLayout extends StatelessWidget {
     return LayoutBuilder(builder: (ctx, bc) {
       final w = bc.maxWidth;
       final h = bc.maxHeight;
-      final isWide = w > 600;
+      final isWide = !DisplaySettings.instance.isMobileFor(w);
 
       if (isWide) {
         // ── Layout PC : 3 zones ──────────────────────────────────

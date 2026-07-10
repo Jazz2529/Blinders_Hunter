@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'services/game_provider.dart';
+import 'services/display_settings.dart';
 import 'screens/home_screen.dart';
 import 'screens/multi_screens.dart';
 import 'screens/solo_screen.dart';
@@ -43,52 +44,67 @@ class BlindersHunterApp extends StatelessWidget {
   }
 }
 
-// ─── Wrapper racine — résolution + router ────────────────────────────────────
+// ─── Wrapper racine — affichage (mode, échelle, résolution) + router ────────
 class _RootWrapper extends StatefulWidget {
   const _RootWrapper();
   @override State<_RootWrapper> createState() => _RootWrapperState();
 }
 
 class _RootWrapperState extends State<_RootWrapper> {
-  // Résolutions disponibles (largeur × hauteur)
-  static const _resolutions = [
-    _Res('Mobile  (390×844)',  390, 844),
-    _Res('Tablette (768×1024)', 768, 1024),
-    _Res('PC petit (900×600)',  900, 600),
-    _Res('PC moyen (1280×800)', 1280, 800),
-    _Res('PC grand (1440×900)', 1440, 900),
-    _Res('Plein écran',         0,   0),   // 0,0 = taille réelle
-  ];
+  @override
+  void initState() {
+    super.initState();
+    DisplaySettings.instance.addListener(_onSettings);
+  }
 
-  int _resIdx = 5; // Plein écran par défaut
+  @override
+  void dispose() {
+    DisplaySettings.instance.removeListener(_onSettings);
+    super.dispose();
+  }
+
+  void _onSettings() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
-    final res = _resolutions[_resIdx];
+    final ds = DisplaySettings.instance;
+    final res = ds.resolution;
     final isFullscreen = res.w == 0;
+    final mq = MediaQuery.of(context);
+
+    // Taille effective vue par le jeu (simulée ou réelle)
+    final simSize = isFullscreen
+        ? mq.size
+        : Size(res.w.toDouble(), res.h.toDouble());
+
+    // MediaQuery override : le contenu voit la taille simulée ET l'échelle UI.
+    final content = MediaQuery(
+      data: mq.copyWith(
+        size: simSize,
+        textScaler: TextScaler.linear(ds.uiScale),
+      ),
+      child: _appContent(context),
+    );
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(children: [
-        // ── Contenu centré avec taille simulée ──
         Center(
           child: isFullscreen
-            ? _appContent(context)
-            : SizedBox(
-                width: res.w.toDouble(),
-                height: res.h.toDouble(),
-                child: ClipRect(child: _appContent(context)),
-              ),
+              ? content
+              : Container(
+                  width: simSize.width,
+                  height: simSize.height,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: kBord2, width: 1),
+                  ),
+                  child: ClipRect(child: content),
+                ),
         ),
-
-        // ── Sélecteur résolution (discret, coin haut droit) ──
+        // Badge discret : mode + résolution actuels (coin haut droit)
         Positioned(
-          top: 8, right: 8,
-          child: _ResSelector(
-            resolutions: _resolutions,
-            currentIdx: _resIdx,
-            onChanged: (i) => setState(() => _resIdx = i),
-          ),
+          top: 6, right: 6,
+          child: _DisplayBadge(ds: ds),
         ),
       ]),
     );
@@ -109,86 +125,33 @@ class _RootWrapperState extends State<_RootWrapper> {
   }
 }
 
-// ─── Sélecteur de résolution ─────────────────────────────────────────────────
-class _ResSelector extends StatefulWidget {
-  final List<_Res> resolutions;
-  final int currentIdx;
-  final void Function(int) onChanged;
-  const _ResSelector({required this.resolutions, required this.currentIdx,
-    required this.onChanged});
-  @override State<_ResSelector> createState() => _ResSelectorState();
-}
-
-class _ResSelectorState extends State<_ResSelector> {
-  bool _expanded = false;
+// ─── Badge d'affichage — ouvre les réglages au tap ───────────────────────────
+class _DisplayBadge extends StatelessWidget {
+  final DisplaySettings ds;
+  const _DisplayBadge({required this.ds});
 
   @override
   Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-      // Bouton toggle
-      GestureDetector(
-        onTap: () => setState(() => _expanded = !_expanded),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: kBg2.withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: kBord2),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.aspect_ratio, size: 12, color: kGold),
-            const SizedBox(width: 4),
-            Text(
-              widget.resolutions[widget.currentIdx].label.split(' ')[0],
-              style: cinzel(9, c: kGold),
-            ),
-            const SizedBox(width: 2),
-            Icon(_expanded ? Icons.expand_less : Icons.expand_more,
-              size: 12, color: kTextSub),
-          ]),
+    final modeIcon = ds.deviceMode == 'phone'
+        ? Icons.smartphone
+        : ds.deviceMode == 'pc' ? Icons.desktop_windows : Icons.autorenew;
+    return GestureDetector(
+      onTap: () => showDisplaySettingsSheet(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: kBg2.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: kBord2),
         ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(modeIcon, size: 12, color: kGold),
+          const SizedBox(width: 4),
+          Text(ds.resolution.label.split(' ')[0], style: cinzel(9, c: kGold)),
+        ]),
       ),
-      // Dropdown
-      if (_expanded)
-        Container(
-          margin: const EdgeInsets.only(top: 2),
-          decoration: BoxDecoration(
-            color: kBg2.withValues(alpha: 0.96),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: kBord2),
-            boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 8)],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: widget.resolutions.asMap().entries.map((e) {
-              final selected = e.key == widget.currentIdx;
-              return GestureDetector(
-                onTap: () {
-                  widget.onChanged(e.key);
-                  setState(() => _expanded = false);
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: selected ? kGold.withValues(alpha: 0.12) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(e.value.label,
-                    style: cinzel(9, c: selected ? kGold2 : kTextSub),
-                    textAlign: TextAlign.right),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-    ]);
+    );
   }
-}
-
-class _Res {
-  final String label;
-  final int w, h;
-  const _Res(this.label, this.w, this.h);
 }
 
 // ─── Game Over Screen ─────────────────────────────────────────────────────────

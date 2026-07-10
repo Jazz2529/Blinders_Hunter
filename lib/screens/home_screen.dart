@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/game_provider.dart';
+import '../services/display_settings.dart';
 import '../services/audio_service.dart';
 import '../widgets/theme.dart';
 import '../widgets/token_widget.dart';
@@ -384,6 +385,44 @@ class SettingsDialogState extends State<SettingsDialog> {
                 const Icon(Icons.play_circle_outline, color: kTextSub, size: 14),
                 const SizedBox(width: 6),
                 Text('Tester les effets sonores', style: body(11, c: kTextSub)),
+              ]),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Affichage (appareil, échelle, résolution)
+          SectionLabel('AFFICHAGE'),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () {
+              final navCtx = Navigator.of(ctx).context;
+              Navigator.pop(ctx);
+              showDisplaySettingsSheet(navCtx);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: kBg3,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: kBord2),
+              ),
+              child: Row(children: [
+                Icon(
+                  DisplaySettings.instance.deviceMode == 'phone'
+                      ? Icons.smartphone
+                      : DisplaySettings.instance.deviceMode == 'pc'
+                          ? Icons.desktop_windows
+                          : Icons.devices,
+                  color: kGold, size: 18),
+                const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Appareil, échelle & résolution', style: body(12, c: kText)),
+                  Text(
+                    'Mode : ${DisplaySettings.instance.deviceMode == 'auto' ? 'Auto' : DisplaySettings.instance.deviceMode == 'pc' ? 'PC' : 'Téléphone'} · ${DisplaySettings.instance.resolution.label}',
+                    style: body(10, c: kTextDim)),
+                ])),
+                const Icon(Icons.chevron_right, color: kTextSub, size: 18),
               ]),
             ),
           ),
