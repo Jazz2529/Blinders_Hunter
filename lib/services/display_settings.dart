@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/theme.dart';
+import 'persistence.dart';
 
 /// ─── Réglages d'affichage globaux ────────────────────────────────────────────
 /// Mode appareil (Auto / PC / Téléphone), échelle de l'interface et
@@ -10,6 +11,19 @@ class DisplaySettings extends ChangeNotifier {
 
   /// 'auto' = détection selon la largeur | 'pc' | 'phone'
   String deviceMode = 'auto';
+
+  /// Charge les réglages sauvegardés (à appeler après Prefs.init()).
+  void load() {
+    final d = Prefs.loadDisplay();
+    if (d == null) return;
+    deviceMode = d.mode;
+    uiScale = d.scale;
+    resolutionIdx = d.resIdx;
+    notifyListeners();
+  }
+
+  void _save() => Prefs.saveDisplay(
+      mode: deviceMode, scale: uiScale, resIdx: resolutionIdx);
 
   /// Échelle de l'interface (taille des textes) : 0.7 → 1.3
   double uiScale = 1.0;
@@ -44,17 +58,20 @@ class DisplaySettings extends ChangeNotifier {
     // n'a pas déjà choisi autre chose).
     if (mode == 'phone' && resolutionIdx == 5) resolutionIdx = 0;
     if (mode == 'pc' && resolutionIdx == 0) resolutionIdx = 5;
+    _save();
     notifyListeners();
   }
 
   void setUiScale(double v) {
     uiScale = v.clamp(0.7, 1.3);
+    _save();
     notifyListeners();
   }
 
   void setResolutionIdx(int i) {
     if (i < 0 || i >= resolutions.length) return;
     resolutionIdx = i;
+    _save();
     notifyListeners();
   }
 }

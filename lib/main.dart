@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'services/game_provider.dart';
 import 'services/display_settings.dart';
+import 'services/persistence.dart';
 import 'screens/home_screen.dart';
 import 'screens/multi_screens.dart';
 import 'screens/solo_screen.dart';
@@ -11,6 +12,8 @@ import 'widgets/theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Prefs.init();
+  DisplaySettings.instance.load();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
@@ -187,7 +190,17 @@ class _GameOverScreen extends StatelessWidget {
             ]),
           )),
           const SizedBox(height: 32),
-          BHButton(label: '↺ Menu principal', gold: true,
+          if (gp.myUid == gp.hostId) ...[
+            BHButton(label: '🔄 Rejouer avec les mêmes joueurs', gold: true,
+              onTap: () => gp.restartGame()),
+            const SizedBox(height: 8),
+          ] else
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text('L\'hôte peut relancer une partie avec les mêmes joueurs.',
+                style: body(11, c: kTextDim), textAlign: TextAlign.center),
+            ),
+          BHButton(label: '↺ Menu principal',
             onTap: () async {
               await gp.leaveRoomAndReset();
               if (context.mounted) {

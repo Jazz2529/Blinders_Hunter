@@ -67,22 +67,6 @@ class LobbyScreen extends StatelessWidget {
                 await gp.leaveRoomAndReset();
               },
             ),
-            TextButton(
-              onPressed: () {
-                final c = gp.me?.character;
-                if (c != null) showFullCardDialog(ctx, c);
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: kGold.withValues(alpha: 0.15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Text('🃏', style: TextStyle(fontSize: 14)),
-                const SizedBox(width: 4),
-                Text('MA CARTE', style: cinzel(9, c: kGold)),
-              ]),
-            ),
             IconButton(
               icon: const Text('📖', style: TextStyle(fontSize: 18)),
               tooltip: 'Règles',
@@ -94,6 +78,7 @@ class LobbyScreen extends StatelessWidget {
               onPressed: () => showDialog(context: ctx, builder: (_) => const SettingsDialog()),
             ),
           ],
+
         ),
         body:Column(children:[
           Expanded(child:ListView(padding:const EdgeInsets.all(14),children:[
@@ -345,6 +330,28 @@ class GameScreen extends StatelessWidget {
             }),
           ]),
           actions:[
+            TextButton(
+              onPressed: () {
+                final c = gp.me?.character;
+                if (c != null) showFullCardDialog(ctx, c);
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: kGold.withValues(alpha: 0.15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Text('🃏', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 4),
+                Text('MA CARTE', style: cinzel(9, c: kGold)),
+              ]),
+            ),
+            IconButton(
+              icon: const Text('📖', style: TextStyle(fontSize: 18)),
+              tooltip: 'Règles',
+              onPressed: () => Navigator.push(ctx,
+                MaterialPageRoute(builder: (_) => const RulesScreen())),
+            ),
             IconButton(
               icon: const Icon(Icons.settings, color: kGold),
               onPressed: () => showDialog(context: ctx, builder: (_) => const SettingsDialog()),

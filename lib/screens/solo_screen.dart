@@ -8,6 +8,9 @@ import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../services/solo_controller.dart';
 import '../services/display_settings.dart';
+import 'rules_screen.dart';
+import '../widgets/card_viewer.dart';
+import '../services/persistence.dart';
 import '../services/audio_service.dart';
 import '../services/engine.dart';
 import '../widgets/theme.dart';
@@ -376,7 +379,11 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
           actions: [
             // BOUTON MA CARTE — simple et fiable
             TextButton(
-              onPressed: () => _showMyCard(ctx, ctrl),
+              onPressed: () {
+                final s = ctrl.state;
+                final me = s?.players.where((p) => !p.isBot).firstOrNull;
+                if (me?.character != null) showFullCardDialog(ctx, me!.character!);
+              },
               style: TextButton.styleFrom(
                 backgroundColor: kGold.withValues(alpha: 0.15),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -389,6 +396,12 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
               ]),
             ),
             const SizedBox(width: 4),
+            IconButton(
+              icon: const Text('📖', style: TextStyle(fontSize: 16)),
+              tooltip: 'Règles',
+              onPressed: () => Navigator.push(ctx,
+                MaterialPageRoute(builder: (_) => const RulesScreen())),
+            ),
             IconButton(
               icon: const Text('📜', style: TextStyle(fontSize: 18)),
               onPressed: () => _showLog(ctx, ctrl),
@@ -470,118 +483,7 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
   );
 
   // CORRECTION : showDialog simple, données copiées AVANT l'ouverture
-  void _showMyCard(BuildContext ctx, SoloController ctrl) {
-    final s = ctrl.state;
-    if (s == null) return;
-    final Player me;
-    try { me = s.players.firstWhere((p) => !p.isBot); } catch (_) { return; }
-    final c = me.character;
-    if (c == null) return;
 
-    final fc  = factionColor(c.faction.name);
-    final fbg = factionBg(c.faction.name);
-    final imgPath = characterImagePath(c.id);
-    final wColor = me.wounds >= 8 ? kRed : me.wounds >= 5 ? kGold : kGreen;
-
-    showDialog(
-      context: ctx,
-      barrierDismissible: true,
-      builder: (dialogCtx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(16),
-        child: Container(
-          constraints: BoxConstraints(maxWidth: 820, maxHeight: MediaQuery.of(dialogCtx).size.height * 0.88),
-          decoration: BoxDecoration(
-            color: kBg2,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: fc, width: 2.5),
-            boxShadow: [BoxShadow(color: fc.withValues(alpha: 0.3), blurRadius: 20)],
-          ),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-
-            // ── Illustration pleine hauteur gauche ────────────
-            ClipRRect(
-              borderRadius: const BorderRadius.horizontal(left: Radius.circular(14)),
-              child: SizedBox(
-                width: 300,
-                child: imgPath != null
-                  ? Image.asset(imgPath, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: fbg,
-                        child: Center(child: Text(c.icon,
-                          style: const TextStyle(fontSize: 64)))))
-                  : Container(color: fbg,
-                      child: Center(child: Text(c.icon,
-                        style: const TextStyle(fontSize: 64)))),
-              ),
-            ),
-
-            // ── Infos droite ──────────────────────────────────
-            Expanded(child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                // Nom + fermer
-                Row(children: [
-                  Expanded(child: Text(c.name,
-                    style: cinzel(20, c: fc, fw: FontWeight.w900))),
-                  GestureDetector(
-                    onTap: () => Navigator.of(dialogCtx).pop(),
-                    child: const Icon(Icons.close, color: kTextSub, size: 20)),
-                ]),
-                const SizedBox(height: 6),
-                // Badge faction
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: fc.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6)),
-                  child: Text(
-                    c.faction.name == 'hunter' ? '🔵 HUNTER'
-                    : c.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE',
-                    style: cinzel(9, c: fc)),
-                ),
-                const SizedBox(height: 10),
-                // Blessures
-                Row(children: [
-                  const Text('🗡', style: TextStyle(fontSize: 14)),
-                  const SizedBox(width: 6),
-                  Text('${me.wounds} blessures',
-                    style: cinzel(15, c: wColor, fw: FontWeight.w700)),
-                ]),
-                Divider(color: kBord, height: 18),
-                // Capacité
-                Text('CAPACITÉ', style: cinzel(8, c: kTextSub, ls: 2)),
-                const SizedBox(height: 3),
-                Flexible(child: Text(c.ability, style: body(12, c: kText))),
-                Divider(color: kBord, height: 18),
-                // Objectif
-                Text('🏆 OBJECTIF', style: cinzel(8, c: kTextSub, ls: 2)),
-                const SizedBox(height: 3),
-                Text(c.winCondition, style: body(12, c: kGold2),
-                  maxLines: 3, overflow: TextOverflow.ellipsis),
-                // Équipements
-                if (me.equipment.isNotEmpty) ...[
-                  Divider(color: kBord, height: 14),
-                  Text('ÉQUIPEMENTS', style: cinzel(8, c: kTextSub, ls: 2)),
-                  const SizedBox(height: 4),
-                  ...me.equipment.map((e) => Padding(
-                    padding: const EdgeInsets.only(bottom: 3),
-                    child: Row(children: [
-                      const Text('⚙️', style: TextStyle(fontSize: 11)),
-                      const SizedBox(width: 5),
-                      Flexible(child: Text(e.name, style: body(11))),
-                    ]),
-                  )),
-                ],
-              ]),
-            )),
-          ]),
-        ),
-      ),
-    );
-  }
 
   void _showDiceRef(BuildContext ctx) {
     showDialog(context: ctx, builder: (_) => Dialog(
@@ -1281,18 +1183,24 @@ class _RoleRevealScreenState extends State<_RoleRevealScreen>
                     ],
                   ),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    // Illustration
-                    ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                      child: SizedBox(
-                        height: 180, width: double.infinity,
-                        child: imgPath != null
-                          ? Image.asset(imgPath, fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(color: fbg,
-                                child: Center(child: Text(char.icon,
-                                  style: const TextStyle(fontSize: 60)))))
-                          : Container(color: fbg, child: Center(
-                              child: Text(char.icon, style: const TextStyle(fontSize: 60)))),
+                    // Illustration — carte ENTIÈRE (ratio 2:3)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 14),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: SizedBox(
+                          height: 270,
+                          child: AspectRatio(
+                            aspectRatio: 2 / 3,
+                            child: imgPath != null
+                              ? Image.asset(imgPath, fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(color: fbg,
+                                    child: Center(child: Text(char.icon,
+                                      style: const TextStyle(fontSize: 60)))))
+                              : Container(color: fbg, child: Center(
+                                  child: Text(char.icon, style: const TextStyle(fontSize: 60)))),
+                          ),
+                        ),
                       ),
                     ),
                     // Stats
@@ -1461,8 +1369,7 @@ class _TurnHeader extends StatelessWidget {
           ),
           Text(_phaseLabel(s.phase), style: body(10, c: kTextDim)),
         ])),
-        // Bouton ma carte
-        if (s.isHuman) _MyCardBtn(ctrl: ctrl),
+
       ]),
     );
   }
@@ -1477,63 +1384,7 @@ class _TurnHeader extends StatelessWidget {
   };
 }
 
-// Bouton compact "Ma carte"
-class _MyCardBtn extends StatelessWidget {
-  final SoloController ctrl;
-  const _MyCardBtn({required this.ctrl});
 
-  @override
-  Widget build(BuildContext ctx) => GestureDetector(
-    onTap: () => _showMyCard(ctx, ctrl),
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: kGold.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: kGold.withValues(alpha: 0.4)),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Text('🃏', style: TextStyle(fontSize: 14)),
-        const SizedBox(width: 4),
-        Text('Carte', style: cinzel(9, c: kGold)),
-      ]),
-    ),
-  );
-
-  void _showMyCard(BuildContext ctx, SoloController ctrl) {
-    final s = ctrl.state; if (s == null) return;
-    final Player me;
-    try { me = s.players.firstWhere((p) => !p.isBot); } catch (_) { return; }
-    final c = me.character; if (c == null) return;
-    final fc = factionColor(c.faction.name);
-    showDialog(
-      context: ctx, barrierDismissible: true,
-      builder: (dialogCtx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(20),
-        child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Padding(padding: const EdgeInsets.only(bottom: 4),
-            child: Text('CARTE SECRÈTE', style: cinzel(10, c: fc, ls: 3))),
-          CharacterCardFull(
-            characterId: c.id, characterName: c.name, faction: c.faction.name,
-            hp: c.hp, wounds: me.wounds, ability: c.ability, winCondition: c.winCondition,
-            equipmentNames: me.equipment.map((e) => e.name).toList(), hideHp: false,
-          ),
-          const SizedBox(height: 10),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            style: TextButton.styleFrom(
-              backgroundColor: kBg2.withValues(alpha: 0.9),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10)),
-            child: Text('Fermer', style: cinzel(12, c: fc))),
-        ])),
-      ),
-    );
-  }
-}
-
-// Colonne d'actions — pas de scroll sur PC
 class _ActionColumn extends StatelessWidget {
   final SoloController ctrl;
   final SoloState s;
@@ -1697,37 +1548,7 @@ class _HpLeaderboard extends StatelessWidget {
   void _showOpponentCard(BuildContext ctx, Player p) {
     final c = p.character;
     if (c == null) return;
-    showDialog(
-      context: ctx,
-      barrierDismissible: true,
-      builder: (dialogCtx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(20),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          CharacterCardFull(
-            characterId: c.id,
-            characterName: c.name,
-            faction: c.faction.name,
-            hp: c.hp,
-            wounds: p.wounds,
-            ability: c.ability,
-            winCondition: c.winCondition,
-            equipmentNames: p.equipment.map((e) => e.name).toList(),
-            hideHp: false, // révélé = on voit tout
-          ),
-          const SizedBox(height: 12),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            style: TextButton.styleFrom(
-              backgroundColor: kBg2.withValues(alpha: 0.9),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            ),
-            child: Text('Fermer', style: cinzel(12, c: kGold)),
-          ),
-        ]),
-      ),
-    );
+    showFullCardDialog(ctx, c);
   }
 }
 
@@ -1787,6 +1608,8 @@ class _WoundsColumnState extends State<_WoundsColumn>
     return GestureDetector(
       onTap: (!isMe && p.revealed && p.alive && widget.onTap != null)
           ? () => widget.onTap!(p) : null,
+      child: WoundDelta(
+      wounds: p.wounds,
       child: AnimatedBuilder(
         animation: _flashAc,
         builder: (_, child) => Container(
@@ -1863,7 +1686,7 @@ class _WoundsColumnState extends State<_WoundsColumn>
           ]),
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -3000,18 +2823,21 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
                         BoxShadow(color: fc.withValues(alpha: 0.3), blurRadius: 100),
                       ]),
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      // Illustration
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
-                        child: SizedBox(height: 240, width: double.infinity,
-                          child: imgPath != null
-                            ? Image.asset(imgPath, fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(color: fb,
-                                  child: Center(child: Text(c?.icon ?? '?',
-                                    style: const TextStyle(fontSize: 72)))))
-                            : Container(color: fb,
-                                child: Center(child: Text(c?.icon ?? '?',
-                                  style: const TextStyle(fontSize: 72)))))),
+                      // Illustration — carte ENTIÈRE (ratio 2:3)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: SizedBox(height: 300,
+                            child: AspectRatio(aspectRatio: 2 / 3,
+                              child: imgPath != null
+                                ? Image.asset(imgPath, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(color: fb,
+                                      child: Center(child: Text(c?.icon ?? '?',
+                                        style: const TextStyle(fontSize: 72)))))
+                                : Container(color: fb,
+                                    child: Center(child: Text(c?.icon ?? '?',
+                                      style: const TextStyle(fontSize: 72)))))))),
                       // Infos
                       Padding(padding: const EdgeInsets.all(20),
                         child: Column(children: [
@@ -3446,7 +3272,7 @@ class _CardWidget extends StatelessWidget {
     final dc = deckColor(card.deck.name);
     final imgPath = anyCardImagePath(card.effect);
 
-    return Container(
+    return EntranceScale(child: Container(
       width: double.infinity,
       decoration: BoxDecoration(
         color: dc.withValues(alpha: 0.07),
@@ -3457,15 +3283,23 @@ class _CardWidget extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Illustration
         if (imgPath != null)
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
-            child: SizedBox(
-              height: 180, width: double.infinity,
-              child: Image.asset(imgPath, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  height: 80, color: dc.withValues(alpha: 0.1),
-                  child: Center(child: Text(deckIcon(card.deck.name),
-                    style: const TextStyle(fontSize: 40))))),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  height: 240,
+                  child: AspectRatio(
+                    aspectRatio: 2 / 3,
+                    child: Image.asset(imgPath, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        height: 80, color: dc.withValues(alpha: 0.1),
+                        child: Center(child: Text(deckIcon(card.deck.name),
+                          style: const TextStyle(fontSize: 40))))),
+                  ),
+                ),
+              ),
             ),
           )
         else
@@ -3504,7 +3338,7 @@ class _CardWidget extends StatelessWidget {
           ]),
         ),
       ]),
-    );
+    ));
   }
 }
 
@@ -3729,8 +3563,20 @@ class _SoloGameOverScreenState extends State<SoloGameOverScreen>
     final isWinner = widget.ctrl.state?.winnerIds.contains(widget.ctrl.state?.players.firstWhere((p) => !p.isBot, orElse: () => widget.ctrl.state!.players.first).uid) ?? false;
     if (isWinner) audio.playWin(); else audio.playLose();
     audio.fadeOutMusic();
-    
-    super.initState();
+
+    // Enregistrer la partie dans l'historique local
+    final st = widget.ctrl.state;
+    if (st != null) {
+      final human = st.players.firstWhere((p) => p.uid == 'human',
+          orElse: () => st.players.first);
+      Prefs.addGame(
+        mode: 'solo',
+        character: human.character?.name ?? '?',
+        faction: human.character?.faction.name ?? '?',
+        win: st.winnerIds.contains('human'),
+      );
+    }
+
     _bgAc = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _contentAc = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
     _bgAc.forward().then((_) => _contentAc.forward());

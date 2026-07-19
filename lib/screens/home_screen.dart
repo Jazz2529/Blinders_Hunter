@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/game_provider.dart';
 import '../services/display_settings.dart';
+import '../services/persistence.dart';
+import 'rules_screen.dart';
+import 'stats_screen.dart';
 import '../services/audio_service.dart';
 import '../widgets/theme.dart';
 import '../widgets/token_widget.dart';
@@ -21,9 +24,12 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _ac;
   late Animation<double> _fade, _y;
 
+  ({String roomId, String uid})? _resumable;
+
   @override
   void initState() {
     super.initState();
+    _checkResumable();
     _ac = AnimationController(vsync: this,
         duration: const Duration(milliseconds: 1000));
     _fade = CurvedAnimation(parent: _ac,
@@ -127,9 +133,31 @@ class _HomeScreenState extends State<HomeScreen>
             ])),
 
           const SizedBox(height: 16),
+          if (_resumable != null) ...[
+            PulseGlow(
+              active: true,
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 10),
+                child: BHButton(
+                  label: '▶️  Reprendre la partie (${_resumable!.roomId})',
+                  gold: true, onTap: _resume),
+              ),
+            ),
+          ],
           BHButton(label: '🤖  Mode Solo', onTap: _goSolo),
           const SizedBox(height: 10),
           BHButton(label: '⚔️  Multijoueur', gold: true, onTap: _goMulti),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: BHButton(label: '📊 Stats', outlined: true,
+              onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const StatsScreen())))),
+            const SizedBox(width: 10),
+            Expanded(child: BHButton(label: '📖 Règles', outlined: true,
+              onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const RulesScreen())))),
+          ]),
           const SizedBox(height: 10),
           TextButton(
             onPressed: _newIdentity,
@@ -139,6 +167,32 @@ class _HomeScreenState extends State<HomeScreen>
         ]),
       )),
     );
+  }
+
+  Future<void> _checkResumable() async {
+    final saved = Prefs.savedRoom();
+    if (saved == null) return;
+    final gp = context.read<GameProvider>();
+    final status = await gp.fb.fetchRoomStatus(saved.roomId);
+    if (!mounted) return;
+    if (status == null || status == 'finished') {
+      Prefs.clearRoom();
+      return;
+    }
+    setState(() => _resumable = saved);
+  }
+
+  Future<void> _resume() async {
+    final r = _resumable;
+    if (r == null) return;
+    final gp = context.read<GameProvider>();
+    final ok = await gp.resumeRoom(r.roomId, r.uid);
+    if (!ok && mounted) {
+      setState(() => _resumable = null);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Cette partie n\'existe plus.')));
+    }
+    // Si ok, le routeur racine bascule automatiquement (roomStatus).
   }
 
   void _showSettings(BuildContext ctx) {

@@ -68,14 +68,31 @@ BoxDecoration glowDecor(Color color, {double r=14}) => BoxDecoration(
 
 // ─── Widgets communs ─────────────────────────
 
-class BHButton extends StatelessWidget {
+class BHButton extends StatefulWidget {
   final String label; final VoidCallback? onTap;
   final bool gold, danger, outlined, loading;
   const BHButton({super.key,required this.label,this.onTap,this.gold=false,
     this.danger=false,this.outlined=false,this.loading=false});
+  @override State<BHButton> createState() => _BHButtonState();
+}
+
+class _BHButtonState extends State<BHButton> {
+  bool _pressed = false;
+  String get label => widget.label;
+  VoidCallback? get onTap => widget.onTap;
+  bool get gold => widget.gold; bool get danger => widget.danger;
+  bool get outlined => widget.outlined; bool get loading => widget.loading;
 
   @override
-  Widget build(BuildContext ctx) => SizedBox(
+  Widget build(BuildContext ctx) => Listener(
+    onPointerDown: (_) { if (onTap != null) setState(() => _pressed = true); },
+    onPointerUp: (_) => setState(() => _pressed = false),
+    onPointerCancel: (_) => setState(() => _pressed = false),
+    child: AnimatedScale(
+      scale: _pressed ? 0.965 : 1.0,
+      duration: const Duration(milliseconds: 90),
+      curve: Curves.easeOut,
+      child: SizedBox(
     width:double.infinity,
     child:ElevatedButton(
       onPressed:onTap,
@@ -92,6 +109,8 @@ class BHButton extends StatelessWidget {
         ? const Center(child:SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)))
         : Text(label,style:TextStyle(fontFamily:'Cinzel',fontSize:13,fontWeight:FontWeight.w700,
             color:danger?kRed:gold?const Color(0xFF1A0D00):outlined?kGold:kText)),
+    ),
+      ),
     ),
   );
 }
@@ -183,4 +202,196 @@ class BHTextField extends StatelessWidget {
       focusedBorder:OutlineInputBorder(borderRadius:BorderRadius.circular(10),borderSide:const BorderSide(color:kGold)),
     ),
   );
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// WIDGETS D'ANIMATION — juice global
+// ═══════════════════════════════════════════════════════════
+
+/// Halo doré pulsant autour d'un widget (joueur actif, élément important).
+class PulseGlow extends StatefulWidget {
+  final bool active;
+  final Color color;
+  final BorderRadius borderRadius;
+  final Widget child;
+  const PulseGlow({super.key, required this.active, required this.child,
+    this.color = kGold, this.borderRadius = const BorderRadius.all(Radius.circular(12))});
+  @override State<PulseGlow> createState() => _PulseGlowState();
+}
+
+class _PulseGlowState extends State<PulseGlow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ac = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1100));
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active) _ac.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(PulseGlow old) {
+    super.didUpdateWidget(old);
+    if (widget.active && !_ac.isAnimating) _ac.repeat(reverse: true);
+    if (!widget.active && _ac.isAnimating) { _ac.stop(); _ac.value = 0; }
+  }
+
+  @override void dispose() { _ac.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    if (!widget.active) return widget.child;
+    return AnimatedBuilder(
+      animation: _ac,
+      builder: (_, child) => Container(
+        decoration: BoxDecoration(
+          borderRadius: widget.borderRadius,
+          boxShadow: [BoxShadow(
+            color: widget.color.withValues(alpha: 0.15 + 0.30 * _ac.value),
+            blurRadius: 6 + 8 * _ac.value,
+            spreadRadius: 0.5 + 1.5 * _ac.value,
+          )],
+        ),
+        child: child,
+      ),
+      child: widget.child,
+    );
+  }
+}
+
+/// Superpose un "−N" rouge (dégâts) ou "+N" vert (soins) flottant vers le
+/// haut quand la valeur `wounds` change. Enrobe n'importe quel widget.
+class WoundDelta extends StatefulWidget {
+  final int wounds;
+  final Widget child;
+  const WoundDelta({super.key, required this.wounds, required this.child});
+  @override State<WoundDelta> createState() => _WoundDeltaState();
+}
+
+class _WoundDeltaState extends State<WoundDelta>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ac = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 900));
+  int _delta = 0; // wounds gagnés (+ = dégâts subis)
+
+  @override
+  void didUpdateWidget(WoundDelta old) {
+    super.didUpdateWidget(old);
+    if (old.wounds != widget.wounds) {
+      _delta = widget.wounds - old.wounds;
+      _ac.forward(from: 0);
+    }
+  }
+
+  @override void dispose() { _ac.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Stack(clipBehavior: Clip.none, children: [
+      widget.child,
+      AnimatedBuilder(
+        animation: _ac,
+        builder: (_, __) {
+          if (!_ac.isAnimating && _ac.value == 0) return const SizedBox.shrink();
+          final isDmg = _delta > 0;
+          final t = Curves.easeOut.transform(_ac.value);
+          return Positioned(
+            right: 4, top: -6 - 22 * t,
+            child: IgnorePointer(child: Opacity(
+              opacity: (1 - _ac.value).clamp(0.0, 1.0),
+              child: Text(
+                isDmg ? '−$_delta' : '+${-_delta}',
+                style: TextStyle(
+                  fontFamily: 'Cinzel', fontSize: 15, fontWeight: FontWeight.w900,
+                  color: isDmg ? kRed : kGreen,
+                  shadows: const [Shadow(color: Colors.black87, blurRadius: 4)],
+                ),
+              ),
+            )),
+          );
+        },
+      ),
+    ]);
+  }
+}
+
+/// Entrée en scène : scale + fade (cartes piochées, panneaux importants).
+class EntranceScale extends StatelessWidget {
+  final Widget child;
+  final Duration duration;
+  const EntranceScale({super.key, required this.child,
+    this.duration = const Duration(milliseconds: 320)});
+
+  @override
+  Widget build(BuildContext ctx) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0.0, end: 1.0),
+    duration: duration,
+    curve: Curves.easeOutBack,
+    builder: (_, v, child) => Opacity(
+      opacity: v.clamp(0.0, 1.0),
+      child: Transform.scale(scale: 0.85 + 0.15 * v, child: child),
+    ),
+    child: child,
+  );
+}
+
+/// Bannière "⚔️ À TON TOUR" — glisse du haut, reste 1,4 s puis disparaît.
+/// Se rejoue quand la `key` change (nouveau tour).
+class TurnBanner extends StatefulWidget {
+  final bool show;
+  const TurnBanner({super.key, required this.show});
+  @override State<TurnBanner> createState() => _TurnBannerState();
+}
+
+class _TurnBannerState extends State<TurnBanner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ac = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 2300));
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.show) _ac.forward();
+  }
+
+  @override void dispose() { _ac.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    if (!widget.show) return const SizedBox.shrink();
+    return AnimatedBuilder(
+      animation: _ac,
+      builder: (_, __) {
+        final t = _ac.value;
+        if (t >= 1.0) return const SizedBox.shrink();
+        // 0→0.15 : entrée | 0.15→0.8 : maintien | 0.8→1 : sortie
+        final slideIn  = Curves.easeOutBack.transform((t / 0.15).clamp(0.0, 1.0));
+        final fadeOut  = t < 0.8 ? 1.0 : 1.0 - ((t - 0.8) / 0.2);
+        return Positioned(
+          top: 60 * slideIn - 50, left: 0, right: 0,
+          child: IgnorePointer(child: Opacity(
+            opacity: fadeOut.clamp(0.0, 1.0),
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [
+                  kGold.withValues(alpha: 0.0),
+                  kGold.withValues(alpha: 0.25),
+                  kGold.withValues(alpha: 0.0),
+                ]),
+                border: const Border(
+                  top: BorderSide(color: kGold, width: 1),
+                  bottom: BorderSide(color: kGold, width: 1),
+                ),
+              ),
+              child: Text('⚔️  À TON TOUR',
+                style: cinzel(17, c: kGold2, fw: FontWeight.w900, ls: 3)),
+            )),
+          )),
+        );
+      },
+    );
+  }
 }

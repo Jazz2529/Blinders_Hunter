@@ -147,6 +147,40 @@ class FirebaseService {
   }
 
   /// Quitte la room
+  /// Statut actuel d'une salle ('lobby' | 'playing' | 'finished') ou null.
+  Future<String?> fetchRoomStatus(String roomId) async {
+    try {
+      final s = await _get('rooms/$roomId/status');
+      return s as String?;
+    } catch (_) { return null; }
+  }
+
+  /// Réinitialise la salle pour rejouer avec les mêmes joueurs :
+  /// retour au lobby, joueurs conservés (nom + jeton) mais remis à zéro.
+  Future<void> restartRoom(String roomId) async {
+    final data = await _get('rooms/$roomId');
+    if (data == null) return;
+    final playersRaw = Map<String, dynamic>.from(data['players'] ?? {});
+    final resetPlayers = <String, dynamic>{};
+    for (final e in playersRaw.entries) {
+      final p = Map<String, dynamic>.from(e.value);
+      resetPlayers[e.key] = Player(
+        uid: p['uid'] as String? ?? e.key,
+        name: p['name'] as String? ?? 'Joueur',
+        token: p['token'] as String? ?? '🎲',
+      ).toJson();
+    }
+    await _patch('rooms/$roomId', {
+      'status': 'lobby',
+      'gameState': null,
+      'result': null,
+      'logs': null,
+      'privateLogs': null,
+      'roleConfirms': null,
+      'players': resetPlayers,
+    });
+  }
+
   Future<void> leaveRoom(String roomId) async {
     final uid = currentUid;
     if (uid == null) return;
@@ -344,7 +378,10 @@ class FirebaseService {
     bool clearPending = false,
   }) async {
     final Map<String, dynamic> updates = {'phase': phase.name};
-    if (currentPlayerId != null) updates['currentPlayerId'] = currentPlayerId;
+    if (currentPlayerId != null) {
+      updates['currentPlayerId'] = currentPlayerId;
+      updates['turnStartedAt'] = DateTime.now().millisecondsSinceEpoch;
+    }
     if (clearPending) {
       updates['pendingAction'] = null;
       updates['pendingTargetAction'] = null;

@@ -7,9 +7,11 @@ import '../models/models.dart';
 import '../data/game_data.dart';
 import 'engine.dart';
 import 'firebase_service.dart';
+import 'persistence.dart';
 
 class GameProvider extends ChangeNotifier {
   final FirebaseService _fb = FirebaseService.instance;
+  FirebaseService get fb => _fb; // accès lecture (reconnexion, etc.)
   final GameEngine      _eg = GameEngine.instance;
   final bool firebaseEnabled;
   GameProvider({this.firebaseEnabled = false});
@@ -86,6 +88,7 @@ class GameProvider extends ChangeNotifier {
     roomId = await _fb.createRoom(name, token);
     myUid  = _fb.currentUid;
     hostId = myUid; // l'hôte est forcément moi quand je crée la salle
+    Prefs.saveRoom(roomId!, myUid!);
     _subscribe(); notifyListeners();
     return roomId!;
   }
@@ -94,15 +97,99 @@ class GameProvider extends ChangeNotifier {
     await _fb.joinRoom(code.toUpperCase(), name, token);
     roomId = code.toUpperCase(); myUid = _fb.currentUid;
     hostId = await _fb.getHostId(roomId!);
+    Prefs.saveRoom(roomId!, myUid!);
     _subscribe(); notifyListeners();
+  }
+
+  /// Reprend une partie en cours après fermeture de l'appli.
+  /// Retourne false si la salle n'existe plus ou est terminée.
+  Future<bool> resumeRoom(String rid, String uid) async {
+    final status = await _fb.fetchRoomStatus(rid);
+    if (status == null || status == 'finished') {
+      Prefs.clearRoom();
+      return false;
+    }
+    roomId = rid;
+    myUid = uid;
+    hostId = await _fb.getHostId(rid);
+    _resultRecorded = false;
+    _subscribe();
+    notifyListeners();
+    return true;
+  }
+
+  /// Rejouer avec les mêmes joueurs : retour au lobby (hôte uniquement).
+  Future<void> restartGame() async {
+    if (roomId == null) return;
+    _resultRecorded = false;
+    await _fb.restartRoom(roomId!);
+  }
+
+  bool _resultRecorded = false;
+  bool _forcingTurn = false;
+
+  void _recordMultiResult(Map<String, dynamic>? result) {
+    if (result == null || _resultRecorded) return;
+    final me = players[myUid];
+    if (me == null) return;
+    _resultRecorded = true;
+    final winnerIds = List<String>.from(result['winnerIds'] as List? ?? []);
+    Prefs.addGame(
+      mode: 'multi',
+      character: me.character?.name ?? '?',
+      faction: me.character?.faction.name ?? '?',
+      win: winnerIds.contains(myUid),
+      reason: result['reason'] as String? ?? '',
+    );
+  }
+
+  /// Timer AFK : si l'hôte constate que le tour dure > 120 s, il force
+  /// le passage au joueur suivant.
+  static const turnTimeoutMs = 120000;
+
+  void _maybeForceTurn() {
+    if (_forcingTurn) return;
+    if (myUid == null || hostId != myUid) return;           // hôte seulement
+    if (roomStatus != 'playing' || gameResult != null) return;
+    final ts = gameState?.turnStartedAt;
+    if (ts == null) return;
+    if (DateTime.now().millisecondsSinceEpoch - ts < turnTimeoutMs) return;
+    _forcingTurn = true;
+    _forceAdvanceTurn().whenComplete(() => _forcingTurn = false);
+  }
+
+  Future<void> _forceAdvanceTurn() async {
+    final gs = gameState;
+    if (gs == null || roomId == null) return;
+    final curId = gs.currentPlayerId;
+    final cur = players[curId];
+    await _fb.addLog(roomId!,
+        '⏰ Temps écoulé — le tour de ${cur?.name ?? "?"} est passé automatiquement');
+    final order = gs.playerOrder;
+    int next = (order.indexOf(curId) + 1) % order.length;
+    while (!(players[order[next]]?.alive ?? false)) {
+      next = (next + 1) % order.length;
+    }
+    final all = _mutableAll();
+    final nextPlayer = all.firstWhere((x) => x.uid == order[next]);
+    if (nextPlayer.character?.abilityRepeatable == true) nextPlayer.abilityUsed = false;
+    if (nextPlayer.shield && nextPlayer.shieldCharges == 99) {
+      nextPlayer.shield = false; nextPlayer.shieldCharges = 0;
+    }
+    nextPlayer.damageTakenThisTurn = 0;
+    final passiveLogs = _eg.applyStartOfTurnPassives(nextPlayer, all, gs.terrainLayout);
+    _eg.applyDeathPassives(all);
+    await _commitAll(all, passiveLogs.join(' | '));
+    await _fb.setPhase(roomId!, GamePhase.ability,
+        currentPlayerId: order[next], hasAttacked: false, clearPending: true);
   }
 
   void _subscribe() {
     _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel();
     _pSub  = _fb.watchPlayers(roomId!).listen((d) { players = d; notifyListeners(); });
-    _gsSub = _fb.watchGameState(roomId!).listen((d) { gameState = d; notifyListeners(); });
+    _gsSub = _fb.watchGameState(roomId!).listen((d) { gameState = d; _maybeForceTurn(); notifyListeners(); });
     _stSub = _fb.watchStatus(roomId!).listen((d) { roomStatus = d; notifyListeners(); });
-    _rSub  = _fb.watchResult(roomId!).listen((d) { gameResult = d; notifyListeners(); });
+    _rSub  = _fb.watchResult(roomId!).listen((d) { gameResult = d; _recordMultiResult(d); notifyListeners(); });
     _rcSub = _fb.watchRoleConfirms(roomId!).listen((d) { roleConfirms = d; notifyListeners(); });
     _logSub = _fb.watchLog(roomId!).listen((d) { log = d; notifyListeners(); });
     if (myUid != null) {
@@ -120,6 +207,8 @@ class GameProvider extends ChangeNotifier {
   /// créer/rejoindre une nouvelle partie. À appeler avant de retourner à
   /// l'écran d'accueil après une fin de partie.
   Future<void> leaveRoomAndReset() async {
+    Prefs.clearRoom();
+    _resultRecorded = false;
     _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel();
     _pSub = _gsSub = _stSub = _rSub = _rcSub = _logSub = _privLogSub = null;
     if (roomId != null) {
@@ -241,7 +330,7 @@ class GameProvider extends ChangeNotifier {
     _eg.applyDeathPassives(all);
     await _commitAll(all, log);
     await _checkWin(all);
-    await _fb.setPhase(roomId!, await _postCardPhase(), clearPending: true);
+    await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true, peioReturnToMove: false);
   }
 
 
@@ -515,23 +604,23 @@ class GameProvider extends ChangeNotifier {
       case 'choice':    await _fb.setPhase(roomId!, GamePhase.cardChoice); break;
       case 'damage9':   await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: 'terrain_damage9'); break;
       case 'steal':     await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: 'terrain_steal'); break;
-      default:          await _fb.setPhase(roomId!, await _postCardPhase()); break;
+      default:          await _fb.setPhase(roomId!, _postCardPhase(), peioReturnToMove: false); break;
     }
   }
 
   /// Détermine la phase à utiliser après résolution d'une carte/effet de
-  /// terrain. Normalement `attack`, mais Peio retourne en `move` une fois
-  /// (flag consommé) pour pouvoir se déplacer après avoir réactivé le terrain.
-  Future<GamePhase> _postCardPhase() async {
-    if (gameState?.peioReturnToMove == true) {
-      await _fb.setPhase(roomId!, gameState!.phase, peioReturnToMove: false);
-      return GamePhase.move;
-    }
-    return GamePhase.attack;
+  /// terrain. Normalement `attack`, mais Monkey Raph / Élise retournent en
+  /// `move` une fois (flag consommé) pour pouvoir se déplacer après avoir
+  /// pioché. IMPORTANT : ne fait AUCUNE écriture Firebase elle-même — la
+  /// remise à zéro de `peioReturnToMove` doit être incluse dans le MÊME
+  /// setPhase que l'appelant (sinon race condition entre deux écritures
+  /// séquentielles : le jeu peut rester bloqué en phase cardDrawn).
+  GamePhase _postCardPhase() {
+    return gameState?.peioReturnToMove == true ? GamePhase.move : GamePhase.attack;
   }
 
   Future<void> skipTerrainEffect() async =>
-      await _fb.setPhase(roomId!, await _postCardPhase());
+      await _fb.setPhase(roomId!, _postCardPhase(), peioReturnToMove: false);
 
   /// Résout une cible pour les effets de terrain (Clairière / Tour du Voleur)
   Future<void> applyTerrainTarget(Player target) async {
@@ -556,7 +645,7 @@ class GameProvider extends ChangeNotifier {
       }
     }
     await _checkWin(all, justDiedId: t.alive ? null : t.uid);
-    await _fb.setPhase(roomId!, await _postCardPhase(), clearPending: true);
+    await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true, peioReturnToMove: false);
   }
 
   Future<void> drawCard(DeckType deck) async {
@@ -588,7 +677,8 @@ class GameProvider extends ChangeNotifier {
       // Divination X ou Y : la VRAIE cible doit répondre — on commit l'état
       // actuel (rien n'a encore changé) et on ouvre l'attente de réponse.
       await _commitAll(all, '');
-      await _fb.setPhase(roomId!, await _postCardPhase(), clearPending: true,
+      await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true,
+          peioReturnToMove: false,
           pendingPunishActorUid: res['punishActorUid'] as String,
           pendingPunishTargetUid: res['punishTargetUid'] as String);
       return;
@@ -605,7 +695,8 @@ class GameProvider extends ChangeNotifier {
       _eg.applyDeathPassives(all);
       await _commitAll(all, res['log'] as String);
       await _checkWin(all);
-      await _fb.setPhase(roomId!, await _postCardPhase(), clearPending: true,
+      await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true,
+          peioReturnToMove: false,
           privateRevealTargetUid: res['privateRevealUid'] as String,
           privateRevealForUid: actor.uid);
       return;
@@ -635,7 +726,8 @@ class GameProvider extends ChangeNotifier {
     final d6c = cardDice?['d6'] as int? ?? 0;
     final sumc = cardDice?['sum'] as int? ?? 0;
     final labelc = cardDice?['label'] as String? ?? '🎲';
-    await _fb.setPhase(roomId!, await _postCardPhase(), clearPending: true,
+    await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true,
+        peioReturnToMove: false,
         lastDiceResult: d4c > 0 ? {'d4': d4c, 'd6': d6c, 'sum': sumc} : null,
         lastDiceLabel: d4c > 0 ? labelc : null,
         lastDiceTimestamp: d4c > 0 ? DateTime.now().millisecondsSinceEpoch : null);
@@ -680,7 +772,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   Future<void> skipCard() async =>
-      await _fb.setPhase(roomId!, await _postCardPhase(), clearPending: true);
+      await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true, peioReturnToMove: false);
 
   /// Retire le premier équipement avec l'effet donné de l'inventaire du joueur courant.
   Future<void> consumeEquipment(String effect) async {

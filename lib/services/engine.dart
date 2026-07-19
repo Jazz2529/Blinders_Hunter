@@ -1365,18 +1365,18 @@ class GameEngine with AbilityEngine {
   // ─── Équipement passif ────────────────────
   void _equipPassive(Player p, GameCard card) {
     switch (card.effect) {
-      case 'terrain9_immune':      p.terrainImmune = true;
-      case 'terrain9_dmg_immune':  p.terrainDmgImmune = true;
-      case 'sainte_tunique':       p.sainteTunique = true;
-      case 'tenebres_card_immune': p.tendebresImmune = true;
-      case 'lance_lumiere':        p.lance = true;
-      case 'lance_longinus':       p.lanceLonginus = true; // +2 dmg, condition (Hunter révélé) vérifiée à l'attaque
-      case 'bazooka':              p.bazooka = true;
-      case 'hache_berserker':      p.hache = true;
-      case 'sniper':               p.sniper = true;
-      case 'dague_voleur':         p.dague = true;
-      case 'epee_ninja':           p.epeeNinja = true;
-      case 'mirror_damage':        p.mirrorDamage = true;
+      case 'terrain9_immune':      p.terrainImmune = true; break;
+      case 'terrain9_dmg_immune':  p.terrainDmgImmune = true; break;
+      case 'sainte_tunique':       p.sainteTunique = true; break;
+      case 'tenebres_card_immune': p.tendebresImmune = true; break;
+      case 'lance_lumiere':        p.lance = true; break;
+      case 'lance_longinus':       p.lanceLonginus = true; break; // +2 dmg, condition (Hunter révélé) vérifiée à l'attaque
+      case 'bazooka':              p.bazooka = true; break;
+      case 'hache_berserker':      p.hache = true; break;
+      case 'sniper':               p.sniper = true; break;
+      case 'dague_voleur':         p.dague = true; break;
+      case 'epee_ninja':           p.epeeNinja = true; break;
+      case 'mirror_damage':        p.mirrorDamage = true; break;
     }
   }
 

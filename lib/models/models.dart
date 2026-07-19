@@ -343,6 +343,7 @@ class GameState {
   final Map<String, int>? lastDiceResult; // dernier jet de dés (attaque/déplacement/carte) — visible de tous
   final String? lastDiceLabel;            // libellé du jet ('Déplacement', 'Attaque', etc.)
   final int? lastDiceTimestamp;           // ms depuis epoch au moment du jet
+  final int? turnStartedAt;               // ms epoch — début du tour courant (timer AFK)
   final String? pendingPunishActorUid;  // Divination X ou Y : qui a joué la carte
   final String? pendingPunishTargetUid; // Divination X ou Y : qui doit répondre
   final String? privateRevealTargetUid; // Vision Suprême : uid dont la carte est montrée
@@ -386,6 +387,7 @@ class GameState {
     this.lastDiceResult,
     this.lastDiceLabel,
     this.lastDiceTimestamp,
+    this.turnStartedAt,
     this.pendingPunishActorUid,
     this.pendingPunishTargetUid,
     this.privateRevealTargetUid,
@@ -423,6 +425,7 @@ class GameState {
     'lastDiceResult': lastDiceResult,
     'lastDiceLabel': lastDiceLabel,
     'lastDiceTimestamp': lastDiceTimestamp,
+    'turnStartedAt': turnStartedAt,
     'pendingPunishActorUid': pendingPunishActorUid,
     'pendingPunishTargetUid': pendingPunishTargetUid,
     'privateRevealTargetUid': privateRevealTargetUid,
@@ -470,6 +473,7 @@ class GameState {
         : null,
     lastDiceLabel: j['lastDiceLabel'] as String?,
     lastDiceTimestamp: j['lastDiceTimestamp'] as int?,
+    turnStartedAt: j['turnStartedAt'] as int?,
     pendingPunishActorUid: j['pendingPunishActorUid'] as String?,
     pendingPunishTargetUid: j['pendingPunishTargetUid'] as String?,
     privateRevealTargetUid: j['privateRevealTargetUid'] as String?,

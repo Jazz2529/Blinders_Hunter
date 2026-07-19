@@ -1790,13 +1790,25 @@ class SoloController extends ChangeNotifier {
     }
   }
 
-  bool _abilityNeedsTarget(String eff) =>
-    ['damage2_choice','damage2_then_heal3','set_wounds5','steal_equip_choice'].contains(eff);
+  // Liste synchronisée avec les checks 'cible_requise' de engine.dart —
+  // sans ça, un bot avec une de ces capacités la gâche silencieusement
+  // (target reste null, l'effet ne s'applique jamais, le tour semble figé).
+  bool _abilityNeedsTarget(String eff) => [
+    'damage2_choice','damage2_then_heal3','set_wounds5','steal_equip_choice',
+    'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
+    'swap_equipment',
+  ].contains(eff);
 
+  // Liste synchronisée avec le switch needsTarget de resolveCard() —
+  // sans ça, un bot qui pioche une de ces cartes (notamment les Visions,
+  // très fréquentes) la jette sans effet au lieu de choisir une cible.
   bool _cardNeedsTarget(String eff) => [
-    'heal_other_d6','set_marker7_choice','banane_demonique','vampirisation',
-    'blue_shell','veuve_noire','peau_banane','pince_attrape','trebuchet',
-    'vision_shadow_2','vision_shadow_1','vision_hunter_1','vision_hunter_2',
+    'heal_other_d6','heal_other_d4','set_marker7_choice','banane_demonique',
+    'vampirisation','blue_shell','veuve_noire','peau_banane','pince_attrape',
+    'trebuchet','vision_shadow_2','vision_shadow_1','vision_hunter_1','vision_hunter_2',
+    'vision_shadow_heal_or_dmg','vision_hunter_heal_or_dmg','vision_neutral_heal_or_dmg',
+    'vision_show_card','vision_punish_neutral_shadow','vision_punish_neutral_hunter',
+    'vision_punish_shadow_hunter','vision_hp_12plus','vision_hp_11minus',
   ].contains(eff);
 
   void resetGame() { state = null; notifyListeners(); }
