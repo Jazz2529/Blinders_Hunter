@@ -498,13 +498,13 @@ class GameProvider extends ChangeNotifier {
           pendingTargetAction: 'fifi_dice_picker');
       return;
     }
-    if (log == 'bonus_turns') {
-      final deadCount = players.values.where((p) => !p.alive).length;
-      if (deadCount == 0) {
-        await _commitAll(all, '🥷 Ninja : aucun joueur mort, pouvoir sans effet.');
-        await _fb.setPhase(roomId!, GamePhase.move);
-        return;
-      }
+    if (log == 'bonus_turns_zero') {
+      await _commitAll(all, '🥷 Ninja : aucun joueur mort, pouvoir sans effet.');
+      await _fb.setPhase(roomId!, GamePhase.move);
+      return;
+    }
+    if (log.startsWith('bonus_turns:')) {
+      final deadCount = int.tryParse(log.split(':')[1]) ?? 0;
       await _commitAll(all, '🥷 Ninja active son pouvoir — $deadCount tour(s) bonus !');
       await _fb.setPhase(roomId!, GamePhase.move, bonusTurnsRemaining: deadCount);
       return;

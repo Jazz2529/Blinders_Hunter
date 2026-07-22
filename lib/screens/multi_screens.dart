@@ -67,28 +67,6 @@ class LobbyScreen extends StatelessWidget {
                 await gp.leaveRoomAndReset();
               },
             ),
-            TextButton(
-              onPressed: () {
-                final c = gp.me?.character;
-                if (c != null) showFullCardDialog(ctx, c);
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: kGold.withValues(alpha: 0.15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Text('🃏', style: TextStyle(fontSize: 14)),
-                const SizedBox(width: 4),
-                Text('MA CARTE', style: cinzel(9, c: kGold)),
-              ]),
-            ),
-            IconButton(
-              icon: const Text('📖', style: TextStyle(fontSize: 18)),
-              tooltip: 'Règles',
-              onPressed: () => Navigator.push(ctx,
-                MaterialPageRoute(builder: (_) => const RulesScreen())),
-            ),
             IconButton(
               icon: const Icon(Icons.settings, color: kGold),
               onPressed: () => showDialog(context: ctx, builder: (_) => const SettingsDialog()),
@@ -345,6 +323,28 @@ class GameScreen extends StatelessWidget {
             }),
           ]),
           actions:[
+            TextButton(
+              onPressed: () {
+                final c = gp.me?.character;
+                if (c != null) showFullCardDialog(ctx, c);
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: kGold.withValues(alpha: 0.15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Text('🃏', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 4),
+                Text('MA CARTE', style: cinzel(9, c: kGold)),
+              ]),
+            ),
+            IconButton(
+              icon: const Text('📖', style: TextStyle(fontSize: 18)),
+              tooltip: 'Règles',
+              onPressed: () => Navigator.push(ctx,
+                MaterialPageRoute(builder: (_) => const RulesScreen())),
+            ),
             IconButton(
               icon: const Icon(Icons.settings, color: kGold),
               onPressed: () => showDialog(context: ctx, builder: (_) => const SettingsDialog()),
@@ -1957,8 +1957,12 @@ class _MultiCasinoWidgetState extends State<_MultiCasinoWidget>
         const SizedBox(height: 16),
         if (_result == null) ...[
           Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            BHButton(label: '⚫ Pair', onTap: () => _roll(false)),
-            BHButton(label: '🔴 Impair', onTap: () => _roll(true)),
+            Expanded(child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: BHButton(label: '⚫ Pair', onTap: () => _roll(false)))),
+            Expanded(child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: BHButton(label: '🔴 Impair', onTap: () => _roll(true)))),
           ]),
         ] else ...[
           Text('Résultat : $_result ${(_result! % 2 == 0) ? "(Pair)" : "(Impair)"}',
