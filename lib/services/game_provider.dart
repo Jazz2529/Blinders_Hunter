@@ -285,6 +285,34 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Mr Casino — le joueur a gagné son pari : choisir une cible pour 3 dégâts.
+  /// Elaia étape 1 : choisit la pile à regarder (tenebres/lumiere/vision).
+  Future<void> elaiaChooseDeck(String deckName) async {
+    final deck = DeckType.values.byName(deckName);
+    final (c1, c2) = _eg.peekTwoCards(deck);
+    await _fb.setPhase(roomId!, GamePhase.ability,
+        elaiaStep: 2, elaiaDeck: deckName,
+        elaiaCard1Id: c1.id, elaiaCard2Id: c2.id);
+  }
+
+  /// Elaia étape 2 : confirme l'ordre de pioche des 2 cartes regardées.
+  /// [firstId] sera piochée en premier, [secondId] juste après.
+  Future<void> elaiaConfirmOrder(String firstId, String secondId) async {
+    final deckName = gameState?.elaiaDeck; if (deckName == null) return;
+    final queue = Map<String, List<String>>.from(
+        (gameState?.forcedDeckQueue ?? const {}).map(
+            (k, v) => MapEntry(k, List<String>.from(v))));
+    queue[deckName] = [firstId, secondId];
+    await _fb.addLog(roomId!,
+        '🔮 ${me?.name ?? "Elaia"} a organisé la pile ${_deckLabel(deckName)}.');
+    await _fb.setPhase(roomId!, GamePhase.ability,
+        elaiaStep: 0, forcedDeckQueue: queue);
+  }
+
+  String _deckLabel(String d) => switch (d) {
+    'tenebres' => 'Ténèbres', 'lumiere' => 'Lumière', 'vision' => 'Vision',
+    _ => d,
+  };
+
   Future<void> casinoWin() async {
     await _fb.setPhase(roomId!, GamePhase.chooseTarget,
         pendingTargetAction: 'casino_win');
@@ -474,6 +502,12 @@ class GameProvider extends ChangeNotifier {
       await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
       return;
     }
+    if (log == 'elaia_peek') {
+      // Elaia : ouvrir le choix de pile — abilityUsed reste false (répétable)
+      await _commitAll(all, '🔮 ${actor.name} active son pouvoir de prescience…');
+      await _fb.setPhase(roomId!, GamePhase.ability, elaiaStep: 1);
+      return;
+    }
     if (log == 'casino_bet') {
       // Mr Casino : positionner directement le pendingTargetAction sans passer par _commitAll
       // (évite la fenêtre de race condition entre deux Firebase writes)
@@ -649,8 +683,12 @@ class GameProvider extends ChangeNotifier {
   }
 
   Future<void> drawCard(DeckType deck) async {
-    final card = _eg.drawCard(deck);
-    await _fb.setPhase(roomId!, GamePhase.cardDrawn, pendingAction: card.id);
+    final queue = Map<String, List<String>>.from(
+        (gameState?.forcedDeckQueue ?? const {}).map(
+            (k, v) => MapEntry(k, List<String>.from(v))));
+    final card = _eg.drawCard(deck, forcedQueue: queue);
+    await _fb.setPhase(roomId!, GamePhase.cardDrawn,
+        pendingAction: card.id, forcedDeckQueue: queue);
     // Cartes Vision : nom secret — log public générique
     if (deck == DeckType.vision) {
       await _fb.addLog(roomId!, '🔮 ${me!.name} pioche une carte Vision (secrète)');

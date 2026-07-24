@@ -6,6 +6,7 @@ import '../services/display_settings.dart';
 import '../services/persistence.dart';
 import 'rules_screen.dart';
 import 'stats_screen.dart';
+import 'gallery_screen.dart';
 import '../services/audio_service.dart';
 import '../widgets/theme.dart';
 import '../widgets/token_widget.dart';
@@ -106,26 +107,41 @@ class _HomeScreenState extends State<HomeScreen>
               const SizedBox(height: 16),
               const SectionLabel('TON JETON'),
               const SizedBox(height: 10),
-              SizedBox(height: 56, child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: kAllTokens.length,
-                itemBuilder: (_, i) {
-                  final t = kAllTokens[i];
-                  final sel = t.id == _token;
-                  return GestureDetector(
-                    onTap: () => setState(() => _token = t.id),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: EdgeInsets.all(sel ? 2.5 : 0),
-                      decoration: BoxDecoration(shape: BoxShape.circle,
-                        border: sel ? Border.all(color: kGold, width: 2.5) : null,
-                        boxShadow: sel ? [BoxShadow(color: kGold.withValues(alpha: 0.4), blurRadius: 8)] : null),
-                      child: TokenWidget(tokenId: t.id, size: 44),
-                    ),
-                  );
-                },
-              )),
+              SizedBox(height: 56, child: Stack(children: [
+                ListView.builder(
+                  physics: const BouncingScrollPhysics(),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: kAllTokens.length,
+                  itemBuilder: (_, i) {
+                    final t = kAllTokens[i];
+                    final sel = t.id == _token;
+                    return GestureDetector(
+                      onTap: () => setState(() => _token = t.id),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: EdgeInsets.all(sel ? 2.5 : 0),
+                        decoration: BoxDecoration(shape: BoxShape.circle,
+                          border: sel ? Border.all(color: kGold, width: 2.5) : null,
+                          boxShadow: sel ? [BoxShadow(color: kGold.withValues(alpha: 0.4), blurRadius: 8)] : null),
+                        child: TokenWidget(tokenId: t.id, size: 44),
+                      ),
+                    );
+                  },
+                ),
+                // Indication visuelle qu'on peut faire défiler horizontalement
+                Positioned(right: 0, top: 0, bottom: 0,
+                  child: IgnorePointer(child: Container(
+                    width: 28,
+                    decoration: BoxDecoration(gradient: LinearGradient(
+                      begin: Alignment.centerLeft, end: Alignment.centerRight,
+                      colors: [kBg1.withValues(alpha: 0.0), kBg1.withValues(alpha: 0.85)])),
+                  )),
+                ),
+                Positioned(right: 2, top: 0, bottom: 0,
+                  child: IgnorePointer(child: Center(
+                    child: Icon(Icons.chevron_right, color: kGold.withValues(alpha: 0.7), size: 20)))),
+              ])),
               const SizedBox(height: 6),
               Center(child: Text(
                 kAllTokens.firstWhere((t) => t.id == _token, orElse: () => kAllTokens.first).name,
@@ -158,6 +174,10 @@ class _HomeScreenState extends State<HomeScreen>
               onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const RulesScreen())))),
           ]),
+          const SizedBox(height: 10),
+          BHButton(label: '📚 Catalogue (personnages & cartes)', outlined: true,
+            onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const CardCatalogScreen()))),
           const SizedBox(height: 10),
           TextButton(
             onPressed: _newIdentity,

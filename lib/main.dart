@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'services/game_provider.dart';
@@ -9,6 +10,20 @@ import 'screens/multi_screens.dart';
 import 'screens/solo_screen.dart';
 import 'models/models.dart';
 import 'widgets/theme.dart';
+
+/// Autorise le glisser-défiler avec la souris (et le trackpad/stylet) en plus
+/// du tactile. Sans ça, sur PC, tester le mode "Téléphone" simulé bloque le
+/// scroll des listes horizontales/verticales tant qu'on n'a pas de vrai écran
+/// tactile — la souris ne peut pas "glisser" une liste par défaut.
+class AppScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,6 +49,7 @@ class BlindersHunterApp extends StatelessWidget {
     return MaterialApp(
       title: 'Blinders Hunter',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: AppScrollBehavior(),
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: kBg0,

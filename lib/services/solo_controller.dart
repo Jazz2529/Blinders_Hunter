@@ -83,6 +83,12 @@ class SoloState {
   bool gladsCombining;
   int killsThisTurn;     // Couronne: tués ce tour       // Glads: en train de combiner
   List<GameCard> gladsBackup;// Glads: sauvegarde équipements
+  // Elaia — pouvoir de prescience
+  int elaiaStep = 0;          // 0=off, 1=choisir la pile, 2=choisir l'ordre
+  String? elaiaDeck;          // 'tenebres'|'lumiere'|'vision'
+  String? elaiaCard1Id;
+  String? elaiaCard2Id;
+  Map<String, List<String>> forcedDeckQueue = {}; // cartes forcées par pile
 
   SoloState({
     required this.players,
@@ -455,16 +461,16 @@ class SoloController extends ChangeNotifier {
     final terrain = state!.terrainLayout[bot.zoneIndex];
     if (terrain.effect == 'choice') {
       final deck = _ai.bestDeck(bot, difficulty);
-      state!.pendingCard = _eg.drawCard(deck);
+      state!.pendingCard = _eg.drawCard(deck, forcedQueue: state!.forcedDeckQueue);
       state!.pendingCardIsSecret = (deck == DeckType.vision);
     } else if (terrain.effect == 'vision')   {
-      state!.pendingCard = _eg.drawCard(DeckType.vision);
+      state!.pendingCard = _eg.drawCard(DeckType.vision, forcedQueue: state!.forcedDeckQueue);
       state!.pendingCardIsSecret = true;
     } else if (terrain.effect == 'lumiere')  {
-      state!.pendingCard = _eg.drawCard(DeckType.lumiere);
+      state!.pendingCard = _eg.drawCard(DeckType.lumiere, forcedQueue: state!.forcedDeckQueue);
       state!.pendingCardIsSecret = false;
     } else if (terrain.effect == 'tenebres') {
-      state!.pendingCard = _eg.drawCard(DeckType.tenebres);
+      state!.pendingCard = _eg.drawCard(DeckType.tenebres, forcedQueue: state!.forcedDeckQueue);
       state!.pendingCardIsSecret = false;
     }
     else if (terrain.effect == 'damage9')    {
@@ -633,11 +639,11 @@ class SoloController extends ChangeNotifier {
     if (log.isNotEmpty) _log(log, cls: 'important');
     // Cas spéciaux nécessitant une pioche de carte
     if (needsCard && reward == 'heal3_lumiere') {
-      state!.pendingCard = _eg.drawCard(DeckType.lumiere);
+      state!.pendingCard = _eg.drawCard(DeckType.lumiere, forcedQueue: state!.forcedDeckQueue);
       state!.phase = GamePhase.cardDrawn;
     }
     if (needsCard && reward == 'draw_vision') {
-      state!.pendingCard = _eg.drawCard(DeckType.vision);
+      state!.pendingCard = _eg.drawCard(DeckType.vision, forcedQueue: state!.forcedDeckQueue);
       state!.phase = GamePhase.cardDrawn;
     }
     // Effacer le marquage
@@ -918,7 +924,7 @@ class SoloController extends ChangeNotifier {
       case 'fetch_lumiere':
         p.abilityUsed = true;
         s.phase = GamePhase.cardDrawn;
-        s.pendingCard = _eg.drawCard(DeckType.lumiere);
+        s.pendingCard = _eg.drawCard(DeckType.lumiere, forcedQueue: s.forcedDeckQueue);
         _log('🙏 Prêtresse Raph choisit une carte Lumière', cls: 'player');
         notifyListeners(); return;
 
@@ -1030,6 +1036,13 @@ class SoloController extends ChangeNotifier {
         _log('💨 Vlad lance D4($dv) → inflige $dealtVlad blessures à ${target.name} !', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
         s.phase = GamePhase.move;
+        notifyListeners(); return;
+
+      // ── Elaia : prescience — choisir la pile à regarder ──
+      case 'peek_reorder_deck':
+        p.abilityUsed = false; // répétable
+        s.elaiaStep = 1;
+        _log('🔮 ${p.name} active son pouvoir de prescience…', cls: 'player');
         notifyListeners(); return;
 
       // ── Monkey Raph: pioche ténèbres visible ──
@@ -1357,6 +1370,37 @@ class SoloController extends ChangeNotifier {
     _checkWin(); notifyListeners();
   }
 
+  /// Elaia étape 1 : choisit la pile à regarder (tenebres/lumiere/vision).
+  void elaiaChooseDeck(String deckName) {
+    final s = state!;
+    final deck = DeckType.values.byName(deckName);
+    final (c1, c2) = _eg.peekTwoCards(deck);
+    s.elaiaStep = 2;
+    s.elaiaDeck = deckName;
+    s.elaiaCard1Id = c1.id;
+    s.elaiaCard2Id = c2.id;
+    notifyListeners();
+  }
+
+  /// Elaia étape 2 : confirme l'ordre de pioche des 2 cartes regardées.
+  /// [firstId] sera piochée en premier, [secondId] juste après.
+  void elaiaConfirmOrder(String firstId, String secondId) {
+    final s = state!;
+    final deckName = s.elaiaDeck; if (deckName == null) return;
+    s.forcedDeckQueue[deckName] = [firstId, secondId];
+    _log('🔮 ${s.current.name} a organisé la pile ${_deckLabel(deckName)}.', cls: 'player');
+    s.elaiaStep = 0;
+    s.elaiaDeck = null;
+    s.elaiaCard1Id = null;
+    s.elaiaCard2Id = null;
+    notifyListeners();
+  }
+
+  String _deckLabel(String d) => switch (d) {
+    'tenebres' => 'Ténèbres', 'lumiere' => 'Lumière', 'vision' => 'Vision',
+    _ => d,
+  };
+
   void humanSkipAbility() {
     state!.phase = GamePhase.move; notifyListeners();
   }
@@ -1369,7 +1413,7 @@ class SoloController extends ChangeNotifier {
 
   void humanDrawCard(DeckType deck) {
     audio.playCard();
-    final card = _eg.drawCard(deck); state!.pendingCard = card;
+    final card = _eg.drawCard(deck, forcedQueue: state!.forcedDeckQueue); state!.pendingCard = card;
     state!.phase = GamePhase.cardDrawn;
     if (card.deck != DeckType.vision) {
       _log('🃏 Tu pioches : ${card.name}', cls: 'player');

@@ -646,7 +646,102 @@ class _JeanneRewardWidget extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════
-// MR CASINO — Pari pair/impair
+// ELAIA — Étape 1 : choisir la pile à regarder
+// ═══════════════════════════════════════════════════════════
+class _ElaiaDeckChoiceWidget extends StatelessWidget {
+  final SoloController ctrl;
+  const _ElaiaDeckChoiceWidget({required this.ctrl});
+
+  @override
+  Widget build(BuildContext ctx) {
+    const purple = Color(0xFF6A3FA0);
+    final decks = [
+      ('tenebres', '💀 Ténèbres', kTenebresBg),
+      ('lumiere',  '✨ Lumière',  kLumiereBg),
+      ('vision',   '🔮 Vision',   kVisionBg),
+    ];
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: kBg2, borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: purple, width: 2.5),
+        boxShadow: [BoxShadow(color: purple.withValues(alpha: 0.35), blurRadius: 18)],
+      ),
+      child: Column(children: [
+        Text('🔮 ELAIA — PRESCIENCE', style: cinzel(16, c: purple, fw: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text('Quelle pile veux-tu regarder ?',
+          style: body(11, c: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 16),
+        ...decks.map((d) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: BHButton(label: d.$2, onTap: () => ctrl.elaiaChooseDeck(d.$1)),
+        )),
+      ]),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ELAIA — Étape 2 : choisir l'ordre des 2 cartes regardées
+// ═══════════════════════════════════════════════════════════
+class _ElaiaOrderWidget extends StatelessWidget {
+  final SoloController ctrl;
+  final GameCard card1, card2;
+  const _ElaiaOrderWidget({required this.ctrl, required this.card1, required this.card2});
+
+  @override
+  Widget build(BuildContext ctx) {
+    const purple = Color(0xFF6A3FA0);
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: kBg2, borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: purple, width: 2.5),
+        boxShadow: [BoxShadow(color: purple.withValues(alpha: 0.35), blurRadius: 18)],
+      ),
+      child: Column(children: [
+        Text('🔮 ELAIA — ORDRE DE PIOCHE', style: cinzel(14, c: purple, fw: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text('Choisis quelle carte sera piochée en premier',
+          style: body(11, c: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(child: _elaiaCardPreview(card1)),
+          const SizedBox(width: 8),
+          Expanded(child: _elaiaCardPreview(card2)),
+        ]),
+        const SizedBox(height: 14),
+        BHButton(label: '1️⃣ ${card1.name}  →  2️⃣ ${card2.name}', gold: true,
+          onTap: () => ctrl.elaiaConfirmOrder(card1.id, card2.id)),
+        const SizedBox(height: 8),
+        BHButton(label: '1️⃣ ${card2.name}  →  2️⃣ ${card1.name}', gold: true,
+          onTap: () => ctrl.elaiaConfirmOrder(card2.id, card1.id)),
+      ]),
+    );
+  }
+
+  Widget _elaiaCardPreview(GameCard c) {
+    final dc = deckColor(c.deck.name);
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: kBg3, borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: dc.withValues(alpha: 0.6))),
+      child: Column(children: [
+        Text(deckIcon(c.deck.name), style: const TextStyle(fontSize: 22)),
+        const SizedBox(height: 6),
+        Text(c.name, style: cinzel(11, c: kGold2, fw: FontWeight.w700),
+          textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 4),
+        Text(c.text, style: body(9, c: kTextSub),
+          textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis),
+      ]),
+    );
+  }
+}
 // ═══════════════════════════════════════════════════════════
 class _CasinoWidget extends StatefulWidget {
   final SoloController ctrl;
@@ -1919,6 +2014,16 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         // Jeanne étape 2 : choisir la récompense secrète
         if (s.jeanneStep == 2 && s.builderOffered.isNotEmpty) {
           return [_JeanneRewardWidget(ctrl: ctrl, rewards: s.builderOffered)];
+        }
+        // Elaia étape 1 : choisir la pile à regarder
+        if (s.elaiaStep == 1) {
+          return [_ElaiaDeckChoiceWidget(ctrl: ctrl)];
+        }
+        // Elaia étape 2 : choisir l'ordre de pioche des 2 cartes regardées
+        if (s.elaiaStep == 2 && s.elaiaCard1Id != null && s.elaiaCard2Id != null) {
+          return [_ElaiaOrderWidget(ctrl: ctrl,
+            card1: findCardById(s.elaiaCard1Id!)!,
+            card2: findCardById(s.elaiaCard2Id!)!)];
         }
         final c = me.character!;
         final freq = c.abilityRepeatable ? '🔄 Chaque tour' : '🔒 1 fois par partie';

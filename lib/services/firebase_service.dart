@@ -374,6 +374,11 @@ class FirebaseService {
     Map<String, int>? lastDiceResult,
     String? lastDiceLabel,
     int? lastDiceTimestamp,
+    int? elaiaStep,
+    String? elaiaDeck,
+    String? elaiaCard1Id,
+    String? elaiaCard2Id,
+    Map<String, List<String>>? forcedDeckQueue,
     bool clearOverlay = false,
     bool clearPending = false,
   }) async {
@@ -426,6 +431,11 @@ class FirebaseService {
     if (lastDiceResult != null) updates['lastDiceResult'] = lastDiceResult;
     if (lastDiceLabel != null) updates['lastDiceLabel'] = lastDiceLabel;
     if (lastDiceTimestamp != null) updates['lastDiceTimestamp'] = lastDiceTimestamp;
+    if (elaiaStep != null) updates['elaiaStep'] = elaiaStep;
+    if (elaiaDeck != null) updates['elaiaDeck'] = elaiaDeck;
+    if (elaiaCard1Id != null) updates['elaiaCard1Id'] = elaiaCard1Id;
+    if (elaiaCard2Id != null) updates['elaiaCard2Id'] = elaiaCard2Id;
+    if (forcedDeckQueue != null) updates['forcedDeckQueue'] = forcedDeckQueue;
     await _patch('rooms/$roomId/gameState', updates);
   }
 

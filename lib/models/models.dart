@@ -369,6 +369,12 @@ class GameState {
   final int fifiAtkResult;    // Fifi : valeur d'attaque choisie
   // Jeanne prophétesse
   final int jeanneStep;                  // 0=off, 1=choisir cible, 2=choisir récompense
+  // Elaia — pouvoir de prescience
+  final int elaiaStep;                   // 0=off, 1=choisir la pile, 2=choisir l'ordre
+  final String? elaiaDeck;               // 'tenebres'|'lumiere'|'vision' — pile choisie
+  final String? elaiaCard1Id;            // 1ère carte regardée
+  final String? elaiaCard2Id;            // 2ème carte regardée
+  final Map<String, List<String>> forcedDeckQueue; // cartes forcées par pile (Elaia)
 
   const GameState({
     required this.roomId,
@@ -408,6 +414,11 @@ class GameState {
     this.fifiMoveResult = 7,
     this.fifiAtkResult = 5,
     this.jeanneStep = 0,
+    this.elaiaStep = 0,
+    this.elaiaDeck,
+    this.elaiaCard1Id,
+    this.elaiaCard2Id,
+    this.forcedDeckQueue = const {},
   });
 
   Map<String, dynamic> toJson() => {
@@ -446,6 +457,11 @@ class GameState {
     'fifiMoveResult': fifiMoveResult,
     'fifiAtkResult': fifiAtkResult,
     'jeanneStep': jeanneStep,
+    'elaiaStep': elaiaStep,
+    'elaiaDeck': elaiaDeck,
+    'elaiaCard1Id': elaiaCard1Id,
+    'elaiaCard2Id': elaiaCard2Id,
+    'forcedDeckQueue': forcedDeckQueue,
   };
 
   factory GameState.fromJson(Map<String, dynamic> j) => GameState(
@@ -494,6 +510,14 @@ class GameState {
     fifiGoldenTurn: (j['fifiGoldenTurn'] as bool?) ?? false,
     fifiMoveResult: (j['fifiMoveResult'] as int?) ?? 7,
     fifiAtkResult: (j['fifiAtkResult'] as int?) ?? 5,
+    elaiaStep: (j['elaiaStep'] as int?) ?? 0,
+    elaiaDeck: j['elaiaDeck'] as String?,
+    elaiaCard1Id: j['elaiaCard1Id'] as String?,
+    elaiaCard2Id: j['elaiaCard2Id'] as String?,
+    forcedDeckQueue: j['forcedDeckQueue'] != null
+        ? Map<String, List<String>>.from((j['forcedDeckQueue'] as Map).map(
+            (k, v) => MapEntry(k as String, List<String>.from(v as List))))
+        : const {},
   );
 }
 

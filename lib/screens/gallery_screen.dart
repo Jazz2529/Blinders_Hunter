@@ -1,5 +1,5 @@
 // lib/screens/gallery_screen.dart
-// Galerie de tous les personnages
+// Catalogue : Galerie des personnages + Galerie des cartes de jeu
 
 import 'package:flutter/material.dart';
 import '../data/game_data.dart';
@@ -7,14 +7,65 @@ import '../data/characters_data.dart';
 import '../models/models.dart';
 import '../widgets/theme.dart';
 
-class GalleryScreen extends StatefulWidget {
-  const GalleryScreen({super.key});
-  @override State<GalleryScreen> createState() => _GalleryScreenState();
+// ═══════════════════════════════════════════════════════════
+// ÉCRAN PRINCIPAL — 2 onglets : Personnages / Cartes
+// ═══════════════════════════════════════════════════════════
+class CardCatalogScreen extends StatefulWidget {
+  const CardCatalogScreen({super.key});
+  @override State<CardCatalogScreen> createState() => _CardCatalogScreenState();
 }
 
-class _GalleryScreenState extends State<GalleryScreen>
+class _CardCatalogScreenState extends State<CardCatalogScreen>
     with SingleTickerProviderStateMixin {
-  late TabController _tabs;
+  late TabController _mainTabs;
+
+  @override
+  void initState() {
+    super.initState();
+    _mainTabs = TabController(length: 2, vsync: this);
+  }
+
+  @override void dispose() { _mainTabs.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Scaffold(
+      backgroundColor: kBg0,
+      appBar: AppBar(
+        backgroundColor: kBg2, elevation: 0,
+        title: Text('📚 Catalogue', style: cinzel(16, c: kGold2)),
+        bottom: TabBar(
+          controller: _mainTabs,
+          indicatorColor: kGold,
+          labelColor: kGold,
+          unselectedLabelColor: kTextSub,
+          labelStyle: const TextStyle(fontFamily: 'Cinzel', fontSize: 12),
+          tabs: const [
+            Tab(text: '🎭  Personnages'),
+            Tab(text: '🃏  Cartes'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _mainTabs,
+        children: const [
+          _CharacterGalleryBody(),
+          _CardDeckGalleryBody(),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ONGLET 1 — Galerie des personnages (filtre par faction)
+// ═══════════════════════════════════════════════════════════
+class _CharacterGalleryBody extends StatefulWidget {
+  const _CharacterGalleryBody();
+  @override State<_CharacterGalleryBody> createState() => _CharacterGalleryBodyState();
+}
+
+class _CharacterGalleryBodyState extends State<_CharacterGalleryBody> {
   String _filter = 'all'; // all | hunter | shadow | neutral
 
   final _factions = [
@@ -24,49 +75,218 @@ class _GalleryScreenState extends State<GalleryScreen>
     ('neutral', 'Neutres', const Color(0xFFB8860B)),
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    _tabs = TabController(length: 4, vsync: this);
-    _tabs.addListener(() => setState(() =>
-        _filter = _factions[_tabs.index].$1));
-  }
-
-  @override void dispose() { _tabs.dispose(); super.dispose(); }
-
   List<CharacterCard> get filtered => _filter == 'all'
       ? kAllCharacters
       : kAllCharacters.where((c) => c.faction.name == _filter).toList();
 
   @override
   Widget build(BuildContext ctx) {
-    return Scaffold(
-      backgroundColor: kBg0,
-      appBar: AppBar(
-        backgroundColor: kBg2, elevation: 0,
-        title: Text('Galerie des Personnages', style: cinzel(16, c: kGold2)),
-        bottom: TabBar(
-          controller: _tabs,
-          indicatorColor: kGold,
-          labelColor: kGold,
-          unselectedLabelColor: kTextSub,
-          labelStyle: const TextStyle(fontFamily: 'Cinzel', fontSize: 11),
-          tabs: _factions.map((f) => Tab(text: f.$2)).toList(),
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+        child: SizedBox(
+          height: 34,
+          child: ListView(scrollDirection: Axis.horizontal, children: _factions.map((f) {
+            final selected = _filter == f.$1;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(f.$2, style: cinzel(11, c: selected ? const Color(0xFF1A0D00) : f.$3)),
+                selected: selected,
+                selectedColor: f.$3,
+                backgroundColor: kBg2,
+                side: BorderSide(color: f.$3.withValues(alpha: 0.6)),
+                onSelected: (_) => setState(() => _filter = f.$1),
+              ),
+            );
+          }).toList()),
         ),
       ),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 300,
-          childAspectRatio: 0.58,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
+      Expanded(
+        child: GridView.builder(
+          padding: const EdgeInsets.all(12),
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 300,
+            childAspectRatio: 0.58,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+          ),
+          itemCount: filtered.length,
+          itemBuilder: (ctx, i) => _CharacterCard(char: filtered[i]),
         ),
-        itemCount: filtered.length,
-        itemBuilder: (ctx, i) => _CharacterCard(char: filtered[i]),
+      ),
+    ]);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ONGLET 2 — Galerie des cartes de jeu (filtre par deck)
+// ═══════════════════════════════════════════════════════════
+class _CardDeckGalleryBody extends StatefulWidget {
+  const _CardDeckGalleryBody();
+  @override State<_CardDeckGalleryBody> createState() => _CardDeckGalleryBodyState();
+}
+
+class _CardDeckGalleryBodyState extends State<_CardDeckGalleryBody> {
+  String _filter = 'all'; // all | vision | lumiere | tenebres
+
+  final _decks = [
+    ('all',      'Toutes',    kGold),
+    ('vision',   'Vision',    kVisionBg),
+    ('lumiere',  'Lumière',   kLumiereBg),
+    ('tenebres', 'Ténèbres',  kTenebresBg),
+  ];
+
+  List<GameCard> get filtered {
+    final all = [...kVisionCards, ...kLumiereCards, ...kTenebresCards];
+    // Dédoublonner par nom (les cartes en plusieurs exemplaires ne s'affichent qu'une fois)
+    final seen = <String>{};
+    final unique = all.where((c) => seen.add(c.name)).toList();
+    if (_filter == 'all') return unique;
+    return unique.where((c) => c.deck.name == _filter).toList();
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+        child: SizedBox(
+          height: 34,
+          child: ListView(scrollDirection: Axis.horizontal, children: _decks.map((d) {
+            final selected = _filter == d.$1;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(d.$2, style: cinzel(11, c: selected ? const Color(0xFF1A0D00) : d.$3)),
+                selected: selected,
+                selectedColor: d.$3,
+                backgroundColor: kBg2,
+                side: BorderSide(color: d.$3.withValues(alpha: 0.6)),
+                onSelected: (_) => setState(() => _filter = d.$1),
+              ),
+            );
+          }).toList()),
+        ),
+      ),
+      Expanded(
+        child: GridView.builder(
+          padding: const EdgeInsets.all(12),
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 300,
+            childAspectRatio: 0.62,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+          ),
+          itemCount: filtered.length,
+          itemBuilder: (ctx, i) => _GameCardTile(card: filtered[i]),
+        ),
+      ),
+    ]);
+  }
+}
+
+// ─── Vignette carte de jeu (Vision/Lumière/Ténèbres) ────────────────────────
+class _GameCardTile extends StatelessWidget {
+  final GameCard card;
+  const _GameCardTile({required this.card});
+
+  void _showFull(BuildContext ctx) {
+    final dc = deckColor(card.deck.name);
+    final imgPath = anyCardImagePath(card.effect);
+    showDialog(context: ctx, barrierColor: Colors.black.withValues(alpha: 0.85),
+      builder: (dctx) => GestureDetector(
+        onTap: () => Navigator.pop(dctx),
+        behavior: HitTestBehavior.opaque,
+        child: Center(child: Container(
+          width: 300,
+          padding: const EdgeInsets.all(16),
+          margin: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: kBg2, borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: dc, width: 2),
+            boxShadow: [BoxShadow(color: dc.withValues(alpha: 0.4), blurRadius: 24)],
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (imgPath != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: AspectRatio(aspectRatio: 2/3,
+                  child: Image.asset(imgPath, fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: dc.withValues(alpha: 0.1),
+                      child: Center(child: Text(deckIcon(card.deck.name),
+                        style: const TextStyle(fontSize: 48)))))),
+              )
+            else
+              Container(height: 160, decoration: BoxDecoration(
+                  color: dc.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                child: Center(child: Text(deckIcon(card.deck.name),
+                  style: const TextStyle(fontSize: 48)))),
+            const SizedBox(height: 12),
+            Text(card.name, style: cinzel(16, c: kGold2, fw: FontWeight.w900),
+              textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Text(card.text, style: body(12), textAlign: TextAlign.center),
+          ]),
+        )),
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final dc = deckColor(card.deck.name);
+    final imgPath = anyCardImagePath(card.effect);
+    return GestureDetector(
+      onTap: () => _showFull(ctx),
+      child: Container(
+        decoration: BoxDecoration(
+          color: kBg2, borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: dc, width: 2),
+          boxShadow: [BoxShadow(color: dc.withValues(alpha: 0.15), blurRadius: 10)],
+        ),
+        child: Column(children: [
+          Expanded(
+            flex: 6,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: imgPath != null
+                ? Image.asset(imgPath, fit: BoxFit.contain, width: double.infinity,
+                    errorBuilder: (_, __, ___) => Container(color: dc.withValues(alpha: 0.1),
+                      child: Center(child: Text(deckIcon(card.deck.name),
+                        style: const TextStyle(fontSize: 40)))))
+                : Container(color: dc.withValues(alpha: 0.1),
+                    child: Center(child: Text(deckIcon(card.deck.name),
+                      style: const TextStyle(fontSize: 40)))),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(card.name, style: cinzel(12, c: kGold2, fw: FontWeight.w900),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 4),
+                Expanded(child: Text(card.text, style: body(9, c: kTextSub),
+                  maxLines: 4, overflow: TextOverflow.ellipsis)),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ANCIEN ÉCRAN (conservé pour compatibilité — redirige vers le catalogue)
+// ═══════════════════════════════════════════════════════════
+class GalleryScreen extends StatelessWidget {
+  const GalleryScreen({super.key});
+  @override
+  Widget build(BuildContext ctx) => const CardCatalogScreen();
 }
 
 // ─── Carte personnage dans la galerie ────────────────────────────────────────
@@ -145,7 +365,7 @@ class _CharacterCardState extends State<_CharacterCard>
           child: ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
             child: imgPath != null
-              ? Image.asset(imgPath, fit: BoxFit.cover, width: double.infinity,
+              ? Image.asset(imgPath, fit: BoxFit.contain, width: double.infinity,
                   errorBuilder: (_, __, ___) => _fallback(fc, fbg, c.icon))
               : _fallback(fc, fbg, c.icon),
           ),

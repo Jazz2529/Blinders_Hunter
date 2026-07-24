@@ -247,16 +247,8 @@ const List<GameCard> kLumiereCards = [
     effect:'force_shadow_reveal',text:'Tout Shadow autre que le Caméléon doit révéler son identité'),
   GameCard(id:'L16',name:'Bucket de Poulet',deck:DeckType.lumiere,type:CardType.utilisation,
     effect:'heal_self_4',text:'Vous êtes soigné de 4 blessures'),
-  GameCard(id:'L17',name:'Fraise Tagada',deck:DeckType.lumiere,type:CardType.utilisation,
-    effect:'heal_other_d4',text:'Choisissez un joueur autre que vous — D4 — il se soigne d\'autant'),
-  GameCard(id:'L17b',name:'Fraise Tagada',deck:DeckType.lumiere,type:CardType.utilisation,
-    effect:'heal_other_d4',text:'Choisissez un joueur autre que vous — D4 — il se soigne d\'autant'),
-  GameCard(id:'L18',name:'Fraise Tagada Piquante',deck:DeckType.lumiere,type:CardType.utilisation,
-    effect:'heal_all_except_self_2',text:'Tous les joueurs autres que vous se soignent de 2 blessures'),
   GameCard(id:'L20',name:'Flamme des Arcades',deck:DeckType.lumiere,type:CardType.utilisation,
     effect:'flamme_arcades',text:'Si vous êtes sur le terrain 6, soignez-vous de 2 ; sinon subissez 1 blessure'),
-  GameCard(id:'L22',name:'Bouteille de Ricard',deck:DeckType.lumiere,type:CardType.utilisation,
-    effect:'reroll_move',text:'Relancez les dés et déplacez-vous sur le terrain correspondant'),
 ];
 
 // ─── Cartes Ténèbres ──────────────────────────────────────────────────────────

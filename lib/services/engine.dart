@@ -96,9 +96,31 @@ class GameEngine with AbilityEngine {
   }
 
   // ─── Pioche ──────────────────────────────
-  GameCard drawCard(DeckType deck) {
+  /// File d'attente de cartes forcées par pile (Elaia). Clé = nom du deck
+  /// ('tenebres'|'lumiere'|'vision'), valeur = liste ordonnée d'IDs de cartes
+  /// qui seront piochées en priorité (index 0 = prochaine pioche).
+  GameCard drawCard(DeckType deck, {Map<String, List<String>>? forcedQueue}) {
+    final key = deck.name;
+    final queue = forcedQueue?[key];
+    if (queue != null && queue.isNotEmpty) {
+      final forcedId = queue.removeAt(0);
+      final pool = deckCards(deck);
+      final forced = pool.where((c) => c.id == forcedId).firstOrNull;
+      if (forced != null) return forced;
+      // Si l'ID forcé n'existe plus (carte retirée du jeu entre-temps), on
+      // retombe sur un tirage aléatoire normal.
+    }
     final pool = deckCards(deck);
     return pool[_rng.nextInt(pool.length)];
+  }
+
+  /// Elaia : regarde 2 cartes distinctes au hasard dans la pile choisie
+  /// (simule "les 2 premières cartes de la pile").
+  (GameCard, GameCard) peekTwoCards(DeckType deck) {
+    final pool = List<GameCard>.from(deckCards(deck));
+    pool.shuffle(_rng);
+    if (pool.length < 2) return (pool[0], pool[0]);
+    return (pool[0], pool[1]);
   }
 
   // ─── Effets capacité ─────────────────────
@@ -107,6 +129,10 @@ class GameEngine with AbilityEngine {
     actor.abilityUsed = true;
     final eff = actor.character!.abilityEffect;
     switch (eff) {
+      case 'peek_reorder_deck':
+        actor.abilityUsed = false; // répétable
+        return 'elaia_peek';
+
       case 'full_heal':
         actor.wounds = 0;
         return '💚 ${actor.name} soigne toutes ses blessures';

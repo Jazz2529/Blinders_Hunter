@@ -136,6 +136,9 @@ const Map<String, String> kCardImages = {
   'blue_shell':         'assets/images/cards/blue_shell.png',
   'bombe':              'assets/images/cards/bombe.png',
   'dague_voleur':       'assets/images/cards/dague_voleur.png',
+  'dynamite':           'assets/images/cards/dynamite.png',
+  'revolver_tenebres':  'assets/images/cards/revolver_tenebres.png',
+  'epee_ninja':         'assets/images/cards/epee_ninja.png',
   // Lumière
   'aoe_same_zone_2':     'assets/images/cards/aoe_same_zone_2.png',
   'lance_lumiere':       'assets/images/cards/lance_lumiere.png',
@@ -150,11 +153,28 @@ const Map<String, String> kCardImages = {
   'hunter_reveal_heal':  'assets/images/cards/hunter_reveal_heal.png',
   'terrain9_immune':     'assets/images/cards/terrain9_immune.png',
   'terrain4_heal_or_dmg':'assets/images/cards/terrain4_heal_or_dmg.png',
+  'aoe_all_except_self_2':'assets/images/cards/aoe_all_except_self_2.png',
+  'terrain9_dmg_immune': 'assets/images/cards/terrain9_dmg_immune.png',
+  'double_dice_choice':  'assets/images/cards/double_dice_choice.png',
+  'low_hp_reveal_heal':  'assets/images/cards/low_hp_reveal_heal.png',
+  'lance_longinus':      'assets/images/cards/lance_longinus.png',
+  'force_shadow_reveal': 'assets/images/cards/force_shadow_reveal.png',
+  'heal_self_4':         'assets/images/cards/heal_self_4.png',
+  'flamme_arcades':      'assets/images/cards/flamme_arcades.png',
   // Vision
   'vision_hunter_1':     'assets/images/cards/vision_hunter_1.png',
   'vision_hunter_2':     'assets/images/cards/vision_hunter_2.png',
   'vision_shadow_1':     'assets/images/cards/vision_shadow_1.png',
   'vision_shadow_2':     'assets/images/cards/vision_shadow_2.png',
+  'vision_shadow_heal_or_dmg':    'assets/images/cards/vision_shadow_heal_or_dmg.png',
+  'vision_hunter_heal_or_dmg':    'assets/images/cards/vision_hunter_heal_or_dmg.png',
+  'vision_neutral_heal_or_dmg':   'assets/images/cards/vision_neutral_heal_or_dmg.png',
+  'vision_show_card':             'assets/images/cards/vision_show_card.png',
+  'vision_punish_neutral_shadow': 'assets/images/cards/vision_punish_neutral_shadow.png',
+  'vision_punish_neutral_hunter': 'assets/images/cards/vision_punish_neutral_hunter.png',
+  'vision_punish_shadow_hunter':  'assets/images/cards/vision_punish_shadow_hunter.png',
+  'vision_hp_12plus':             'assets/images/cards/vision_hp_12plus.png',
+  'vision_hp_11minus':            'assets/images/cards/vision_hp_11minus.png',
 };
 
 // Dos de carte Vision (visible par les autres)
