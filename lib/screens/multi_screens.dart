@@ -866,6 +866,7 @@ class _ActionPanel extends StatefulWidget {
 
 class _ActionPanelState extends State<_ActionPanel> {
   int? _atkD4,_atkD6,_atkDmg;
+  int? _atkD4b,_atkD6b; // Mango Loco : 2ème lancer si cible costaude (13+ PV)
   int? _d4, _d6, _sum;
   int? _d4b, _d6b, _sum2; // Boussole Mystique : 2e lancer optionnel
   bool _boussoleDecided = false;
@@ -1006,6 +1007,16 @@ class _ActionPanelState extends State<_ActionPanel> {
           return [Text('🔮 ${gp.currentPlayer?.name ?? "Elaia"} organise une pile…',
             style: body(13, c: const Color(0xFF9370DB)))];
         }
+        // Damien : cible choisie — choisir alcool fort ou poison
+        final damienTargetUid = gp.gameState?.damienTargetUid;
+        if (damienTargetUid != null) {
+          final damienTarget = gp.players[damienTargetUid];
+          if (gp.isMyTurn && damienTarget != null) {
+            return [_DamienChoicePanel(gp: gp, target: damienTarget)];
+          }
+          return [Text('🍸 ${gp.currentPlayer?.name ?? "Damien"} choisit quoi servir…',
+            style: body(13, c: kRed))];
+        }
         return [
           if(me?.revealed==false)
             BHButton(label:'🃏 Se révéler',onTap:() async {
@@ -1018,7 +1029,7 @@ class _ActionPanelState extends State<_ActionPanel> {
                 showFullCardDialog(ctx, gp.me!.character!);
               }
             }),
-          if (me?.character?.abilityEffect == 'double_move_dice' && me?.revealed == true)
+          if ((me?.copiedEffect ?? me?.character?.abilityEffect) == 'double_move_dice' && me?.revealed == true)
             Container(
               margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.all(10),
@@ -1034,12 +1045,13 @@ class _ActionPanelState extends State<_ActionPanel> {
               'death_heal_allies', 'gege_passive', 'tenebres_heal_instead',
               'zero_wound_power', 'third_attack_bonus', 'infinite_range',
               'chameleon_passive', 'heal1_on_own_attack', 'builder_power', 'prophete_mark',
+              'double_attack_if_tanky',
               'double_move_dice',
-            }.contains(me?.character?.abilityEffect))
+            }.contains(me?.copiedEffect ?? me?.character?.abilityEffect))
               BHButton(label:'⚡ Utiliser ma capacité',
-                onTap: me?.character?.abilityEffect == 'damage2_or_heal1'
+                onTap: (me?.copiedEffect ?? me?.character?.abilityEffect) == 'damage2_or_heal1'
                   ? () => _showJulienChoice(ctx)
-                  : me?.character?.abilityEffect == 'casino_bet'
+                  : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'casino_bet'
                     ? () { setState(() => _casinoActive = true); gp.useAbility(); }
                     : () => _act(gp.useAbility)),
           ],
@@ -1062,7 +1074,7 @@ class _ActionPanelState extends State<_ActionPanel> {
         }
         final hasPortail = gp.me?.equipment.any((e) => e.effect == 'swap_position_equip') ?? false;
         final hasBoussole = gp.me?.equipment.any((e) => e.effect == 'double_dice_choice') ?? false;
-        final hasAlbane = (gp.me?.character?.abilityEffect == 'double_move_dice')
+        final hasAlbane = ((gp.me?.copiedEffect ?? gp.me?.character?.abilityEffect) == 'double_move_dice')
             && (gp.me?.revealed == true) && (gp.me?.abilityUsed == false);
         final hasDoubleRoll = hasBoussole || hasAlbane;
         if (_sum == null) {
@@ -1165,6 +1177,11 @@ class _ActionPanelState extends State<_ActionPanel> {
         } else if (pta == 'clemence_target' || pta == 'terrain_damage9') {
           // Clémence et Terrain 9 peuvent se cibler eux-mêmes
           all = gp.players.values.where((p) => p.alive).toList();
+        } else if (pta == 'copy_ability') {
+          // Tommy : seulement les joueurs révélés au pouvoir copiable
+          all = gp.players.values.where((p) => p.alive && p.uid != gp.myUid &&
+              p.revealed && p.character != null &&
+              !GameEngine.uncopyableAbilities.contains(p.character!.abilityEffect)).toList();
         } else {
           all = gp.players.values.where((p)=>p.alive&&p.uid!=gp.myUid).toList();
         }
@@ -1190,6 +1207,8 @@ class _ActionPanelState extends State<_ActionPanel> {
         if (pta == 'vision_hp_12plus') title = '🔮 Divination Vétéran — Choisissez une cible';
         if (pta == 'vision_hp_11minus') title = '🔮 Divination Novice — Choisissez une cible';
         if (pta == 'damage3_give_dague') title = '🗡️ Marin — Choisissez une cible (3 dégâts + dague)';
+        if (pta == 'damien_serve') title = '🍸 Damien — Choisissez qui servir';
+        if (pta == 'copy_ability') title = '🎭 Tommy — Copier le pouvoir de qui ?';
         if (pta == 'heal_other_d4') title = '🍓 Fraise Tagada — Choisissez qui soigner (D4)';
         if (pta == 'creation_marin') title = '🩸 Création de Marin — Choisissez une cible';
         if (pta == 'corne_des_woods') title = '🌳 Corne des Woods — Qui doit attaquer ?';
@@ -1260,6 +1279,8 @@ class _ActionPanelState extends State<_ActionPanel> {
                 gp.jeanneChooseTarget(t);
               } else if (pta == 'casino_win') {
                 gp.casinoApplyDamage(t);
+              } else if (pta == 'damien_serve') {
+                gp.damienChooseTarget(t);
               } else if (pta != null && pta.startsWith('vision_') ||
                   pta == 'banane_demonique' || pta == 'vampirisation' ||
                   pta == 'blue_shell' || pta == 'veuve_noire' ||
@@ -1286,7 +1307,7 @@ class _ActionPanelState extends State<_ActionPanel> {
         final mustAttackNow = hasHache && !alreadyAttacked && targets.isNotEmpty;
         final hasBazooka = gp.me?.bazooka == true;
         // Mathieu : afficher le compteur d'attaques
-        final isMathieu = gp.me?.character?.abilityEffect == 'third_attack_bonus';
+        final isMathieu = (gp.me?.copiedEffect ?? gp.me?.character?.abilityEffect) == 'third_attack_bonus';
         final mathieuCount = gp.me?.attackCount ?? 0;
         return [
           if (isMathieu && !alreadyAttacked)
@@ -1349,7 +1370,10 @@ class _ActionPanelState extends State<_ActionPanel> {
                 borderRadius:BorderRadius.circular(10),border:Border.all(color:kShadow)),
               child:Column(children:[
                 Text('$_atkDmg dégâts',style:cinzel(28,c:kRed,fw:FontWeight.w900)),
-                if (!hasBazooka)
+                if (_atkD4b != null)
+                  Text('🥭 Cible costaude — attaque doublée : |${_atkD4}−${_atkD6}| + |${_atkD4b}−${_atkD6b}| = $_atkDmg',
+                    style:body(11,c:kGold2), textAlign: TextAlign.center)
+                else if (!hasBazooka)
                   Text('|d4($_atkD4) − d6($_atkD6)| = $_atkDmg',style:body(12,c:kTextSub))
                 else
                   Text('💥 Bazooka — tous les joueurs accessibles',style:body(12,c:kRed)),
@@ -1417,6 +1441,8 @@ class _ActionPanelState extends State<_ActionPanel> {
   void _startAttack(String targetId) {
     final hasHache = gp.me?.hache == true &&
         (gp.me?.equipment.any((e) => e.effect == 'hache_berserker') ?? false);
+    final eff = gp.me?.copiedEffect ?? gp.me?.character?.abilityEffect;
+    final target = gp.players[targetId];
     if (gp.gameState?.fifiGoldenTurn == true) {
       final atk = gp.gameState?.fifiAtkResult ?? 5;
       final d4 = (atk / 2).ceil().clamp(0, 4).toInt();
@@ -1426,6 +1452,16 @@ class _ActionPanelState extends State<_ActionPanel> {
       // Sabre Hanté : D4 seulement
       final r = GameEngine.instance.rollHacheAttack();
       setState(() { _atkD4 = r['d4']!; _atkD6 = 0; _atkDmg = r['damage']; _atkTargetId = targetId; });
+    } else if (eff == 'double_attack_if_tanky' && target?.character != null && target!.revealed && target.character!.hp >= 13) {
+      // 🥭 Mango Loco : cible costaude (13+ PV) → double lancer, dégâts additionnés
+      final r1 = GameEngine.instance.rollAttack();
+      final r2 = GameEngine.instance.rollAttack();
+      setState(() {
+        _atkD4 = r1['d4']!; _atkD6 = r1['d6']!;
+        _atkD4b = r2['d4']!; _atkD6b = r2['d6']!;
+        _atkDmg = r1['damage']! + r2['damage']!;
+        _atkTargetId = targetId;
+      });
     } else {
       // Attaque normale : D4 + D6
       final r = GameEngine.instance.rollAttack();
@@ -1441,7 +1477,7 @@ class _ActionPanelState extends State<_ActionPanel> {
   Future<void> _confirmAttack() async {
     if(_atkTargetId==null||_atkDmg==null) return;
     await gp.attackPlayer(_atkTargetId!, _atkDmg!, d4: _atkD4 ?? 0, d6: _atkD6 ?? 0);
-    setState((){_atkD4=_atkD6=_atkDmg=null;_atkTargetId=null;});
+    setState((){_atkD4=_atkD6=_atkDmg=_atkD4b=_atkD6b=null;_atkTargetId=null;});
   }
 }
 
@@ -1921,6 +1957,41 @@ class _ElaiaOrderPanel extends StatelessWidget {
         const SizedBox(height: 4),
         Text(c.text, style: body(9, c: kTextSub),
           textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis),
+      ]),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// DAMIEN — Choix alcool fort / poison (multijoueur)
+// ═══════════════════════════════════════════════════════════
+class _DamienChoicePanel extends StatelessWidget {
+  final GameProvider gp;
+  final Player target;
+  const _DamienChoicePanel({required this.gp, required this.target});
+
+  @override
+  Widget build(BuildContext ctx) {
+    const wine = Color(0xFF8B0032);
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: kBg2, borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: wine, width: 2.5),
+        boxShadow: [BoxShadow(color: wine.withValues(alpha: 0.35), blurRadius: 18)],
+      ),
+      child: Column(children: [
+        Text('🍸 DAMIEN', style: cinzel(18, c: wine, fw: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text('Que sers-tu à ${target.name} ?',
+          style: body(12, c: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 16),
+        BHButton(label: '🥃 Alcool fort — 4 dégâts instantanés',
+          onTap: () => gp.damienServeAlcohol()),
+        const SizedBox(height: 8),
+        BHButton(label: '☠️ Poison — 3 dégâts × 2 tours (6 au total)',
+          onTap: () => gp.damienServePoison()),
       ]),
     );
   }

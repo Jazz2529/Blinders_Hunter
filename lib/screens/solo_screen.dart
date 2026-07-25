@@ -742,6 +742,41 @@ class _ElaiaOrderWidget extends StatelessWidget {
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════
+// DAMIEN — Choix alcool fort / poison
+// ═══════════════════════════════════════════════════════════
+class _DamienChoiceWidget extends StatelessWidget {
+  final SoloController ctrl;
+  final Player target;
+  const _DamienChoiceWidget({required this.ctrl, required this.target});
+
+  @override
+  Widget build(BuildContext ctx) {
+    const wine = Color(0xFF8B0032);
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: kBg2, borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: wine, width: 2.5),
+        boxShadow: [BoxShadow(color: wine.withValues(alpha: 0.35), blurRadius: 18)],
+      ),
+      child: Column(children: [
+        Text('🍸 DAMIEN', style: cinzel(18, c: wine, fw: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text('Que sers-tu à ${target.name} ?',
+          style: body(12, c: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 16),
+        BHButton(label: '🥃 Alcool fort — 4 dégâts instantanés',
+          onTap: () => ctrl.damienServeAlcohol()),
+        const SizedBox(height: 8),
+        BHButton(label: '☠️ Poison — 3 dégâts × 2 tours (6 au total)',
+          onTap: () => ctrl.damienServePoison()),
+      ]),
+    );
+  }
+}
 // ═══════════════════════════════════════════════════════════
 class _CasinoWidget extends StatefulWidget {
   final SoloController ctrl;
@@ -1927,6 +1962,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
   int? _d4b, _d6b, _sum2; // Albane: second roll
   bool _albaneChose = false; // true = lancer choisi, afficher zones si sum==7
   int? _atkD4, _atkD6, _atkDmg;
+  int? _atkD4b, _atkD6b; // Mango Loco : 2ème lancer si cible costaude (13+ PV)
   String? _atkTarget;
   // Pour terrain9 et steal : on montre les cibles inline
   bool _showingTargetList = false;
@@ -1991,6 +2027,8 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'ability_julien', 'ability_jazzon', 'ability_marin_shadow',
       'ability_enceinte', 'ability_ingenieur', 'terrain_damage9',
       'ability_set5', 'ability_raph_heal', 'ability_tristan', 'ability_marin',
+      'ability_damien',
+      'ability_tommy',
       'corne_des_woods_victim', 'corne_des_woods', 'creation_marin', 'heal_other_d4',
       'clemence_target', 'jeanne_mark_target', 'equip_choice',
       'swap_zone_pick1', 'swap_zone_pick2', 'jeanne_mark_target',
@@ -2025,8 +2063,19 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
             card1: findCardById(s.elaiaCard1Id!)!,
             card2: findCardById(s.elaiaCard2Id!)!)];
         }
+        // Damien : cible choisie — choisir alcool fort ou poison
+        if (s.damienTargetUid != null) {
+          final damienTarget = s.players.where((x) => x.uid == s.damienTargetUid).firstOrNull;
+          if (damienTarget != null) {
+            return [_DamienChoiceWidget(ctrl: ctrl, target: damienTarget)];
+          }
+        }
         final c = me.character!;
-        final freq = c.abilityRepeatable ? '🔄 Chaque tour' : '🔒 1 fois par partie';
+        // Tommy : si un pouvoir est copié, afficher SA description et SA répétabilité
+        final effChar = me.copiedEffect != null
+            ? kAllCharacters.where((ch) => ch.abilityEffect == me.copiedEffect).firstOrNull ?? c
+            : c;
+        final freq = effChar.abilityRepeatable ? '🔄 Chaque tour' : '🔒 1 fois par partie';
         // Passifs auto-activés (pas besoin d'appuyer)
         final autoPassives = {'heal2_same_hunter','heal_per_equip_eot',
           'last_hunter_buff','no_attack_buff','heal_on_same_terrain','death_heal_allies',
@@ -2036,8 +2085,8 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
           'zero_wound_steal','slime_passive','heal1_on_own_attack','remi_canada_passive',
           'mathieu_passive','third_attack_bonus','counter_roll_cancel','draw_on_hit_dual_target',
           'chameleon_passive','counter_attack_passive','zero_wound_power','builder_power',
-          'prophete_mark'};
-        final isAutoPassive = me.revealed && autoPassives.contains(c.abilityEffect);
+          'prophete_mark','double_attack_if_tanky'};
+        final isAutoPassive = me.revealed && autoPassives.contains(me.copiedEffect ?? c.abilityEffect);
         return [
           // Indicateurs d'état spéciaux Shadow
           if (s.fifiGoldenTurn)
@@ -2048,6 +2097,11 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
             _StatusBanner('🥷 ${s.ninjaExtraTurns} tours bonus restants', kGold),
           if (s.fifiGoldenTurn)
             _StatusBanner('🍀 Tour parfait actif — choisissez vos dés !', kGreen),
+          // Jeanne : rappel visible de tous — qui est marqué
+          if (s.markedPlayerUid != null)
+            _StatusBanner(
+              '🔮 Joueur marqué : ${s.players.where((p) => p.uid == s.markedPlayerUid).firstOrNull?.name ?? "?"}',
+              kRed),
           // Passif auto
           if (isAutoPassive)
             Container(
@@ -2076,16 +2130,16 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: c.abilityRepeatable
+                    color: effChar.abilityRepeatable
                       ? kGreen.withValues(alpha: 0.2) : kGold.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(5),
                   ),
                   child: Text(freq, style: body(9,
-                    c: c.abilityRepeatable ? kGreen : kGold)),
+                    c: effChar.abilityRepeatable ? kGreen : kGold)),
                 ),
               ]),
               const SizedBox(height: 4),
-              Text(c.ability, style: body(12)),
+              Text(effChar.ability, style: body(12)),
             ]),
           ),
           // Équipements actifs
@@ -2103,7 +2157,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
           if (me.revealed && !me.abilityUsed && !isAutoPassive)
             BHButton(label: '⚡ Activer ma capacité',
               onTap: () => _handleAbility()),
-          if (me.revealed && me.abilityUsed && !c.abilityRepeatable)
+          if (me.revealed && me.abilityUsed && !effChar.abilityRepeatable)
             Padding(padding: const EdgeInsets.only(bottom: 8),
               child: Text('Capacité utilisée pour cette partie.',
                 style: body(12, c: kTextSub))),
@@ -2292,7 +2346,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         final alreadyAttacked = s.hasAttackedThisTurn && !s.raphShadowMultiAtk;
         final hasHache = me.hache && me.equipment.any((e) => e.effect == 'hache_berserker');
         final mustAttack = hasHache && !s.hasAttackedThisTurn && targets.isNotEmpty;
-        final isMathieu = me.character?.abilityEffect == 'third_attack_bonus';
+        final isMathieu = (me.copiedEffect ?? me.character?.abilityEffect) == 'third_attack_bonus';
         return [
           // Compteur Mathieu
           if (isMathieu && !alreadyAttacked)
@@ -2376,7 +2430,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                   onTap: () {
                     audio.playDice();
                     final r = GameEngine.instance.rollAttack();
-                    setState(() { _atkD4 = (r['d4'] as num).toInt(); _atkD6 = (r['d6'] as num).toInt(); _atkDmg = (r['sum'] as num).toInt(); _atkTarget = '__bazooka__'; });
+                    setState(() { _atkD4 = r['d4']; _atkD6 = r['d6']; _atkDmg = r['damage']; _atkTarget = '__bazooka__'; });
                   }),
               ] else
                 Padding(padding: const EdgeInsets.only(bottom: 8),
@@ -2390,7 +2444,23 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                 onTap: () => hasHache ? _startHacheAtk(t.uid) : _startAtk(t.uid),
               )),
           ] else if (!alreadyAttacked) ...[
-            _DiceWidget(d4: _atkD4!, d6: _atkD6!, sum: _atkDmg!, isAttack: true),
+            if (_atkD4b != null) ...[
+              Text('🥭 Cible costaude (13 PV+) — attaque doublée !',
+                style: cinzel(11, c: kGold2), textAlign: TextAlign.center),
+              const SizedBox(height: 6),
+              Row(children: [
+                Expanded(child: _DiceWidget(d4: _atkD4!, d6: _atkD6!,
+                  sum: (_atkD4! - _atkD6!).abs(), isAttack: true)),
+                const SizedBox(width: 8),
+                Expanded(child: _DiceWidget(d4: _atkD4b!, d6: _atkD6b!,
+                  sum: (_atkD4b! - _atkD6b!).abs(), isAttack: true)),
+              ]),
+              const SizedBox(height: 6),
+              Text('= $_atkDmg dégâts au total', style: cinzel(14, c: kRed, fw: FontWeight.w900),
+                textAlign: TextAlign.center),
+              const SizedBox(height: 10),
+            ] else
+              _DiceWidget(d4: _atkD4!, d6: _atkD6!, sum: _atkDmg!, isAttack: true),
             const SizedBox(height: 10),
             // Pas de bouton Annuler — une attaque lancée ne peut pas être annulée
             Container(
@@ -2507,6 +2577,11 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         p.zoneIndex == me.zoneIndex || adjZones.contains(p.zoneIndex)
       ).toList();
     }
+    // Tommy: uniquement les joueurs révélés au pouvoir copiable
+    if (context == 'ability_tommy') {
+      targets = targets.where((p) => p.revealed && p.character != null &&
+        !GameEngine.uncopyableAbilities.contains(p.character!.abilityEffect)).toList();
+    }
 
     String title = 'Choisir une cible';
     if (context == 'terrain9')            title = '🏹 Qui infliger 2 dégâts ?';
@@ -2517,6 +2592,8 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'ability_hong_yi')     title = '⚡ Hong Yi — Cible (8 mutuels)';
     if (context == 'ability_carapatte')   title = '🐢 Carapatte — Cible (D6 lifesteal)';
     if (context == 'ability_set5')        title = '📍 Marion — Choisissez un joueur (placé à 5 blessures)';
+    if (context == 'ability_damien')      title = '🍸 Damien — Choisissez qui servir';
+    if (context == 'ability_tommy')       title = '🎭 Tommy — Copier le pouvoir de qui ?';
     if (context == 'ability_raph_heal')   title = '🥷 Raph (Soleil Levant) — Choisissez qui soigner de 3 (vous subissez 2)';
     if (context == 'ability_tristan')     title = '🔄 Tristan — Choisissez un joueur (échange un équipement au hasard)';
     if (context == 'heal_other_d4')       title = '🍓 Fraise Tagada — Choisissez qui soigner (D4)';
@@ -2767,29 +2844,28 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
 
   void _handleAbility() {
     final me = s.current;
+    final eff = me.copiedEffect ?? me.character!.abilityEffect;
     // Julien : choix explicite entre attaquer une cible ou se soigner
-    if (me.character!.abilityEffect == 'damage2_or_heal1') {
+    if (eff == 'damage2_or_heal1') {
       _showJulienChoice();
       return;
     }
-    final needsTarget = ['damage2_choice', 'damage2_then_heal3', 'set_wounds5', 'steal_equip_choice', 'swap_equipment', 'damage3_give_dague']
-        .contains(me.character!.abilityEffect);
-    // Peio / Élise : déclenchent déjà leur propre transition de phase (pioche
-    // de carte / effet de terrain) — ne PAS appeler humanSkipAbility() après,
-    // ça écraserait la phase qu'elles viennent de définir.
-    if (me.character!.abilityEffect == 'self1_trigger_terrain' ||
-        me.character!.abilityEffect == 'draw_light') {
+    // Toutes ces capacités gèrent elles-mêmes leur transition de phase à
+    // l'intérieur de humanUseAbility() — ne JAMAIS appeler humanSkipAbility()
+    // après, ça écraserait la phase qu'elles viennent de définir.
+    final selfManaged = {
+      'damage2_choice', 'damage2_then_heal3', 'set_wounds5', 'steal_equip_choice',
+      'swap_equipment', 'damage3_give_dague', 'd6_global_attack', 'd6_lifesteal',
+      'terrain_max_aoe', 'damien_serve', 'copy_ability',
+      'self1_trigger_terrain', 'draw_light', 'draw_dark', 'peek_reorder_deck',
+      'casino_bet', 'swap_zones', 'd4_bonus_attack',
+    };
+    if (selfManaged.contains(eff)) {
       ctrl.humanUseAbility();
       setState(() {});
       return;
     }
-    if (needsTarget) {
-      // Laisser le controller définir pendingTargetAction correctement
-      ctrl.humanUseAbility();
-      setState(() {});
-    } else {
-      ctrl.humanUseAbility(); ctrl.humanSkipAbility(); setState(() {});
-    }
+    ctrl.humanUseAbility(); ctrl.humanSkipAbility(); setState(() {});
   }
 
   void _applyCard() {
@@ -2824,6 +2900,21 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       });
       return;
     }
+    final me = s.current;
+    final eff = me.copiedEffect ?? me.character?.abilityEffect;
+    final target = s.players.where((p) => p.uid == targetId).firstOrNull;
+    if (eff == 'double_attack_if_tanky' && target != null && target.revealed && target.character!.hp >= 13) {
+      // 🥭 Mango Loco : cible costaude (13+ PV) → double lancer, dégâts additionnés
+      final r1 = GameEngine.instance.rollAttack();
+      final r2 = GameEngine.instance.rollAttack();
+      setState(() {
+        _atkD4 = r1['d4']; _atkD6 = r1['d6'];
+        _atkD4b = r2['d4']; _atkD6b = r2['d6'];
+        _atkDmg = (r1['damage'] as int) + (r2['damage'] as int);
+        _atkTarget = targetId;
+      });
+      return;
+    }
     final r = GameEngine.instance.rollAttack();
     setState(() {
       _atkD4 = r['d4']; _atkD6 = r['d6'];
@@ -2840,7 +2931,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     } else if (_atkTarget != null) {
       ctrl.humanAttack(_atkTarget!, _atkDmg!);
     }
-    setState(() { _atkD4 = _atkD6 = _atkDmg = null; _atkTarget = null; });
+    setState(() { _atkD4 = _atkD6 = _atkDmg = _atkD4b = _atkD6b = null; _atkTarget = null; });
   }
 }
 

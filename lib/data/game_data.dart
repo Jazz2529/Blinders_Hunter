@@ -63,7 +63,12 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'d4_heal_neighbors',
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
-  CharacterCard(id:'raph_soleil', name:'Raph du Soleil Levant', faction:Faction.hunter, hp:12, icon:'🥷',
+  CharacterCard(id:'elaia', name:'Elaia', faction:Faction.hunter, hp:13, icon:'🔮',
+    ability:'Répétable, au début du tour: regardez les 2 premières cartes d\'une pile de votre choix (Ténèbres/Lumière/Vision) et choisissez leur ordre de pioche',
+    abilityEffect:'peek_reorder_deck', abilityRepeatable:true,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
+   CharacterCard(id:'raph_soleil', name:'Raph du Soleil Levant', faction:Faction.hunter, hp:12, icon:'🥷',
     ability:'Répétable: subissez 2 blessures pour soigner un joueur de votre choix de 3 blessures',
     abilityEffect:'damage2_then_heal3', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
@@ -88,6 +93,11 @@ const List<CharacterCard> kAllCharacters = [
   CharacterCard(id:'bibble', name:'Bibble', faction:Faction.shadow, hp:13, icon:'🧚',
     ability:'Passif révélé: les cartes Ténèbres vous soignent au lieu de vous blesser',
     abilityEffect:'tenebres_heal_instead', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'damien', name:'Damien', faction:Faction.shadow, hp:12, icon:'🍸',
+    ability:'Unique, au début du tour: choisissez un joueur et servez-lui soit un alcool fort (4 blessures instantanées) soit un poison (3 blessures au début de chacun de ses 2 prochains tours, 6 au total)',
+    abilityEffect:'damien_serve', abilityRepeatable:false,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'jeanne', name:'Jeanne', faction:Faction.shadow, hp:12, icon:'🔮',
@@ -171,6 +181,16 @@ const List<CharacterCard> kAllCharacters = [
     ability:'Unique: lancez le D4 et infligez ce résultat à tout le monde (vous inclus)',
     abilityEffect:'d4_all', abilityRepeatable:false,
     winCondition:'Être le premier à mourir ou éliminer tous les Hunters', winEffect:'die_first_or_kill_hunters'),
+
+  CharacterCard(id:'tommy', name:'Tommy', faction:Faction.neutral, hp:13, icon:'🎭',
+    ability:'Unique, au début du tour: copiez le pouvoir d\'un joueur révélé de votre choix',
+    abilityEffect:'copy_ability', abilityRepeatable:false,
+    winCondition:'Éliminer la personne dont vous avez copié le pouvoir', winEffect:'kill_copied'),
+
+  CharacterCard(id:'mango', name:'Mango Loco', faction:Faction.neutral, hp:10, icon:'🥭',
+    ability:'Passif : si le joueur attaqué a 13 PV ou plus, vous attaquez 2 fois (lancez les dés 2 fois, dégâts additionnés)',
+    abilityEffect:'double_attack_if_tanky', abilityRepeatable:true,
+    winCondition:'Éliminer un joueur avec 13 PV ou plus', winEffect:'kill_hp13plus'),
 
   CharacterCard(id:'rat_rouen', name:"Rat d'Rouen", faction:Faction.neutral, hp:10, icon:'🐀',
     ability:'Passif: vous vous soignez de 1 blessure chaque fois que l\'une de VOS attaques inflige des blessures',

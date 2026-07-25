@@ -1,29 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'services/game_provider.dart';
 import 'services/display_settings.dart';
 import 'services/persistence.dart';
+import 'services/audio_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/multi_screens.dart';
 import 'screens/solo_screen.dart';
 import 'models/models.dart';
 import 'widgets/theme.dart';
-
-/// Autorise le glisser-défiler avec la souris (et le trackpad/stylet) en plus
-/// du tactile. Sans ça, sur PC, tester le mode "Téléphone" simulé bloque le
-/// scroll des listes horizontales/verticales tant qu'on n'a pas de vrai écran
-/// tactile — la souris ne peut pas "glisser" une liste par défaut.
-class AppScrollBehavior extends MaterialScrollBehavior {
-  @override
-  Set<PointerDeviceKind> get dragDevices => {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.trackpad,
-        PointerDeviceKind.stylus,
-      };
-}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,7 +35,6 @@ class BlindersHunterApp extends StatelessWidget {
     return MaterialApp(
       title: 'Blinders Hunter',
       debugShowCheckedModeBanner: false,
-      scrollBehavior: AppScrollBehavior(),
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: kBg0,
@@ -174,12 +159,29 @@ class _DisplayBadge extends StatelessWidget {
 }
 
 // ─── Game Over Screen ─────────────────────────────────────────────────────────
-class _GameOverScreen extends StatelessWidget {
+class _GameOverScreen extends StatefulWidget {
   final GameProvider gp;
   const _GameOverScreen({required this.gp});
+  @override State<_GameOverScreen> createState() => _GameOverScreenState();
+}
+
+class _GameOverScreenState extends State<_GameOverScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Couper la musique de partie et jouer le son de victoire/défaite —
+    // sans ça la musique de jeu continuait de tourner indéfiniment sur
+    // l'écran de fin de partie en multijoueur.
+    final result = widget.gp.gameResult!;
+    final winnerIds = List<String>.from(result['winnerIds'] as List? ?? []);
+    final iWon = winnerIds.contains(widget.gp.myUid);
+    if (iWon) audio.playWin(); else audio.playLose();
+    audio.fadeOutMusic();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final gp = widget.gp;
     final result = gp.gameResult!;
     final winnerIds = List<String>.from(result['winnerIds'] as List? ?? []);
     final winners = gp.players.values.where((p) => winnerIds.contains(p.uid)).toList();

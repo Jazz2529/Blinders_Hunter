@@ -123,15 +123,56 @@ class GameEngine with AbilityEngine {
     return (pool[0], pool[1]);
   }
 
+  /// Damien : sert un alcool fort — 4 dégâts instantanés.
+  String damienServeAlcohol(Player actor, Player target) {
+    final dealt = applyDamage(target, 4);
+    return '🥃 ${actor.name} sert un alcool fort à ${target.name} — $dealt blessures instantanées';
+  }
+
+  /// Damien : sert un poison — 3 dégâts au début de chacun des 2 prochains
+  /// tours de la cible (6 au total, cumulés).
+  String damienServePoison(Player actor, Player target) {
+    target.poisonTurnsRemaining = 2;
+    target.poisonSourceUid = actor.uid;
+    return '☠️ ${actor.name} empoisonne ${target.name} — 3 blessures par tour pendant 2 tours';
+  }
+
   // ─── Effets capacité ─────────────────────
   /// Retourne un message de log. 'draw_dark' = signal pour l'UI.
+  /// Effets de capacité que Tommy ne peut pas copier :
+  /// - 'chameleon_passive' (Jason) : le déguisement n'a plus de sens puisque
+  ///   Tommy est déjà révélé publiquement au moment de copier.
+  /// - 'copy_ability' : ne peut pas se copier lui-même.
+  static const Set<String> uncopyableAbilities = {
+    'chameleon_passive', 'copy_ability',
+  };
+
   String applyAbility(Player actor, List<Player> all, List<Terrain> layout, {Player? target}) {
     actor.abilityUsed = true;
-    final eff = actor.character!.abilityEffect;
+    final eff = actor.copiedEffect ?? actor.character!.abilityEffect;
     switch (eff) {
       case 'peek_reorder_deck':
-        actor.abilityUsed = false; // répétable
+        // Ne PAS forcer abilityUsed=false ici : le défaut (true, posé en tête
+        // de fonction) verrouille le pouvoir pour le reste du tour. Il sera
+        // réactivé au tour suivant via la réinitialisation standard des
+        // capacités répétables (sinon Elaia pouvait relancer le choix de
+        // pile en boucle indéfiniment dans le même tour).
         return 'elaia_peek';
+
+      // ── Damien : sert un verre — nécessite une cible puis un choix ──
+      case 'damien_serve':
+        if (target == null) return 'cible_requise';
+        // Le choix (alcool/poison) se fait via un panneau dédié après ceci —
+        // ici on signale juste que la cible est mémorisée.
+        return 'damien_target_chosen';
+
+      // ── Tommy : copie le pouvoir d'un joueur révélé ──
+      case 'copy_ability':
+        if (target == null) return 'cible_requise';
+        actor.copiedEffect = target.character!.abilityEffect;
+        // abilityUsed suit la répétabilité du pouvoir copié
+        actor.abilityUsed = !target.character!.abilityRepeatable;
+        return 'tommy_copied:${target.character!.name}:${target.character!.ability}';
 
       case 'full_heal':
         actor.wounds = 0;
@@ -381,8 +422,13 @@ class GameEngine with AbilityEngine {
         for (final p in all) {
           if (p.alive && p.zoneIndex == idx) { applyDamage(p, 3, isTenebresCard: true, ignoreShield: true); hit++; }
         }
-        final hitStr = hit > 0 ? ' — $hit joueur(s) touché(s)' : ' — personne sur cette zone';
-        return {'log': '💣 Dynamite D4($d4)+D6($d6)=$sum → zone ${idx+1}$hitStr', 'needsTarget': false,
+        final terrainLabel = (idx >= 0 && idx < layout.length)
+            ? 'Terrain ${layout[idx].num} — ${layout[idx].name}'
+            : 'aucune zone';
+        final hitStr = hit > 0
+            ? '$hit joueur(s) touché(s), 3 blessures chacun'
+            : 'personne sur cette zone';
+        return {'log': '💣 Dynamite — D4($d4)+D6($d6)=$sum désigne le $terrainLabel : $hitStr', 'needsTarget': false,
           'diceResult': {'d4': d4, 'd6': d6, 'sum': sum, 'label': 'Dynamite'}};
       case 'terrain4_heal_or_dmg':
         // Terrain 6 = Chapelle Sacrée (id:2) → soigne. Partout ailleurs → 2 dégâts
@@ -627,7 +673,7 @@ class GameEngine with AbilityEngine {
     if (attacker.lance && dmg > 0) dmg += 2;
     if (attacker.lanceLonginus && dmg > 0 &&
         attacker.character?.faction == Faction.hunter && attacker.revealed) dmg += 2;
-    if (attacker.dague && dmg > 0) dmg += 1;
+    if (dmg > 0) dmg += attacker.equipment.where((e) => e.effect == 'dague_voleur').length;
     if (attacker.sainteTunique) dmg = max(0, dmg - 1);
 
     // Luc/Peintre passive +1 dmg
@@ -777,7 +823,7 @@ class GameEngine with AbilityEngine {
     if (attacker.lance && dmg > 0) dmg += 2;
     if (attacker.lanceLonginus && dmg > 0 &&
         attacker.character?.faction == Faction.hunter && attacker.revealed) dmg += 2;
-    if (attacker.dague && dmg > 0) dmg += 1;
+    if (dmg > 0) dmg += attacker.equipment.where((e) => e.effect == 'dague_voleur').length;
     if (attacker.epeeNinja && dmg > 0) dmg += 2;
     // Louise : si 0 dmg → 4, sinon +1
     final atkEff = attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '';
@@ -882,14 +928,27 @@ class GameEngine with AbilityEngine {
       }
     }
 
-    // Oscar — a-t-il éliminé la personne copiée ?
+    // Tommy — a-t-il éliminé la personne copiée ?
     for (final p in alive) {
       if (p.character!.winEffect == 'kill_copied' && justDiedId != null) {
         // copiedEffect pointe vers l'effet copié — si la victime avait cet effet c'est gagné
         try {
           final victim = players.firstWhere((pp) => pp.uid == justDiedId);
           if (victim.character!.abilityEffect == p.copiedEffect) {
-            return {'winnerIds': [p.uid], 'reason': '📋 Oscar élimine son opposant copié — Victoire !'};
+            // Si ce kill élimine AUSSI le dernier membre d'une faction, la
+            // faction gagnante partage la victoire avec Tommy (même coup).
+            final ids = <String>{p.uid};
+            if (victim.character!.faction == Faction.hunter && hunters.isEmpty) {
+              ids.addAll(shadows.map((s2) => s2.uid));
+              return {'winnerIds': ids.toList(),
+                'reason': '📋 ${p.name} élimine ${victim.name} (pouvoir copié) — les Shadows gagnent aussi !'};
+            }
+            if (victim.character!.faction == Faction.shadow && shadows.isEmpty) {
+              ids.addAll(hunters.map((h2) => h2.uid));
+              return {'winnerIds': ids.toList(),
+                'reason': '📋 ${p.name} élimine ${victim.name} (pouvoir copié) — les Hunters gagnent aussi !'};
+            }
+            return {'winnerIds': [p.uid], 'reason': '📋 ${p.name} élimine ${victim.name}, dont il avait copié le pouvoir — Victoire !'};
           }
         } catch (_) {}
       }
@@ -904,6 +963,19 @@ class GameEngine with AbilityEngine {
             if (p.character!.winEffect == 'kill_felipe_or_shadows') {
               return {'winnerIds': [p.uid], 'reason': '⚔️ Christine élimine Felipe — Victoire !'};
             }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Mango Loco — a-t-il éliminé un joueur avec 13 PV ou plus ?
+    if (justDiedId != null) {
+      try {
+        final victim = players.firstWhere((p) => p.uid == justDiedId);
+        if (victim.character!.hp >= 13 && victim.killedByUid != null) {
+          final killer = players.firstWhere((p) => p.uid == victim.killedByUid);
+          if (killer.character!.winEffect == 'kill_hp13plus' && killer.alive) {
+            return {'winnerIds': [killer.uid], 'reason': '🥭 ${killer.name} élimine ${victim.name} (13+ PV) — Victoire !'};
           }
         }
       } catch (_) {}
@@ -1447,15 +1519,36 @@ class GameEngine with AbilityEngine {
       players[i].character = assigned[i];
     }
 
-    // Forcer le personnage du joueur humain si précisé
+    // Forcer le personnage du joueur humain si précisé — en gardant
+    // TOUJOURS l'équilibre des factions (2 Hunters / 2 Shadows / 1 Neutre).
     if (forcedCharId != null) {
       final forced = kAllCharacters.where((c) => c.id == forcedCharId).firstOrNull;
       if (forced != null) {
         final human = players.firstWhere((p) => p.uid == 'human', orElse: () => players[0]);
-        // Échanger avec le joueur qui a déjà ce personnage, si besoin
-        final existing = players.where((p) => p.character?.id == forcedCharId && p.uid != 'human').firstOrNull;
-        if (existing != null) existing.character = human.character;
-        human.character = forced;
+        final humanOldChar = human.character;
+        // 1) Quelqu'un a-t-il déjà EXACTEMENT le perso forcé ? Échange simple.
+        final exact = players.where((p) => p.character?.id == forcedCharId && p.uid != human.uid).firstOrNull;
+        if (exact != null) {
+          exact.character = humanOldChar;
+          human.character = forced;
+        } else if (humanOldChar?.faction == forced.faction) {
+          // Même faction qu'avant : simple remplacement, personne d'autre à toucher.
+          human.character = forced;
+        } else {
+          // Le joueur humain change de faction : échanger sa place avec un
+          // autre joueur de la faction CIBLE pour ne pas casser l'équilibre
+          // (ex: forcer un Neutre alors qu'il avait un Hunter → un autre
+          // joueur qui avait le Neutre récupère l'ancien Hunter du joueur).
+          final sameTargetFaction = players.where((p) =>
+              p.uid != human.uid && p.character?.faction == forced.faction).toList();
+          if (sameTargetFaction.isNotEmpty) {
+            final victim = sameTargetFaction[rng.nextInt(sameTargetFaction.length)];
+            victim.character = humanOldChar;
+            human.character = forced;
+          } else {
+            human.character = forced; // cas limite, ne devrait pas arriver
+          }
+        }
       }
     }
 
@@ -1490,6 +1583,14 @@ class GameEngine with AbilityEngine {
         applyDamage(p, 1);
         logs.add('🍽️ Menu Cher et Pas Bon — ${p.name} soigne ${t.name} de 1 et subit 1');
       }
+    }
+
+    // Damien : poison — 3 blessures par tour pendant 2 tours (6 au total)
+    if (p.alive && p.poisonTurnsRemaining > 0) {
+      applyDamage(p, 3);
+      p.poisonTurnsRemaining--;
+      logs.add('☠️ ${p.name} subit 3 blessures du poison (${p.poisonTurnsRemaining} tour(s) restant(s))');
+      if (p.poisonTurnsRemaining <= 0) p.poisonSourceUid = null;
     }
 
     final eff = p.copiedEffect ?? p.character?.abilityEffect ?? '';

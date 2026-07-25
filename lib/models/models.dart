@@ -173,6 +173,7 @@ class Player {
   String? killedByUid;  // uid du joueur qui a tué ce personnage     // Fifi Automne: annule prochaine attaque
   String? copiedEffect; // Baptiste/Oscar: effet copié
   String? poisonSourceUid; // qui a empoisonné
+  int poisonTurnsRemaining; // Damien : tours restants de poison (3 dégâts/tour)
   String? disguiseIconOverride;
   String? disguiseNameOverride;
   String? disguiseFactionOverride;
@@ -224,6 +225,7 @@ class Player {
     this.killedByUid,
     this.copiedEffect,
     this.poisonSourceUid,
+    this.poisonTurnsRemaining = 0,
     this.disguiseIconOverride,
     this.disguiseNameOverride,
     this.disguiseFactionOverride,
@@ -255,6 +257,7 @@ class Player {
     'deathBombDmg': deathBombDmg, 'fifiAutomneShield': fifiAutomneShield,
     'killedByUid': killedByUid, 'copiedEffect': copiedEffect,
     'poisonSourceUid': poisonSourceUid,
+    'poisonTurnsRemaining': poisonTurnsRemaining,
     'disguiseIconOverride': disguiseIconOverride,
     'disguiseNameOverride': disguiseNameOverride,
     'disguiseFactionOverride': disguiseFactionOverride,
@@ -310,6 +313,7 @@ class Player {
     killedByUid: j['killedByUid'] as String?,
     copiedEffect: j['copiedEffect'] as String?,
     poisonSourceUid: j['poisonSourceUid'] as String?,
+    poisonTurnsRemaining: (j['poisonTurnsRemaining'] as int?) ?? 0,
     disguiseIconOverride: j['disguiseIconOverride'] as String?,
     disguiseNameOverride: j['disguiseNameOverride'] as String?,
     disguiseFactionOverride: j['disguiseFactionOverride'] as String?,
@@ -374,6 +378,7 @@ class GameState {
   final String? elaiaDeck;               // 'tenebres'|'lumiere'|'vision' — pile choisie
   final String? elaiaCard1Id;            // 1ère carte regardée
   final String? elaiaCard2Id;            // 2ème carte regardée
+  final String? damienTargetUid;         // Damien : cible choisie, en attente du choix alcool/poison
   final Map<String, List<String>> forcedDeckQueue; // cartes forcées par pile (Elaia)
 
   const GameState({
@@ -418,6 +423,7 @@ class GameState {
     this.elaiaDeck,
     this.elaiaCard1Id,
     this.elaiaCard2Id,
+    this.damienTargetUid,
     this.forcedDeckQueue = const {},
   });
 
@@ -461,6 +467,7 @@ class GameState {
     'elaiaDeck': elaiaDeck,
     'elaiaCard1Id': elaiaCard1Id,
     'elaiaCard2Id': elaiaCard2Id,
+    'damienTargetUid': damienTargetUid,
     'forcedDeckQueue': forcedDeckQueue,
   };
 
@@ -514,6 +521,7 @@ class GameState {
     elaiaDeck: j['elaiaDeck'] as String?,
     elaiaCard1Id: j['elaiaCard1Id'] as String?,
     elaiaCard2Id: j['elaiaCard2Id'] as String?,
+    damienTargetUid: j['damienTargetUid'] as String?,
     forcedDeckQueue: j['forcedDeckQueue'] != null
         ? Map<String, List<String>>.from((j['forcedDeckQueue'] as Map).map(
             (k, v) => MapEntry(k as String, List<String>.from(v as List))))

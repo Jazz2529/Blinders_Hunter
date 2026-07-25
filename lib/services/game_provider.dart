@@ -313,6 +313,40 @@ class GameProvider extends ChangeNotifier {
     _ => d,
   };
 
+  /// Damien : cible choisie — mémorise la cible et affiche le choix alcool/poison.
+  Future<void> damienChooseTarget(Player target) async {
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    actor.abilityUsed = true;
+    await _commitAll(all, '🍸 ${actor.name} prépare un verre pour ${target.name}…');
+    await _fb.setPhase(roomId!, GamePhase.ability,
+        clearPending: true, damienTargetUid: target.uid);
+  }
+
+  /// Damien : sert l'alcool fort — 4 dégâts instantanés.
+  Future<void> damienServeAlcohol() async {
+    final targetUid = gameState?.damienTargetUid; if (targetUid == null) return;
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final target = all.firstWhere((p) => p.uid == targetUid, orElse: () => actor);
+    final log = _eg.damienServeAlcohol(actor, target);
+    _eg.applyDeathPassives(all);
+    await _commitAll(all, log);
+    await _checkWin(all, justDiedId: target.alive ? null : target.uid);
+    await _fb.setPhase(roomId!, GamePhase.ability, clearPending: true);
+  }
+
+  /// Damien : sert le poison — 3 dégâts/tour pendant 2 tours.
+  Future<void> damienServePoison() async {
+    final targetUid = gameState?.damienTargetUid; if (targetUid == null) return;
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final target = all.firstWhere((p) => p.uid == targetUid, orElse: () => actor);
+    final log = _eg.damienServePoison(actor, target);
+    await _commitAll(all, log);
+    await _fb.setPhase(roomId!, GamePhase.ability, clearPending: true);
+  }
+
   Future<void> casinoWin() async {
     await _fb.setPhase(roomId!, GamePhase.chooseTarget,
         pendingTargetAction: 'casino_win');
@@ -503,9 +537,31 @@ class GameProvider extends ChangeNotifier {
       return;
     }
     if (log == 'elaia_peek') {
-      // Elaia : ouvrir le choix de pile — abilityUsed reste false (répétable)
+      // Elaia : ouvrir le choix de pile — abilityUsed=true verrouille pour ce
+      // tour, réactivé au tour suivant (capacité répétable) automatiquement.
       await _commitAll(all, '🔮 ${actor.name} active son pouvoir de prescience…');
       await _fb.setPhase(roomId!, GamePhase.ability, elaiaStep: 1);
+      return;
+    }
+    if (log.startsWith('tommy_copied:')) {
+      final parts = log.split(':');
+      final copiedName = parts.length > 1 ? parts[1] : '?';
+      final copiedAbilityText = parts.length > 2 ? parts.sublist(2).join(':') : '';
+      await _commitAll(all, '🎭 ${actor.name} copie le pouvoir de $copiedName : $copiedAbilityText');
+      // Certains pouvoirs se déclenchent normalement à la révélation — pour
+      // Tommy (déjà révélé), on les déclenche immédiatement après la copie.
+      if (actor.copiedEffect == 'builder_power') {
+        final offered = _eg.builderDraw3();
+        await _fb.setPhase(roomId!, GamePhase.ability,
+            builderStep: 1, builderOffered: offered);
+        return;
+      }
+      if (actor.copiedEffect == 'prophete_mark') {
+        await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+            pendingTargetAction: 'jeanne_mark_target', jeanneUid: actor.uid);
+        return;
+      }
+      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
       return;
     }
     if (log == 'casino_bet') {
@@ -545,7 +601,7 @@ class GameProvider extends ChangeNotifier {
     }
     if (log == 'cible_requise') {
       await _fb.setPhase(roomId!, GamePhase.chooseTarget,
-          pendingTargetAction: actor.character!.abilityEffect);
+          pendingTargetAction: actor.copiedEffect ?? actor.character!.abilityEffect);
       return;
     }
     if (log == 'cible_vlad') {
@@ -577,7 +633,7 @@ class GameProvider extends ChangeNotifier {
     await _checkWin(all, justDiedId: tgt != null && !tgt.alive ? tgt.uid
         : (!actor.alive ? actor.uid : null));
 
-    final overlay = _abilityOverlays[actor.character?.abilityEffect ?? ''];
+    final overlay = _abilityOverlays[actor.copiedEffect ?? actor.character?.abilityEffect ?? ''];
     final dice = _extractDiceFromLog(log);
     // Si l'acteur est mort en utilisant sa capacité (ex: Raph), passer au tour suivant
     if (!actor.alive) {
@@ -838,7 +894,7 @@ class GameProvider extends ChangeNotifier {
     String log;
     if (attacker.bazooka) {
       final bazTargets = _eg.attackTargets(attacker, all, gameState!.terrainLayout);
-      final bazDmg = baseDmg + (attacker.dague ? 1 : 0); // Dague du Voleur
+      final bazDmg = baseDmg + attacker.equipment.where((e) => e.effect == 'dague_voleur').length; // Dague(s) du Voleur
       for (final t in bazTargets) { _eg.applyDamage(t, bazDmg); }
       log = '💥 ${attacker.name} (Bazooka) — $bazDmg dégâts à tous !';
     } else {

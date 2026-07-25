@@ -88,6 +88,7 @@ class SoloState {
   String? elaiaDeck;          // 'tenebres'|'lumiere'|'vision'
   String? elaiaCard1Id;
   String? elaiaCard2Id;
+  String? damienTargetUid; // Damien : cible choisie, en attente du choix alcool/poison
   Map<String, List<String>> forcedDeckQueue = {}; // cartes forcées par pile
 
   SoloState({
@@ -257,9 +258,10 @@ class _AiBrain {
   }
 
   bool shouldApplyCard(GameCard card, Player bot, AiDifficulty d) {
-    if (d == AiDifficulty.easy) return _roll(0.75);
-    if (card.effect == 'hunter_reveal_heal' && bot.character!.faction != Faction.hunter) return false;
-    if (card.effect == 'shadow_reveal_heal' && bot.character!.faction != Faction.shadow) return false;
+    // Une carte piochée est OBLIGATOIRE (même règle que pour un joueur
+    // humain — impossible de l'ignorer). L'ancien 25% de chance de "skip"
+    // en difficulté Facile faisait disparaître des cartes sans effet,
+    // y compris des cartes purement bénéfiques comme l'Éclair Purificateur.
     return true;
   }
 }
@@ -406,7 +408,11 @@ class SoloController extends ChangeNotifier {
 
     // Capacité
     await Future.delayed(d);
-    if (_ai.shouldUseAbility(bot, state!.players, state!.terrainLayout, difficulty)) {
+    if (_ai.shouldUseAbility(bot, state!.players, state!.terrainLayout, difficulty) &&
+        !(bot.character!.abilityEffect == 'copy_ability' &&
+          !state!.players.any((x) => x.uid != bot.uid && x.alive && x.revealed &&
+              x.character != null &&
+              !GameEngine.uncopyableAbilities.contains(x.character!.abilityEffect)))) {
       if (!bot.revealed) {
         bot.revealed = true;
         state!.pendingRevealAnimation = bot.uid;
@@ -415,7 +421,15 @@ class SoloController extends ChangeNotifier {
       }
       final needsTarget = _abilityNeedsTarget(bot.character!.abilityEffect);
       Player? target;
-      if (needsTarget) target = _ai.bestTarget(bot, state!.players, difficulty);
+      if (bot.character!.abilityEffect == 'copy_ability') {
+        // Tommy (bot) : choisit un joueur révélé au pouvoir copiable, au hasard.
+        final candidates = state!.players.where((x) =>
+          x.uid != bot.uid && x.alive && x.revealed && x.character != null &&
+          !GameEngine.uncopyableAbilities.contains(x.character!.abilityEffect)).toList();
+        if (candidates.isNotEmpty) target = candidates[_rng.nextInt(candidates.length)];
+      } else if (needsTarget) {
+        target = _ai.bestTarget(bot, state!.players, difficulty);
+      }
       final log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: target);
       if (log == 'draw_dark') {
         state!.peioReturnToMove = true;
@@ -432,6 +446,47 @@ class SoloController extends ChangeNotifier {
       }
       if (log == 'draw_dark' || log == 'draw_light') {
         // déjà traité ci-dessus
+      } else if (log == 'damien_target_chosen' && target != null) {
+        // Damien (bot) : choisit algorithmiquement — alcool si ça peut tuer,
+        // sinon poison (dégâts totaux plus élevés sur la durée).
+        final remainingHp = (target.character?.hp ?? 12) - target.wounds;
+        final String resolveLog;
+        if (remainingHp <= 4) {
+          resolveLog = _eg.damienServeAlcohol(bot, target);
+        } else {
+          resolveLog = _eg.damienServePoison(bot, target);
+        }
+        _log(resolveLog);
+      } else if (log.startsWith('tommy_copied:')) {
+        // Tommy (bot) : le pouvoir copié se déclenche immédiatement si besoin
+        final parts = log.split(':');
+        _log('🎭 ${bot.name} copie le pouvoir de ${parts.length > 1 ? parts[1] : "?"}');
+        if (bot.copiedEffect == 'builder_power') {
+          state!.builderStep = 1;
+          state!.builderEffect1 = null;
+          state!.builderEffect2 = null;
+          state!.builderOffered = _eg.builderDraw3();
+          // Choix simple pour le bot : garde le 1er effet proposé aux 2 étapes
+          final firstOffer = List<String>.from(state!.builderOffered);
+          if (firstOffer.isNotEmpty) {
+            clemenceChooseEffect(firstOffer.first);
+            if (state!.builderStep == 2 && state!.builderOffered.isNotEmpty) {
+              clemenceChooseEffect(state!.builderOffered.first);
+            }
+            if (state!.builderStep == 3 && state!.pendingTargetAction == 'clemence_target') {
+              final t = _ai.bestTarget(bot, state!.players, difficulty);
+              if (t != null) clemenceApplyToTarget(t);
+            }
+          }
+        } else if (bot.copiedEffect == 'prophete_mark') {
+          // Le bot marque directement le meilleur adversaire trouvé
+          final markTarget = _ai.bestTarget(bot, state!.players, difficulty);
+          if (markTarget != null) {
+            jeanneChooseTarget(markTarget.uid);
+            final rewards = List<String>.from(state!.builderOffered);
+            if (rewards.isNotEmpty) jeanneChooseReward(rewards.first);
+          }
+        }
       } else if (log != 'cible_requise') {
         _log(log);
       }
@@ -520,10 +575,18 @@ class SoloController extends ChangeNotifier {
       final targets = _eg.attackTargets(bot, state!.players, state!.terrainLayout);
       final target = _ai.bestTarget(bot, targets, difficulty, context: 'attack');
       if (target != null) {
-        final roll2 = _eg.rollAttack();
-        var dmg = roll2['damage']!;
+        final eff = bot.copiedEffect ?? bot.character?.abilityEffect;
+        int dmg;
+        if (eff == 'double_attack_if_tanky' && target.revealed && target.character!.hp >= 13) {
+          // 🥭 Mango Loco : cible costaude → double lancer, dégâts additionnés
+          final rA = _eg.rollAttack(); final rB = _eg.rollAttack();
+          dmg = rA['damage']! + rB['damage']!;
+        } else {
+          final roll2 = _eg.rollAttack();
+          dmg = roll2['damage']!;
+        }
         if (bot.lance && dmg > 0) dmg += 2;
-        if (bot.dague && dmg > 0) dmg += 1;
+        if (dmg > 0) dmg += bot.equipment.where((e) => e.effect == 'dague_voleur').length;
         final attackRes = _eg.resolveAttack(bot, target, dmg);
         final log = attackRes['log'] as String;
         _log(log);
@@ -776,7 +839,7 @@ class SoloController extends ChangeNotifier {
   void humanUseAbility({Player? target, String? passive}) {
     final p = state!.current;
     final s = state!;
-    final eff = p.character?.abilityEffect ?? '';
+    final eff = p.copiedEffect ?? p.character?.abilityEffect ?? '';
 
     switch (eff) {
       // ── Albane: double dés géré dans la phase move ──
@@ -856,6 +919,40 @@ class SoloController extends ChangeNotifier {
         _log('🌊 Océane lance D4($d) — soigne ${p.name}, ${prev.name}, ${next.name}', cls: 'player');
 
       // ── Marion: place un joueur à 5 blessures (dans les deux sens) ──
+      // ── Damien : sert un verre — nécessite une cible puis un choix ──
+      case 'damien_serve':
+        if (target == null) { s.pendingTargetAction = 'ability_damien'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
+        p.abilityUsed = true;
+        s.pendingTargetAction = null;
+        s.damienTargetUid = target.uid;
+        s.phase = GamePhase.ability;
+        _log('🍸 ${p.name} prépare un verre pour ${target.name}…', cls: 'player');
+        notifyListeners(); return;
+
+      // ── Tommy : copie le pouvoir d'un joueur révélé ──
+      case 'copy_ability':
+        if (target == null) { s.pendingTargetAction = 'ability_tommy'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
+        p.copiedEffect = target.character!.abilityEffect;
+        p.abilityUsed = !target.character!.abilityRepeatable;
+        s.pendingTargetAction = null;
+        _log('🎭 ${p.name} copie le pouvoir de ${target.name} : ${target.character!.ability}', cls: 'player');
+        // Certains pouvoirs se déclenchent normalement à la révélation — pour
+        // Tommy (déjà révélé), on les déclenche immédiatement après la copie.
+        if (p.copiedEffect == 'builder_power') {
+          s.builderStep = 1;
+          s.builderEffect1 = null;
+          s.builderEffect2 = null;
+          s.builderOffered = _eg.builderDraw3();
+          s.phase = GamePhase.ability; notifyListeners(); return;
+        }
+        if (p.copiedEffect == 'prophete_mark') {
+          s.jeanneStep = 1;
+          s.jeanneUid = p.uid;
+          s.pendingTargetAction = 'jeanne_mark_target';
+          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+        }
+        s.phase = GamePhase.move; notifyListeners(); return;
+
       case 'set_wounds5':
         if (target == null) { s.pendingTargetAction = 'ability_set5'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
         final before = target.wounds;
@@ -1040,7 +1137,10 @@ class SoloController extends ChangeNotifier {
 
       // ── Elaia : prescience — choisir la pile à regarder ──
       case 'peek_reorder_deck':
-        p.abilityUsed = false; // répétable
+        // Ne PAS forcer abilityUsed=false : ça permettait de relancer le
+        // choix de pile en boucle dans le même tour. On verrouille jusqu'au
+        // tour suivant (capacité répétable, réactivée automatiquement).
+        p.abilityUsed = true;
         s.elaiaStep = 1;
         _log('🔮 ${p.name} active son pouvoir de prescience…', cls: 'player');
         notifyListeners(); return;
@@ -1400,6 +1500,31 @@ class SoloController extends ChangeNotifier {
     'tenebres' => 'Ténèbres', 'lumiere' => 'Lumière', 'vision' => 'Vision',
     _ => d,
   };
+
+  /// Damien : sert l'alcool fort — 4 dégâts instantanés.
+  void damienServeAlcohol() {
+    final s = state!;
+    final targetUid = s.damienTargetUid; if (targetUid == null) return;
+    final actor = s.current;
+    final target = s.players.firstWhere((x) => x.uid == targetUid, orElse: () => actor);
+    final log = _eg.damienServeAlcohol(actor, target);
+    _log(log, cls: 'player');
+    s.damienTargetUid = null;
+    _checkWin(justDiedId: target.alive ? null : target.uid);
+    s.phase = GamePhase.move; notifyListeners();
+  }
+
+  /// Damien : sert le poison — 3 dégâts/tour pendant 2 tours.
+  void damienServePoison() {
+    final s = state!;
+    final targetUid = s.damienTargetUid; if (targetUid == null) return;
+    final actor = s.current;
+    final target = s.players.firstWhere((x) => x.uid == targetUid, orElse: () => actor);
+    final log = _eg.damienServePoison(actor, target);
+    _log(log, cls: 'player');
+    s.damienTargetUid = null;
+    s.phase = GamePhase.move; notifyListeners();
+  }
 
   void humanSkipAbility() {
     state!.phase = GamePhase.move; notifyListeners();
@@ -1840,7 +1965,7 @@ class SoloController extends ChangeNotifier {
   bool _abilityNeedsTarget(String eff) => [
     'damage2_choice','damage2_then_heal3','set_wounds5','steal_equip_choice',
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
-    'swap_equipment',
+    'swap_equipment','damien_serve','copy_ability',
   ].contains(eff);
 
   // Liste synchronisée avec le switch needsTarget de resolveCard() —
