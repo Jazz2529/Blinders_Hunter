@@ -812,8 +812,20 @@ class GameProvider extends ChangeNotifier {
       return;
     }
     _eg.applyDeathPassives(all);
+    // Rattrapage : de nombreux effets de carte infligent des dégâts sans
+    // attribuer explicitement killedByUid — sans ça, Tommy ne serait jamais
+    // reconnu comme l'auteur du kill quand il joue une carte lui-même.
+    for (final d in all.where((x) => !x.alive)) { d.killedByUid ??= actor.uid; }
     await _commitAll(all, res['log'] as String);
-    await _checkWin(all, justDiedId: tgt != null && !tgt.alive ? tgt.uid : null);
+    // Une carte peut tuer plusieurs joueurs (AoE, Dynamite...) — vérifier la
+    // victoire pour CHAQUE joueur mort, pas seulement la cible unique passée
+    // (sinon Tommy/Mango Loco ne gagnent jamais quand le kill vient d'une carte).
+    final justDied = all.where((x) => !x.alive).toList();
+    if (justDied.isEmpty) {
+      await _checkWin(all);
+    } else {
+      for (final d in justDied) { await _checkWin(all, justDiedId: d.uid); }
+    }
     // Diffuser le résultat des dés si la carte en a produit un (Dynamite, etc.)
     final cardDice = res['diceResult'] as Map<String, dynamic>?;
     final d4c = cardDice?['d4'] as int? ?? 0;

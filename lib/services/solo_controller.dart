@@ -431,21 +431,41 @@ class SoloController extends ChangeNotifier {
         target = _ai.bestTarget(bot, state!.players, difficulty);
       }
       final log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: target);
-      if (log == 'draw_dark') {
-        state!.peioReturnToMove = true;
-        state!.abilityOverlay = 'monkey_demon_eyes';
-        humanDrawCard(DeckType.tenebres);
-        _log('🐒 Monkey Raph pioche une carte Ténèbres', cls: 'player');
-        notifyListeners(); return;
-      }
-      if (log == 'draw_light') {
-        state!.peioReturnToMove = true;
-        humanDrawCard(DeckType.lumiere);
-        _log('⛪ Élise pioche une carte Lumière', cls: 'player');
-        notifyListeners(); return;
-      }
       if (log == 'draw_dark' || log == 'draw_light') {
-        // déjà traité ci-dessus
+        // Monkey Raph / Élise : piocher ET résoudre immédiatement pour le bot
+        // (humanDrawCard() laisse la partie en attente d'un clic "Appliquer"
+        // qui ne viendra jamais pour un bot — ça figeait le jeu).
+        final deck = log == 'draw_dark' ? DeckType.tenebres : DeckType.lumiere;
+        state!.peioReturnToMove = true;
+        if (log == 'draw_dark') state!.abilityOverlay = 'monkey_demon_eyes';
+        final card = _eg.drawCard(deck, forcedQueue: state!.forcedDeckQueue);
+        _log(log == 'draw_dark'
+            ? '🐒 ${bot.name} pioche une carte Ténèbres : ${card.name}'
+            : '⛪ ${bot.name} pioche une carte Lumière : ${card.name}', cls: 'player');
+        if (_ai.shouldApplyCard(card, bot, difficulty)) {
+          Player? cardTarget;
+          if (_cardNeedsTarget(card.effect)) {
+            cardTarget = _ai.bestTarget(bot, state!.players, difficulty, context: card.effect);
+          }
+          if (cardTarget != null || !_cardNeedsTarget(card.effect)) {
+            final res = _eg.resolveCard(card, bot, state!.players, state!.terrainLayout, target: cardTarget);
+            if (res['needsTarget'] != true) {
+              _log(res['log'] as String);
+              final justDied = state!.players.where((x) => !x.alive).toList();
+              if (justDied.isEmpty) { _checkWin(); }
+              else { for (final d in justDied) { _checkWin(justDiedId: d.uid); } }
+            }
+          }
+        }
+        notifyListeners();
+        if (state!.isOver) { state!.botThinking = false; notifyListeners(); return; }
+        // IMPORTANT : consommer le flag ici, sinon il reste bloqué à true et
+        // pollue le tour de N'IMPORTE QUEL joueur suivant (même sans rapport
+        // avec Monkey Raph/Élise) — ça faisait relancer les dés et se
+        // redéplacer une 2e fois après avoir simplement pioché une carte
+        // normale sur un terrain.
+        state!.peioReturnToMove = false;
+        // Le tour continue normalement (déplacement) — pas de return ici.
       } else if (log == 'damien_target_chosen' && target != null) {
         // Damien (bot) : choisit algorithmiquement — alcool si ça peut tuer,
         // sinon poison (dégâts totaux plus élevés sur la durée).
@@ -1651,7 +1671,20 @@ class SoloController extends ChangeNotifier {
       }
     }
     state!.pendingCard = null; state!.phase = _postCardPhase();
-    _checkWin(); notifyListeners();
+    // Une carte peut tuer un ou plusieurs joueurs (AoE) — vérifier la victoire
+    // pour CHAQUE joueur mort suite à cette carte (sinon Tommy/Mango Loco ne
+    // sont jamais reconnus vainqueurs quand le kill vient d'une carte).
+    final justDied = state!.players.where((x) => !x.alive).toList();
+    // Rattrapage : de nombreux effets de carte infligent des dégâts sans
+    // attribuer explicitement killedByUid — sans ça, Tommy ne serait jamais
+    // reconnu comme l'auteur du kill quand il joue une carte lui-même.
+    for (final d in justDied) { d.killedByUid ??= p.uid; }
+    if (justDied.isEmpty) {
+      _checkWin();
+    } else {
+      for (final d in justDied) { _checkWin(justDiedId: d.uid); }
+    }
+    notifyListeners();
   }
 
   /// Détermine la phase à utiliser après résolution d'une carte/effet de

@@ -71,8 +71,10 @@ class GameEngine with AbilityEngine {
       return 0;
     }
     if (!ignoreShield && p.shield) {
-      if (p.shieldCharges > 0) { p.shieldCharges -= n; if (p.shieldCharges <= 0) p.shield = false; }
-      else { p.shield = false; }
+      // Bouclier "insensible pendant 1 tour" : bloque TOUS les dégâts tant
+      // qu'il est actif, sans se consommer par montant — il expire au début
+      // du PROCHAIN tour du joueur (voir applyStartOfTurnPassives / reset de
+      // tour), pas après avoir absorbé un certain nombre de points.
       return 0;
     }
     if (p.sainteTunique) n = max(0, n - 1);
@@ -545,7 +547,7 @@ class GameEngine with AbilityEngine {
           return {'log': '🍌 d6($d)≤4 — ${target.name} subit 3', 'needsTarget': false,
             'diceResult': {'d4': 0, 'd6': d, 'sum': d, 'label': 'Poupée Démoniaque'}};
         }
-        applyDamage(actor, 3);
+        applyDamage(actor, 3, isTenebresCard: true);
         return {'log': '🍌 d6($d)≥5 — ${actor.name} subit 3', 'needsTarget': false,
           'diceResult': {'d4': 0, 'd6': d, 'sum': d, 'label': 'Poupée Démoniaque'}};
       case 'vampirisation':
@@ -555,10 +557,10 @@ class GameEngine with AbilityEngine {
         if (target.wounds < 5) target.wounds = 5;
         return {'log': '🐚 ${target.name} passe à 5 blessures', 'needsTarget': false};
       case 'veuve_noire':
-        applyDamage(target, 2, isTenebresCard: true); applyDamage(actor, 2);
+        applyDamage(target, 2, isTenebresCard: true); applyDamage(actor, 2, isTenebresCard: true);
         return {'log': '🕷 ${actor.name} inflige 2 à ${target.name} et subit 2', 'needsTarget': false};
       case 'peau_banane':
-        if (actor.equipment.isEmpty) { applyDamage(actor, 1); return {'log': '🍌 ${actor.name} sans équipement — subit 1', 'needsTarget': false}; }
+        if (actor.equipment.isEmpty) { applyDamage(actor, 1, isTenebresCard: true); return {'log': '🍌 ${actor.name} sans équipement — subit 1', 'needsTarget': false}; }
         if (actor.equipment.length > 1) {
           return {'log': '', 'needsTarget': false, 'needsEquipChoice': true,
             'equipChoiceMode': 'give', 'equipChoiceActorUid': actor.uid, 'equipChoiceTargetUid': target.uid};
@@ -576,7 +578,7 @@ class GameEngine with AbilityEngine {
         actor.equipment.add(ep); _equipPassive(actor, ep); recalcPassives(target);
         return {'log': '🗡 ${actor.name} vole "${ep.name}" à ${target.name}', 'needsTarget': false};
       case 'trebuchet':
-        if (actor.equipment.isEmpty) { applyDamage(actor, 1); return {'log': '⚙️ ${actor.name} sans équipement — subit 1', 'needsTarget': false}; }
+        if (actor.equipment.isEmpty) { applyDamage(actor, 1, isTenebresCard: true); return {'log': '⚙️ ${actor.name} sans équipement — subit 1', 'needsTarget': false}; }
         final e = actor.equipment.removeAt(0); target.equipment.add(e); _equipPassive(target, e); applyDamage(target, 3, isTenebresCard: true);
         return {'log': '⚙️ ${actor.name} envoie "${e.name}" + 3 dégâts à ${target.name}', 'needsTarget': false};
       case 'vision_shadow_2': return _vision(actor, target, Faction.shadow, 2);
@@ -928,13 +930,14 @@ class GameEngine with AbilityEngine {
       }
     }
 
-    // Tommy — a-t-il éliminé la personne copiée ?
+    // Tommy — est-ce LUI qui a éliminé la personne copiée ?
     for (final p in alive) {
       if (p.character!.winEffect == 'kill_copied' && justDiedId != null) {
-        // copiedEffect pointe vers l'effet copié — si la victime avait cet effet c'est gagné
+        // copiedEffect pointe vers l'effet copié — il faut que CE SOIT Tommy
+        // qui ait porté le coup fatal (killedByUid), pas n'importe quelle mort.
         try {
           final victim = players.firstWhere((pp) => pp.uid == justDiedId);
-          if (victim.character!.abilityEffect == p.copiedEffect) {
+          if (victim.character!.abilityEffect == p.copiedEffect && victim.killedByUid == p.uid) {
             // Si ce kill élimine AUSSI le dernier membre d'une faction, la
             // faction gagnante partage la victoire avec Tommy (même coup).
             final ids = <String>{p.uid};

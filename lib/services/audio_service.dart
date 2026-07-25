@@ -23,6 +23,13 @@ class AudioService extends ChangeNotifier {
   bool   _sfxEnabled   = true;
 
   String? _currentMusic;
+  // Compteur de génération : incrémenté à CHAQUE changement de musique.
+  // Permet à un fadeOutMusic() en cours d'annuler son arrêt final si une
+  // NOUVELLE musique a démarré entre-temps (évite qu'un fade-out tardif
+  // vienne couper la musique qui vient tout juste de commencer — c'est ce
+  // qui causait "la musique ne s'arrête/ne redémarre pas correctement" lors
+  // des changements rapides d'écran, ex: victoire → clic rapide → menu).
+  int _musicGeneration = 0;
 
   double get musicVolume  => _musicVolume;
   double get sfxVolume    => _sfxVolume;
@@ -39,6 +46,7 @@ class AudioService extends ChangeNotifier {
 
   // ── Musiques ──────────────────────────────────────────────────────────────
   Future<void> playLobbyMusic() async {
+    _musicGeneration++;
     if (_currentMusic == 'lobby') return;
     _currentMusic = 'lobby';
     try {
@@ -51,6 +59,7 @@ class AudioService extends ChangeNotifier {
   }
 
   Future<void> playGameMusic() async {
+    _musicGeneration++;
     if (_currentMusic == 'game') return;
     _currentMusic = 'game';
     try {
@@ -63,20 +72,25 @@ class AudioService extends ChangeNotifier {
   }
 
   Future<void> stopMusic() async {
+    _musicGeneration++;
     _currentMusic = null;
     await _musicPlayer.stop();
   }
 
   Future<void> fadeOutMusic({int ms = 800}) async {
+    final myGeneration = ++_musicGeneration;
     double v = _musicVolume;
     const steps = 20;
     final stepTime = ms ~/ steps;
     for (int i = 0; i < steps; i++) {
+      if (_musicGeneration != myGeneration) return; // annulé par une nouvelle musique
       v = _musicVolume * (1 - (i + 1) / steps);
       await _musicPlayer.setVolume(v.clamp(0.0, 1.0));
       await Future.delayed(Duration(milliseconds: stepTime));
     }
-    await stopMusic();
+    if (_musicGeneration != myGeneration) return; // annulé pendant le dernier délai
+    _currentMusic = null;
+    await _musicPlayer.stop();
     await _musicPlayer.setVolume(_musicEnabled ? _musicVolume : 0.0);
   }
 

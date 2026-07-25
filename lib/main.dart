@@ -119,10 +119,17 @@ class _RootWrapperState extends State<_RootWrapper> {
       builder: (ctx, gp, _) {
         if (gp.gameResult != null) return _GameOverScreen(gp: gp);
         if (gp.roomStatus == 'playing') {
+          // playGameMusic()/playLobbyMusic() sont no-op si déjà en cours
+          // (guard interne sur _currentMusic) — sûr à appeler à chaque
+          // rebuild du Consumer sans faire redémarrer la piste en boucle.
+          audio.playGameMusic();
           if (gp.phase == GamePhase.roleReveal) return RoleRevealScreen();
           return GameScreen();
         }
-        if (gp.roomId != null) return const LobbyScreen();
+        if (gp.roomId != null) {
+          audio.playLobbyMusic();
+          return const LobbyScreen();
+        }
         return const HomeScreen();
       },
     );
