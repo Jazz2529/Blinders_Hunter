@@ -451,8 +451,17 @@ class GameScreen extends StatelessWidget {
       final turnBanner = TurnBanner(
         key: ValueKey('turn_${gs?.currentPlayerId ?? ''}'),
         show: isMyTurn && gp.roomStatus == 'playing');
+      // Alerte "corde qui brûle" — visible seulement dans les 10 dernières
+      // secondes du minuteur de tour, pour tous les joueurs (pas juste soi).
+      int ropeSecondsLeft = 0;
+      final tsRope = gs?.turnStartedAt;
+      if (tsRope != null && gp.roomStatus == 'playing') {
+        ropeSecondsLeft = ((GameProvider.turnTimeoutMs -
+            (DateTime.now().millisecondsSinceEpoch - tsRope)) / 1000).ceil();
+      }
+      final burningRope = BurningRopeTimer(secondsLeft: ropeSecondsLeft);
       if (overlay == null && diceResult == null && lastDice == null) {
-        return Stack(children: [baseScaffold, turnBanner]);
+        return Stack(children: [baseScaffold, turnBanner, burningRope]);
       }
 
       void clearOverlay() => gp.clearAbilityOverlay();
@@ -491,6 +500,7 @@ class GameScreen extends StatelessWidget {
         if (overlay == 'amelia_light')        AmeliaLightOverlay(onDone: clearOverlay),
         if (overlay == 'albane_clock')        AlbaneClockOverlay(onDone: clearOverlay),
         turnBanner,
+        burningRope,
       ]);
     },
   );
@@ -1018,6 +1028,15 @@ class _ActionPanelState extends State<_ActionPanel> {
             style: body(13, c: kRed))];
         }
         return [
+          // Bandeaux d'état persistants (visibles de tous)
+          if (gp.gameState?.fifiGoldenTurn == true)
+            const _StatusBanner('🍀 Tour parfait actif — dés au maximum !', kGreen),
+          if ((gp.gameState?.bonusTurnsRemaining ?? 0) > 0)
+            _StatusBanner('🥷 ${gp.gameState!.bonusTurnsRemaining} tour(s) bonus restant(s)', kGold),
+          if (gp.gameState?.markedPlayerUid != null && gp.gameState?.markedPlayerUid != '__clear__')
+            _StatusBanner(
+              '🔮 Joueur marqué : ${gp.players[gp.gameState!.markedPlayerUid!]?.name ?? "?"}',
+              kRed),
           if(me?.revealed==false)
             BHButton(label:'🃏 Se révéler',onTap:() async {
               if (me?.character?.abilityEffect == 'chameleon_passive') {
@@ -1174,8 +1193,8 @@ class _ActionPanelState extends State<_ActionPanel> {
                 onTap: () => _act(gp.backToAbility)),
             ];
           } // attackTargets already filters by adjacency
-        } else if (pta == 'clemence_target' || pta == 'terrain_damage9') {
-          // Clémence et Terrain 9 peuvent se cibler eux-mêmes
+        } else if (pta == 'clemence_target' || pta == 'terrain_damage9' || pta == 'set_marker7_choice') {
+          // Clémence, Terrain 9 et Premier Secours ("vous compris") peuvent se cibler eux-mêmes
           all = gp.players.values.where((p) => p.alive).toList();
         } else if (pta == 'copy_ability') {
           // Tommy : seulement les joueurs révélés au pouvoir copiable
@@ -1549,29 +1568,37 @@ class _DiceWidgetState extends State<_DiceWidget>
   Widget build(BuildContext ctx) {
     return Column(mainAxisSize: MainAxisSize.min, children: [
       SizedBox(height: 70,
-        child: AnimatedBuilder(
-          animation: _rollAc,
-          builder: (_, __) => Stack(alignment: Alignment.center, children: [
-            Transform.translate(
-              offset: Offset(_rollD4x.value, _rollD4y.value),
-              child: Transform.rotate(angle: _rollRotD4.value,
-                child: _RollingDie(
-                  value: widget.d4, label: 'd4',
-                  color: widget.isAttack ? kRed : kGold,
-                  rolling: !_showResult,
-                )),
-            ),
-            Transform.translate(
-              offset: Offset(_rollD6x.value + 60, _rollD6y.value),
-              child: Transform.rotate(angle: _rollRotD6.value,
-                child: _RollingDie(
-                  value: widget.d6, label: 'd6',
-                  color: widget.isAttack ? kRed : kGold,
-                  rolling: !_showResult,
-                )),
-            ),
-          ]),
-        ),
+        child: LayoutBuilder(builder: (lctx, constraints) {
+          // Les décalages d'animation (initialement en pixels fixes ±60) sont
+          // mis à l'échelle selon la largeur réellement disponible — sans
+          // ça, deux dés côte à côte (Albane/Boussole, écran étroit) se
+          // faisaient déborder/couper par une animation prévue pour un dé
+          // seul en pleine largeur.
+          final scale = (constraints.maxWidth / 260).clamp(0.35, 1.0);
+          return AnimatedBuilder(
+            animation: _rollAc,
+            builder: (_, __) => Stack(alignment: Alignment.center, children: [
+              Transform.translate(
+                offset: Offset(_rollD4x.value * scale, _rollD4y.value),
+                child: Transform.rotate(angle: _rollRotD4.value,
+                  child: _RollingDie(
+                    value: widget.d4, label: 'd4',
+                    color: widget.isAttack ? kRed : kGold,
+                    rolling: !_showResult,
+                  )),
+              ),
+              Transform.translate(
+                offset: Offset((_rollD6x.value + 60) * scale, _rollD6y.value),
+                child: Transform.rotate(angle: _rollRotD6.value,
+                  child: _RollingDie(
+                    value: widget.d6, label: 'd6',
+                    color: widget.isAttack ? kRed : kGold,
+                    rolling: !_showResult,
+                  )),
+              ),
+            ]),
+          );
+        }),
       ),
       if (_showResult)
         AnimatedBuilder(
@@ -2049,10 +2076,12 @@ class _LastDiceBannerState extends State<_LastDiceBanner>
               Text(widget.label, style: cinzel(12, c: kGold)),
               const SizedBox(height: 6),
               Row(mainAxisSize: MainAxisSize.min, children: [
-                _DieFace(value: d4, sides: 4),
-                const SizedBox(width: 10),
-                Text('−', style: cinzel(18, c: kTextSub)),
-                const SizedBox(width: 10),
+                if (d4 > 0) ...[
+                  _DieFace(value: d4, sides: 4),
+                  const SizedBox(width: 10),
+                  Text('−', style: cinzel(18, c: kTextSub)),
+                  const SizedBox(width: 10),
+                ],
                 _DieFace(value: d6, sides: 6),
                 const SizedBox(width: 14),
                 Container(
@@ -2093,6 +2122,26 @@ class _DieFace extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════
 // MR CASINO — Pari pair/impair (multijoueur)
 // ═══════════════════════════════════════════════════════════
+// ─── Bandeau d'état persistant (tour parfait, tours bonus, marquage...) ──────
+class _StatusBanner extends StatelessWidget {
+  final String message;
+  final Color color;
+  const _StatusBanner(this.message, this.color);
+
+  @override
+  Widget build(BuildContext ctx) => Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 6),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: color.withValues(alpha: 0.4)),
+    ),
+    child: Text(message, style: body(11, c: color)),
+  );
+}
+
 class _MultiCasinoWidget extends StatefulWidget {
   final GameProvider gp;
   final VoidCallback? onDone;

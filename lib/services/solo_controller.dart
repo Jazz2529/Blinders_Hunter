@@ -373,6 +373,10 @@ class SoloController extends ChangeNotifier {
       p.bonusMaxHp = 0;
     }
     for (final l in passiveLogs) _log(l);
+    // Un passif de début de tour (poison de Damien, etc.) peut tuer un
+    // joueur — sans ce check, ni la victoire ni la récompense de Jeanne ne
+    // se déclenchaient jamais pour une mort survenue de cette façon.
+    if (!p.alive) { _checkWin(justDiedId: p.uid); }
     // Zazou snapshot
     _currentSnapshot = {
       for (final pl in state!.players) pl.uid: {'wounds': pl.wounds, 'equip': List.from(pl.equipment), 'alive': pl.alive}
@@ -605,8 +609,11 @@ class SoloController extends ChangeNotifier {
           final roll2 = _eg.rollAttack();
           dmg = roll2['damage']!;
         }
-        if (bot.lance && dmg > 0) dmg += 2;
-        if (dmg > 0) dmg += bot.equipment.where((e) => e.effect == 'dague_voleur').length;
+        // Ne PAS ajouter lance/lanceLonginus/dague ici : resolveAttack() les
+        // applique déjà en interne. Les ajouter aussi ici les comptait EN
+        // DOUBLE pour Lance de Lumière et la Dague, et la Lance de Longinus
+        // manquait carrément de ce calcul manuel (elle restait correcte,
+        // mais seule, ce qui semblait "trop faible" comparée aux autres).
         final attackRes = _eg.resolveAttack(bot, target, dmg);
         final log = attackRes['log'] as String;
         _log(log);
@@ -1811,6 +1818,17 @@ class SoloController extends ChangeNotifier {
       _log(gegeLog, cls: 'player');
       if (!target.alive) { _log('💀 ${target.name} est éliminé !', cls: 'death'); }
       if (gegeTriggered) state!.abilityOverlay = 'gege_ghost'; // animation fantôme
+    }
+    // Gège le Fantôme : la contre-attaque de Scott EST aussi une attaque d'un
+    // Hunter révélé — sans ce check séparé, Gège ne se déclenchait jamais
+    // sur les contre-attaques (rôles inversés : Scott devient l'attaquant).
+    if (res['scottCountered'] == true && attacker.alive) {
+      final (gegeLog2, gegeTriggered2) = _eg.applyGegePassiveEx(target, attacker, state!.players);
+      if (gegeLog2 != null) {
+        _log(gegeLog2, cls: 'player');
+        if (!attacker.alive) { _log('💀 ${attacker.name} est éliminé !', cls: 'death'); }
+        if (gegeTriggered2) state!.abilityOverlay = 'gege_ghost';
+      }
     }
     _checkWin(justDiedId: target.alive ? null : target.uid);
     // Track Raphaël mirror damage

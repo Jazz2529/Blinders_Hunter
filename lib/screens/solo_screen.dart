@@ -815,12 +815,20 @@ class _CasinoWidgetState extends State<_CasinoWidget>
     if (_won!) {
       s.pendingTargetAction = 'casino_win';
       s.phase = GamePhase.chooseTarget;
+      widget.ctrl.notifyListeners();
     } else {
       widget.ctrl.applyDamageToHuman(2, reason: '🎰 Casino — pari perdu');
       s.pendingTargetAction = null;
-      s.phase = GamePhase.move; // peut encore se déplacer après
+      if (!s.current.alive) {
+        // Il ne peut plus jouer son tour s'il vient de mourir — passer
+        // immédiatement au joueur suivant au lieu de le laisser continuer
+        // (se déplacer/attaquer) alors qu'il est mort.
+        widget.ctrl.humanEndTurn();
+      } else {
+        s.phase = GamePhase.move; // peut encore se déplacer après
+        widget.ctrl.notifyListeners();
+      }
     }
-    widget.ctrl.notifyListeners();
   }
 
   @override
@@ -2523,6 +2531,10 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'terrain9') {
       targets = s.players.where((p) => p.alive).toList();
     }
+    // Premier Secours ("vous compris") : peut aussi se cibler soi-même
+    if (context == 'set_marker7_choice') {
+      targets = s.players.where((p) => p.alive).toList();
+    }
 
     // Richard II : sélection d'une zone à échanger avec la sienne
     if (context == 'swap_zone_pick1' || context == 'swap_zone_pick2') {
@@ -3272,31 +3284,37 @@ class _DiceWidgetState extends State<_DiceWidget>
     return Column(mainAxisSize: MainAxisSize.min, children: [
       // ── Les deux dés qui bougent ──────────────
       SizedBox(height: 70,
-        child: AnimatedBuilder(
-          animation: _rollAc,
-          builder: (_, __) => Stack(alignment: Alignment.center, children: [
-            // d4
-            Transform.translate(
-              offset: Offset(_rollD4x.value, _rollD4y.value),
-              child: Transform.rotate(angle: _rollRotD4.value,
-                child: _RollingDie(
-                  value: widget.d4, label: 'd4',
-                  color: widget.isAttack ? kRed : kGold,
-                  rolling: !_showResult,
-                )),
-            ),
-            // d6
-            Transform.translate(
-              offset: Offset(_rollD6x.value + 60, _rollD6y.value),
-              child: Transform.rotate(angle: _rollRotD6.value,
-                child: _RollingDie(
-                  value: widget.d6, label: 'd6',
-                  color: widget.isAttack ? kRed : kGold,
-                  rolling: !_showResult,
-                )),
-            ),
-          ]),
-        ),
+        child: LayoutBuilder(builder: (lctx, constraints) {
+          // Décalages d'animation mis à l'échelle selon la largeur réelle —
+          // évite le débordement quand 2 dés sont affichés côte à côte
+          // (Albane/Boussole) sur un écran étroit.
+          final scale = (constraints.maxWidth / 260).clamp(0.35, 1.0);
+          return AnimatedBuilder(
+            animation: _rollAc,
+            builder: (_, __) => Stack(alignment: Alignment.center, children: [
+              // d4
+              Transform.translate(
+                offset: Offset(_rollD4x.value * scale, _rollD4y.value),
+                child: Transform.rotate(angle: _rollRotD4.value,
+                  child: _RollingDie(
+                    value: widget.d4, label: 'd4',
+                    color: widget.isAttack ? kRed : kGold,
+                    rolling: !_showResult,
+                  )),
+              ),
+              // d6
+              Transform.translate(
+                offset: Offset((_rollD6x.value + 60) * scale, _rollD6y.value),
+                child: Transform.rotate(angle: _rollRotD6.value,
+                  child: _RollingDie(
+                    value: widget.d6, label: 'd6',
+                    color: widget.isAttack ? kRed : kGold,
+                    rolling: !_showResult,
+                  )),
+              ),
+            ]),
+          );
+        }),
       ),
       // ── Résultat (apparaît après le roll) ─────
       if (_showResult)

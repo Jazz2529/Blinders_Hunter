@@ -180,6 +180,10 @@ class GameProvider extends ChangeNotifier {
     final passiveLogs = _eg.applyStartOfTurnPassives(nextPlayer, all, gs.terrainLayout);
     _eg.applyDeathPassives(all);
     await _commitAll(all, passiveLogs.join(' | '));
+    // Un passif de début de tour (poison de Damien, etc.) peut tuer un
+    // joueur — sans ce check, ni la victoire ni la récompense de Jeanne ne
+    // se déclenchaient jamais pour une mort survenue de cette façon.
+    if (!nextPlayer.alive) { await _checkWin(all, justDiedId: nextPlayer.uid); }
     await _fb.setPhase(roomId!, GamePhase.ability,
         currentPlayerId: order[next], hasAttacked: false, clearPending: true);
   }
@@ -357,10 +361,18 @@ class GameProvider extends ChangeNotifier {
     final all = _mutableAll();
     final me = all.firstWhere((p) => p.uid == myUid);
     _eg.applyDamage(me, 2);
+    if (!me.alive) me.killedByUid = me.uid; // mort de son propre pouvoir
     _eg.applyDeathPassives(all);
     await _commitAll(all, '🎰 Mr Casino perd son pari — ${me.name} subit 2 blessures');
     await _checkWin(all, justDiedId: me.alive ? null : me.uid);
-    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+    if (!me.alive) {
+      // Il ne peut plus jouer son tour s'il vient de mourir — le tour
+      // passe immédiatement au joueur suivant au lieu de le laisser
+      // continuer (bouger/attaquer) alors qu'il est mort.
+      await endTurn();
+    } else {
+      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+    }
   }
 
   /// Mr Casino — inflige 3 dégâts à la cible choisie après un pari gagné.
@@ -826,7 +838,11 @@ class GameProvider extends ChangeNotifier {
     } else {
       for (final d in justDied) { await _checkWin(all, justDiedId: d.uid); }
     }
-    // Diffuser le résultat des dés si la carte en a produit un (Dynamite, etc.)
+    // Diffuser le résultat des dés si la carte en a produit un (Dynamite,
+    // Poupée Démoniaque, etc.) — certaines cartes (Poupée Démoniaque) ne
+    // lancent qu'un D6 avec d4=0 par design ; il ne faut PAS se baser sur
+    // "d4 > 0" pour décider s'il y a un résultat à montrer, sinon ces cartes
+    // n'affichent jamais leur dé en multijoueur.
     final cardDice = res['diceResult'] as Map<String, dynamic>?;
     final d4c = cardDice?['d4'] as int? ?? 0;
     final d6c = cardDice?['d6'] as int? ?? 0;
@@ -834,9 +850,9 @@ class GameProvider extends ChangeNotifier {
     final labelc = cardDice?['label'] as String? ?? '🎲';
     await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true,
         peioReturnToMove: false,
-        lastDiceResult: d4c > 0 ? {'d4': d4c, 'd6': d6c, 'sum': sumc} : null,
-        lastDiceLabel: d4c > 0 ? labelc : null,
-        lastDiceTimestamp: d4c > 0 ? DateTime.now().millisecondsSinceEpoch : null);
+        lastDiceResult: cardDice != null ? {'d4': d4c, 'd6': d6c, 'sum': sumc} : null,
+        lastDiceLabel: cardDice != null ? labelc : null,
+        lastDiceTimestamp: cardDice != null ? DateTime.now().millisecondsSinceEpoch : null);
   }
 
   /// Divination X ou Y : la cible répond enfin à la "punition" — donne un
@@ -916,6 +932,14 @@ class GameProvider extends ChangeNotifier {
     }
     final (gegeLog, gegeTriggered) = _eg.applyGegePassiveEx(attacker, target, all);
     if (gegeLog != null) log = '$log\n$gegeLog';
+    // Gège le Fantôme : la contre-attaque de Scott EST aussi une attaque d'un
+    // Hunter révélé — sans ce check séparé, Gège ne se déclenchait jamais
+    // sur les contre-attaques (rôles inversés : Scott devient l'attaquant).
+    bool gegeTriggered2 = false;
+    if (scottCountered && attacker.alive) {
+      final (gegeLog2, t2) = _eg.applyGegePassiveEx(target, attacker, all);
+      if (gegeLog2 != null) { log = '$log\n$gegeLog2'; gegeTriggered2 = t2; }
+    }
     _eg.applyDeathPassives(all);
     await _commitAll(all, log);
     await _checkWin(all, justDiedId: target.alive ? null : target.uid);
@@ -923,7 +947,7 @@ class GameProvider extends ChangeNotifier {
         lastDiceResult: d4 > 0 ? {'d4': d4, 'd6': d6, 'sum': baseDmg} : null,
         lastDiceLabel: d4 > 0 ? 'Attaque' : null,
         lastDiceTimestamp: d4 > 0 ? DateTime.now().millisecondsSinceEpoch : null,
-        abilityOverlay: gegeTriggered ? 'gege_ghost' : scottCountered ? 'scott_counter' : isMathieuThird ? 'mathieu_bullet' : null);
+        abilityOverlay: (gegeTriggered || gegeTriggered2) ? 'gege_ghost' : scottCountered ? 'scott_counter' : isMathieuThird ? 'mathieu_bullet' : null);
   }
 
   /// Richard II : sélection d'une zone (étape 1 ou 2).
@@ -991,6 +1015,7 @@ class GameProvider extends ChangeNotifier {
     final passiveLogs = _eg.applyStartOfTurnPassives(nextPlayer, all, gameState!.terrainLayout);
     _eg.applyDeathPassives(all);
     await _commitAll(all, passiveLogs.join(' | '));
+    if (!nextPlayer.alive) { await _checkWin(all, justDiedId: nextPlayer.uid); }
     await _fb.setPhase(roomId!, GamePhase.ability, currentPlayerId: order[next], hasAttacked: false, clearPending: true);
   }
 

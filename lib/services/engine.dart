@@ -516,7 +516,10 @@ class GameEngine with AbilityEngine {
       List<Player> all, Player target) {
     switch (eff) {
       case 'set_marker7_choice':
-        if (target.wounds < 7) target.wounds = 7;
+        // Le texte de la carte dit "Placez... sur le 7" sans condition —
+        // ça doit fonctionner qu'on monte OU qu'on descende le marqueur.
+        target.wounds = 7;
+        if (target.wounds >= target.character!.hp) target.alive = false;
         return {'log': '📍 ${actor.name} place ${target.name} à 7 blessures', 'needsTarget': false};
       case 'heal_other_d6':
         final d = rollD6(); applyHeal(target, d);
@@ -607,12 +610,14 @@ class GameEngine with AbilityEngine {
       case 'vision_hp_12plus':
         if (target.character!.hp >= 12) {
           applyDamage(target, 2);
+          if (!target.alive) target.killedByUid = actor.uid;
           return {'log': '🔮 Vision — ${target.name} (12 PV ou plus) subit 2 blessures', 'needsTarget': false};
         }
         return {'log': '🔮 Vision — ${target.name} ne subit aucune blessure', 'needsTarget': false};
       case 'vision_hp_11minus':
         if (target.character!.hp <= 11) {
           applyDamage(target, 1);
+          if (!target.alive) target.killedByUid = actor.uid;
           return {'log': '🔮 Vision — ${target.name} (11 PV ou moins) subit 1 blessure', 'needsTarget': false};
         }
         return {'log': '🔮 Vision — ${target.name} ne subit aucune blessure', 'needsTarget': false};
@@ -629,6 +634,7 @@ class GameEngine with AbilityEngine {
       return {'log': '🔮 Vision — ${target.name} se soigne de 1', 'needsTarget': false};
     }
     applyDamage(target, 1);
+    if (!target.alive) target.killedByUid = actor.uid;
     return {'log': '🔮 Vision — ${target.name} subit 1 blessure', 'needsTarget': false};
   }
 
@@ -644,6 +650,7 @@ class GameEngine with AbilityEngine {
     }
     if (target.equipment.isEmpty) {
       applyDamage(target, 1);
+      if (!target.alive) target.killedByUid = actor.uid;
       return {'log': '🔮 Vision — ${target.name} n\'a pas d\'équipement, subit 1 blessure', 'needsTarget': false};
     }
     return {'log': '', 'needsTarget': false, 'needsTargetChoice': true,
@@ -660,6 +667,7 @@ class GameEngine with AbilityEngine {
     // Ne pas révéler la faction dans les logs publics
     if (target.character!.faction == f) {
       applyDamage(target, dmg);
+      if (!target.alive) target.killedByUid = actor.uid;
       return {'log': '🔮 Carte Vision — ${target.name} subit $dmg blessures', 'needsTarget': false};
     }
     return {'log': '🔮 Carte Vision — ${target.name} ne subit aucune blessure', 'needsTarget': false};
@@ -1093,7 +1101,7 @@ class GameEngine with AbilityEngine {
     final r = rollAttack();
     final dealt = applyDamage(target, r['damage']!);
     if (!target.alive) target.killedByUid = gege.uid;
-    return ('\u{1f47b} Gège attaque aussi \${target.name} — D4(\${r[\'d4\']}) D6(\${r[\'d6\']}) → \$dealt blessures', true);
+    return ('👻 Gège attaque aussi ${target.name} — D4(${r['d4']}) D6(${r['d6']}) → $dealt blessures', true);
   }
 
   String? applyGegePassive(Player attacker, Player target, List<Player> all) =>
@@ -1106,6 +1114,7 @@ class GameEngine with AbilityEngine {
   String resolvePunishChoice(Player actor, Player target, bool giveEquipment, {int? equipmentIndex}) {
     if (!giveEquipment || target.equipment.isEmpty) {
       applyDamage(target, 1);
+      if (!target.alive) target.killedByUid = actor.uid;
       return '🔮 ${target.name} choisit de subir 1 blessure';
     }
     final idx = (equipmentIndex != null && equipmentIndex < target.equipment.length) ? equipmentIndex : 0;
@@ -1593,6 +1602,7 @@ class GameEngine with AbilityEngine {
       applyDamage(p, 3);
       p.poisonTurnsRemaining--;
       logs.add('☠️ ${p.name} subit 3 blessures du poison (${p.poisonTurnsRemaining} tour(s) restant(s))');
+      if (!p.alive) p.killedByUid = p.poisonSourceUid; // attribue le kill à Damien
       if (p.poisonTurnsRemaining <= 0) p.poisonSourceUid = null;
     }
 

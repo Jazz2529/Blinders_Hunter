@@ -2,6 +2,7 @@
 // Palette et styles — aucune dépendance externe
 
 import 'package:flutter/material.dart';
+import '../services/audio_service.dart';
 
 // ─── Palette ─────────────────────────────────
 const kBg0    = Color(0xFF080604);
@@ -339,6 +340,114 @@ class EntranceScale extends StatelessWidget {
 
 /// Bannière "⚔️ À TON TOUR" — glisse du haut, reste 1,4 s puis disparaît.
 /// Se rejoue quand la `key` change (nouveau tour).
+/// Alerte visuelle quand le minuteur de tour tombe bas : une corde qui brûle
+/// en haut de l'écran, se raccourcissant chaque seconde. N'apparaît que dans
+/// les 30 dernières secondes du tour (2 minutes au total). Un son démarre
+/// dès l'apparition de la corde et s'arrête quand le tour se termine ou que
+/// la corde finit de brûler.
+class BurningRopeTimer extends StatefulWidget {
+  final int secondsLeft; // 0..30 (ou plus — le widget est alors invisible)
+  const BurningRopeTimer({super.key, required this.secondsLeft});
+
+  static const int warningThreshold = 30;
+
+  @override
+  State<BurningRopeTimer> createState() => _BurningRopeTimerState();
+}
+
+class _BurningRopeTimerState extends State<BurningRopeTimer> {
+  bool _soundPlaying = false;
+
+  bool get _visible =>
+      widget.secondsLeft > 0 && widget.secondsLeft <= BurningRopeTimer.warningThreshold;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncSound();
+  }
+
+  @override
+  void didUpdateWidget(BurningRopeTimer old) {
+    super.didUpdateWidget(old);
+    _syncSound();
+  }
+
+  @override
+  void dispose() {
+    if (_soundPlaying) { audio.stopRopeBurningSound(); _soundPlaying = false; }
+    super.dispose();
+  }
+
+  void _syncSound() {
+    if (_visible && !_soundPlaying) {
+      audio.playRopeBurningSound();
+      _soundPlaying = true;
+    } else if (!_visible && _soundPlaying) {
+      audio.stopRopeBurningSound();
+      _soundPlaying = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    if (!_visible) return const SizedBox.shrink();
+    final frac = (widget.secondsLeft / BurningRopeTimer.warningThreshold).clamp(0.0, 1.0);
+    return Positioned(
+      top: 0, left: 0, right: 0,
+      child: IgnorePointer(
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(children: [
+              Expanded(
+                child: Stack(clipBehavior: Clip.none, children: [
+                  // Corde restante (rétrécit chaque seconde)
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeOut,
+                    height: 8,
+                    width: double.infinity,
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: frac,
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(4),
+                          gradient: const LinearGradient(colors: [
+                            Color(0xFF6B4226), // corde (marron)
+                            Color(0xFF8B5A2B),
+                          ]),
+                          boxShadow: [BoxShadow(
+                            color: Colors.orange.withValues(alpha: 0.5),
+                            blurRadius: 6, spreadRadius: 1)],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Flamme à l'extrémité qui brûle
+                  Positioned(
+                    left: 0, right: 0, top: -10,
+                    child: Align(
+                      alignment: Alignment(-1.0 + 2 * frac, 0),
+                      child: Text('🔥', style: TextStyle(
+                        fontSize: 16 + 4 * (1 - frac))),
+                    ),
+                  ),
+                ]),
+              ),
+              const SizedBox(width: 8),
+              Text('${widget.secondsLeft}s', style: cinzel(12, c: kRed, fw: FontWeight.w900)),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class TurnBanner extends StatefulWidget {
   final bool show;
   const TurnBanner({super.key, required this.show});
@@ -366,14 +475,15 @@ class _TurnBannerState extends State<TurnBanner>
       builder: (_, __) {
         final t = _ac.value;
         if (t >= 1.0) return const SizedBox.shrink();
-        // 0→0.15 : entrée | 0.15→0.8 : maintien | 0.8→1 : sortie
-        final slideIn  = Curves.easeOutBack.transform((t / 0.15).clamp(0.0, 1.0));
+        // 0→0.15 : entrée (zoom) | 0.15→0.8 : maintien | 0.8→1 : sortie
+        final scaleIn  = Curves.easeOutBack.transform((t / 0.15).clamp(0.0, 1.0));
         final fadeOut  = t < 0.8 ? 1.0 : 1.0 - ((t - 0.8) / 0.2);
-        return Positioned(
-          top: 60 * slideIn - 50, left: 0, right: 0,
+        return Positioned.fill(
           child: IgnorePointer(child: Opacity(
             opacity: fadeOut.clamp(0.0, 1.0),
-            child: Center(child: Container(
+            child: Center(child: Transform.scale(
+              scale: 0.7 + 0.3 * scaleIn,
+              child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 10),
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: [
@@ -390,7 +500,7 @@ class _TurnBannerState extends State<TurnBanner>
                 style: cinzel(17, c: kGold2, fw: FontWeight.w900, ls: 3)),
             )),
           )),
-        );
+        ));
       },
     );
   }

@@ -15,6 +15,7 @@ class AudioService extends ChangeNotifier {
   final AudioPlayer _musicPlayer = AudioPlayer();
   final AudioPlayer _sfxPlayer   = AudioPlayer();
   final AudioPlayer _sfxPlayer2  = AudioPlayer(); // pour chevauchements
+  final AudioPlayer _ropePlayer  = AudioPlayer(); // son dédié "corde qui brûle"
 
   // ── Volumes (0.0 → 1.0) ──────────────────────────────────────────────────
   double _musicVolume = 0.7;
@@ -42,6 +43,7 @@ class AudioService extends ChangeNotifier {
     await _musicPlayer.setVolume(_musicEnabled ? _musicVolume : 0.0);
     await _sfxPlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
     await _sfxPlayer2.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
+    await _ropePlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
   }
 
   // ── Musiques ──────────────────────────────────────────────────────────────
@@ -103,6 +105,25 @@ class AudioService extends ChangeNotifier {
   Future<void> playWin()    => _sfx2('sfx_win.mp3');
   Future<void> playLose()   => _sfx2('sfx_lose.mp3');
 
+  // ── Corde qui brûle (alerte minuteur bas) ───────────────────────────────
+  // PLACEHOLDER : remplacer 'sfx_rope_burning.mp3' par le vrai fichier une
+  // fois ajouté dans assets/audio/. En boucle tant que la corde est visible
+  // (30 dernières secondes du tour), coupé dès qu'elle disparaît.
+  Future<void> playRopeBurningSound() async {
+    if (!_sfxEnabled) return;
+    try {
+      await _ropePlayer.setReleaseMode(ReleaseMode.loop);
+      await _ropePlayer.setVolume(_sfxVolume);
+      await _ropePlayer.play(AssetSource('audio/sfx_rope_burning.mp3'));
+    } catch (e) {
+      debugPrint('Audio: sfx_rope_burning.mp3 not found (placeholder) — $e');
+    }
+  }
+
+  Future<void> stopRopeBurningSound() async {
+    try { await _ropePlayer.stop(); } catch (_) {}
+  }
+
   Future<void> _sfx(String name) async {
     if (!_sfxEnabled) return;
     try {
@@ -136,6 +157,7 @@ class AudioService extends ChangeNotifier {
     _sfxVolume = v.clamp(0.0, 1.0);
     await _sfxPlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
     await _sfxPlayer2.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
+    await _ropePlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
     await _savePrefs(); notifyListeners();
   }
 
@@ -149,6 +171,8 @@ class AudioService extends ChangeNotifier {
     _sfxEnabled = !_sfxEnabled;
     await _sfxPlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
     await _sfxPlayer2.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
+    await _ropePlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
+    if (!_sfxEnabled) await stopRopeBurningSound();
     await _savePrefs(); notifyListeners();
   }
 
