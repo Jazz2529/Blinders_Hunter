@@ -1165,6 +1165,19 @@ class GameEngine with AbilityEngine {
     }
   }
 
+  /// Vérifie si le joueur qui vient de mourir avait de l'équipement à
+  /// récupérer par son tueur. Retourne (killerUid, deadUid) si une offre de
+  /// butin doit être proposée, sinon null. Ne se déclenche pas si le tueur
+  /// a déjà volé automatiquement tout l'équipement (Crucifix en Argent).
+  (String, String)? checkLootOpportunity(Player dead, List<Player> all) {
+    if (dead.equipment.isEmpty || dead.killedByUid == null) return null;
+    Player? killer;
+    for (final k in all) { if (k.uid == dead.killedByUid) { killer = k; break; } }
+    if (killer == null || !killer.alive) return null;
+    if (killer.equipment.any((e) => e.effect == 'steal_all_on_kill')) return null; // déjà tout pris
+    return (killer.uid, dead.uid);
+  }
+
   /// Vérifie si le joueur mort était la cible de Jeanne et applique la
   /// récompense au tueur si c'est le cas. Retourne (log, needsCard, killerUid).
   /// À appeler après applyDeathPassives.

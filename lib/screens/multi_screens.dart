@@ -974,6 +974,20 @@ class _ActionPanelState extends State<_ActionPanel> {
 
   List<Widget> _buildActions(BuildContext ctx) {
     final me = gp.me;
+    // ── Butin : récupérer l'équipement d'un joueur qu'on vient d'éliminer ──
+    final lootKillerUid = gp.gameState?.lootKillerUid;
+    final lootDeadUid = gp.gameState?.lootDeadUid;
+    if (lootKillerUid != null && lootDeadUid != null) {
+      final dead = gp.players[lootDeadUid];
+      if (dead != null && dead.equipment.isNotEmpty) {
+        if (lootKillerUid == gp.myUid) {
+          return [_LootChoicePanel(gp: gp, dead: dead)];
+        }
+        final killerName = gp.players[lootKillerUid]?.name ?? '?';
+        return [Text('🎒 $killerName choisit un butin sur ${dead.name}…',
+          style: body(13, c: const Color(0xFFB8860B)))];
+      }
+    }
     switch (gp.phase) {
       case GamePhase.ability:
         // Mr Casino : widget de pari — vérifie état local ET Firebase
@@ -2019,6 +2033,43 @@ class _DamienChoicePanel extends StatelessWidget {
         const SizedBox(height: 8),
         BHButton(label: '☠️ Poison — 3 dégâts × 2 tours (6 au total)',
           onTap: () => gp.damienServePoison()),
+      ]),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BUTIN — récupérer un équipement d'un joueur éliminé (multijoueur)
+// ═══════════════════════════════════════════════════════════
+class _LootChoicePanel extends StatelessWidget {
+  final GameProvider gp;
+  final Player dead;
+  const _LootChoicePanel({required this.gp, required this.dead});
+
+  @override
+  Widget build(BuildContext ctx) {
+    const gold = Color(0xFFB8860B);
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: kBg2, borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: gold, width: 2.5),
+        boxShadow: [BoxShadow(color: gold.withValues(alpha: 0.35), blurRadius: 18)],
+      ),
+      child: Column(children: [
+        Text('🎒 BUTIN', style: cinzel(18, c: gold, fw: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text('${dead.name} est éliminé — récupérer un équipement ?',
+          style: body(12, c: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 14),
+        ...dead.equipment.asMap().entries.map((e) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: BHButton(label: '📦 ${e.value.name}',
+            onTap: () => gp.lootChooseItem(e.key)),
+        )),
+        const SizedBox(height: 6),
+        BHButton(label: 'Ne rien prendre', outlined: true, onTap: () => gp.lootSkip()),
       ]),
     );
   }

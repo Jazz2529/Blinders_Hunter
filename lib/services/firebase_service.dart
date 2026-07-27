@@ -380,6 +380,8 @@ class FirebaseService {
     String? elaiaCard2Id,
     Map<String, List<String>>? forcedDeckQueue,
     String? damienTargetUid,
+    String? lootKillerUid,
+    String? lootDeadUid,
     bool clearOverlay = false,
     bool clearPending = false,
   }) async {
@@ -399,6 +401,8 @@ class FirebaseService {
       updates['privateRevealForUid'] = null;
       updates['forcedAttackerUid'] = null;
       updates['damienTargetUid'] = null;
+      updates['lootKillerUid'] = null;
+      updates['lootDeadUid'] = null;
     }
     if (clearOverlay) {
       updates['abilityOverlay'] = null;
@@ -439,6 +443,8 @@ class FirebaseService {
     if (elaiaCard2Id != null) updates['elaiaCard2Id'] = elaiaCard2Id;
     if (forcedDeckQueue != null) updates['forcedDeckQueue'] = forcedDeckQueue;
     if (damienTargetUid != null) updates['damienTargetUid'] = damienTargetUid;
+    if (lootKillerUid != null) updates['lootKillerUid'] = lootKillerUid;
+    if (lootDeadUid != null) updates['lootDeadUid'] = lootDeadUid;
     await _patch('rooms/$roomId/gameState', updates);
   }
 

@@ -778,6 +778,42 @@ class _DamienChoiceWidget extends StatelessWidget {
   }
 }
 // ═══════════════════════════════════════════════════════════
+// BUTIN — récupérer un équipement d'un joueur éliminé
+// ═══════════════════════════════════════════════════════════
+class _LootChoiceWidget extends StatelessWidget {
+  final SoloController ctrl;
+  final Player dead;
+  const _LootChoiceWidget({required this.ctrl, required this.dead});
+
+  @override
+  Widget build(BuildContext ctx) {
+    const gold = Color(0xFFB8860B);
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: kBg2, borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: gold, width: 2.5),
+        boxShadow: [BoxShadow(color: gold.withValues(alpha: 0.35), blurRadius: 18)],
+      ),
+      child: Column(children: [
+        Text('🎒 BUTIN', style: cinzel(18, c: gold, fw: FontWeight.w900)),
+        const SizedBox(height: 4),
+        Text('${dead.name} est éliminé — récupérer un équipement ?',
+          style: body(12, c: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 14),
+        ...dead.equipment.asMap().entries.map((e) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: BHButton(label: '📦 ${e.value.name}',
+            onTap: () => ctrl.lootChooseItem(e.key)),
+        )),
+        const SizedBox(height: 6),
+        BHButton(label: 'Ne rien prendre', outlined: true, onTap: () => ctrl.lootSkip()),
+      ]),
+    );
+  }
+}
+// ═══════════════════════════════════════════════════════════
 class _CasinoWidget extends StatefulWidget {
   final SoloController ctrl;
   const _CasinoWidget({required this.ctrl});
@@ -2000,6 +2036,16 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
   List<Widget> _buildActions(BuildContext ctx) {
     final me = s.current;
 
+    // ── Butin : récupérer l'équipement d'un joueur qu'on vient d'éliminer ──
+    if (s.lootKillerUid != null && s.lootDeadUid != null) {
+      final dead = s.players.where((p) => p.uid == s.lootDeadUid).firstOrNull;
+      if (dead != null && dead.equipment.isNotEmpty) {
+        return [_LootChoiceWidget(ctrl: ctrl, dead: dead)];
+      } else {
+        // plus rien à récupérer (cas limite) — nettoyer silencieusement
+        s.lootKillerUid = null; s.lootDeadUid = null;
+      }
+    }
     // ── Choix de passif (Luc / Peintre) ──────────────────────
     // ── Animation dé de pouvoir ──────────────────────────────
     if (s.abilityDiceResult != null) {

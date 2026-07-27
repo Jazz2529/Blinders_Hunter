@@ -351,6 +351,26 @@ class GameProvider extends ChangeNotifier {
     await _fb.setPhase(roomId!, GamePhase.ability, clearPending: true);
   }
 
+  /// Butin : récupère l'équipement choisi sur le cadavre.
+  Future<void> lootChooseItem(int equipIndex) async {
+    final killerUid = gameState?.lootKillerUid; final deadUid = gameState?.lootDeadUid;
+    if (killerUid == null || deadUid == null) return;
+    final all = _mutableAll();
+    final killer = all.firstWhere((p) => p.uid == killerUid);
+    final dead = all.firstWhere((p) => p.uid == deadUid);
+    if (equipIndex < 0 || equipIndex >= dead.equipment.length) return;
+    final item = dead.equipment.removeAt(equipIndex);
+    killer.equipment.add(item);
+    _eg.equipPassivePublic(killer, item);
+    await _commitAll(all, '🎒 ${killer.name} récupère "${item.name}" sur ${dead.name}');
+    await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack, clearPending: true);
+  }
+
+  /// Butin : ignore, ne récupère rien.
+  Future<void> lootSkip() async {
+    await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack, clearPending: true);
+  }
+
   Future<void> casinoWin() async {
     await _fb.setPhase(roomId!, GamePhase.chooseTarget,
         pendingTargetAction: 'casino_win');
@@ -1054,6 +1074,19 @@ class GameProvider extends ChangeNotifier {
       }
     }
     final res = _eg.checkWin(all, justDiedId: justDiedId);
-    if (res != null) await _fb.setGameOver(roomId!, List<String>.from(res['winnerIds']!), res['reason'] as String);
+    if (res != null) {
+      await _fb.setGameOver(roomId!, List<String>.from(res['winnerIds']!), res['reason'] as String);
+      return;
+    }
+    // Butin : le tueur peut choisir de récupérer un équipement de sa victime
+    if (justDiedId != null) {
+      final dead = all.firstWhere((p) => p.uid == justDiedId, orElse: () => all.first);
+      final loot = _eg.checkLootOpportunity(dead, all);
+      if (loot != null) {
+        final (killerUid, deadUid) = loot;
+        await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+            lootKillerUid: killerUid, lootDeadUid: deadUid);
+      }
+    }
   }
 }

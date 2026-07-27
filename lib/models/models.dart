@@ -379,6 +379,8 @@ class GameState {
   final String? elaiaCard1Id;            // 1ère carte regardée
   final String? elaiaCard2Id;            // 2ème carte regardée
   final String? damienTargetUid;         // Damien : cible choisie, en attente du choix alcool/poison
+  final String? lootKillerUid;    // qui vient d'éliminer quelqu'un avec équipement
+  final String? lootDeadUid;      // le joueur éliminé dont l'équipement peut être récupéré
   final Map<String, List<String>> forcedDeckQueue; // cartes forcées par pile (Elaia)
 
   const GameState({
@@ -424,6 +426,8 @@ class GameState {
     this.elaiaCard1Id,
     this.elaiaCard2Id,
     this.damienTargetUid,
+    this.lootKillerUid,
+    this.lootDeadUid,
     this.forcedDeckQueue = const {},
   });
 
@@ -468,6 +472,8 @@ class GameState {
     'elaiaCard1Id': elaiaCard1Id,
     'elaiaCard2Id': elaiaCard2Id,
     'damienTargetUid': damienTargetUid,
+    'lootKillerUid': lootKillerUid,
+    'lootDeadUid': lootDeadUid,
     'forcedDeckQueue': forcedDeckQueue,
   };
 
@@ -522,6 +528,8 @@ class GameState {
     elaiaCard1Id: j['elaiaCard1Id'] as String?,
     elaiaCard2Id: j['elaiaCard2Id'] as String?,
     damienTargetUid: j['damienTargetUid'] as String?,
+    lootKillerUid: j['lootKillerUid'] as String?,
+    lootDeadUid: j['lootDeadUid'] as String?,
     forcedDeckQueue: j['forcedDeckQueue'] != null
         ? Map<String, List<String>>.from((j['forcedDeckQueue'] as Map).map(
             (k, v) => MapEntry(k as String, List<String>.from(v as List))))

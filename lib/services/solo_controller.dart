@@ -89,6 +89,8 @@ class SoloState {
   String? elaiaCard1Id;
   String? elaiaCard2Id;
   String? damienTargetUid; // Damien : cible choisie, en attente du choix alcool/poison
+  String? lootKillerUid;   // qui vient d'éliminer quelqu'un avec équipement
+  String? lootDeadUid;     // le joueur éliminé dont l'équipement peut être récupéré
   Map<String, List<String>> forcedDeckQueue = {}; // cartes forcées par pile
 
   SoloState({
@@ -1557,6 +1559,28 @@ class SoloController extends ChangeNotifier {
     state!.phase = GamePhase.move; notifyListeners();
   }
 
+  /// Butin : récupère l'équipement choisi sur le cadavre.
+  void lootChooseItem(int equipIndex) {
+    final s = state!;
+    final killerUid = s.lootKillerUid; final deadUid = s.lootDeadUid;
+    if (killerUid == null || deadUid == null) return;
+    final killer = s.players.firstWhere((p) => p.uid == killerUid);
+    final dead = s.players.firstWhere((p) => p.uid == deadUid);
+    if (equipIndex < 0 || equipIndex >= dead.equipment.length) return;
+    final item = dead.equipment.removeAt(equipIndex);
+    killer.equipment.add(item);
+    _eg.equipPassivePublic(killer, item);
+    _log('🎒 ${killer.name} récupère "${item.name}" sur ${dead.name}', cls: 'player');
+    s.lootKillerUid = null; s.lootDeadUid = null;
+    notifyListeners();
+  }
+
+  /// Butin : ignore, ne récupère rien.
+  void lootSkip() {
+    state!.lootKillerUid = null; state!.lootDeadUid = null;
+    notifyListeners();
+  }
+
   void humanMove(int zoneIdx) {
     final p = state!.current; p.zoneIndex = zoneIdx;
     _log('🚶 → ${state!.terrainLayout[zoneIdx].name}', cls: 'player');
@@ -2007,6 +2031,30 @@ class SoloController extends ChangeNotifier {
       state!.winnerIds = List<String>.from(res['winnerIds'] as List);
       state!.winnerMessage = res['reason'] as String;
       _log('🏆 ${state!.winnerMessage}', cls: 'important');
+      return;
+    }
+    // Butin : le tueur peut choisir de récupérer un équipement de sa victime
+    if (justDiedId != null) {
+      final dead = state!.players.firstWhere((p) => p.uid == justDiedId, orElse: () => state!.players.first);
+      final loot = _eg.checkLootOpportunity(dead, state!.players);
+      if (loot != null) {
+        final (killerUid, deadUid) = loot;
+        final killer = state!.players.firstWhere((p) => p.uid == killerUid);
+        if (killer.isBot) {
+          // IA : prend l'objet le plus utile si possible, sinon ignore
+          final items = dead.equipment;
+          if (items.isNotEmpty) {
+            final picked = items.first;
+            dead.equipment.remove(picked);
+            killer.equipment.add(picked);
+            _eg.equipPassivePublic(killer, picked);
+            _log('🎒 ${killer.name} récupère "${picked.name}" sur ${dead.name}', cls: 'player');
+          }
+        } else {
+          state!.lootKillerUid = killerUid;
+          state!.lootDeadUid = deadUid;
+        }
+      }
     }
   }
 
