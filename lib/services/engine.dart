@@ -446,15 +446,11 @@ class GameEngine with AbilityEngine {
         }
         return {'log': '🍫 ${actor.name} a ${actor.character!.hp} PV max — la carte n\'a aucun effet (besoin ≤ 11 PV max)', 'needsTarget': false};
       case 'force_shadow_reveal':
-        int revealedCount = 0;
-        for (final p in all) {
-          if (p.alive && p.character?.faction == Faction.shadow &&
-              (p.copiedEffect ?? p.character?.abilityEffect ?? '') != 'chameleon_passive' &&
-              !p.revealed) {
-            p.revealed = true; revealedCount++;
-          }
+        if (actor.character?.faction == Faction.shadow && !actor.revealed) {
+          actor.revealed = true;
+          return {'log': '🪞 Miroir Divin — ${actor.name} est un Shadow, forcé à se révéler !', 'needsTarget': false};
         }
-        return {'log': '🪞 Miroir Divin — $revealedCount Shadow(s) forcé(s) à se révéler', 'needsTarget': false};
+        return {'log': '🪞 Miroir Divin — ${actor.name} n\'est pas Shadow, aucun effet', 'needsTarget': false};
       case 'heal_self_4':
         applyHeal(actor, 4);
         return {'log': '🍗 ${actor.name} se soigne de 4', 'needsTarget': false};

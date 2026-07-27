@@ -1616,13 +1616,13 @@ class SoloController extends ChangeNotifier {
   void humanApplyTerrainEffect({GamePhase nextPhaseIfDefault = GamePhase.attack, int? zoneOverride}) {
     final terrain = state!.terrainLayout[zoneOverride ?? state!.current.zoneIndex];
     switch (terrain.effect) {
-      case 'vision':   humanDrawCard(DeckType.vision);
-      case 'lumiere':  humanDrawCard(DeckType.lumiere);
-      case 'tenebres': humanDrawCard(DeckType.tenebres);
-      case 'choice':   state!.phase = GamePhase.cardChoice; notifyListeners();
-      case 'damage9':  state!.phase = GamePhase.chooseTarget; state!.pendingTargetAction = 'terrain_damage9'; notifyListeners();
-      case 'steal':    state!.phase = GamePhase.chooseTarget; state!.pendingTargetAction = 'terrain_steal'; notifyListeners();
-      default: state!.phase = nextPhaseIfDefault; notifyListeners();
+      case 'vision':   humanDrawCard(DeckType.vision); return;
+      case 'lumiere':  humanDrawCard(DeckType.lumiere); return;
+      case 'tenebres': humanDrawCard(DeckType.tenebres); return;
+      case 'choice':   state!.phase = GamePhase.cardChoice; notifyListeners(); return;
+      case 'damage9':  state!.phase = GamePhase.chooseTarget; state!.pendingTargetAction = 'terrain_damage9'; notifyListeners(); return;
+      case 'steal':    state!.phase = GamePhase.chooseTarget; state!.pendingTargetAction = 'terrain_steal'; notifyListeners(); return;
+      default: state!.phase = nextPhaseIfDefault; notifyListeners(); return;
     }
   }
 

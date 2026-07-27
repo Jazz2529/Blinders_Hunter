@@ -264,7 +264,7 @@ const List<GameCard> kLumiereCards = [
   GameCard(id:'L13',name:'Lance de Longinus',deck:DeckType.lumiere,type:CardType.equipement,
     effect:'lance_longinus',text:'Si vous êtes un Hunter révélé, vos attaques infligent 2 blessures supplémentaires'),
   GameCard(id:'L15',name:'Miroir Divin',deck:DeckType.lumiere,type:CardType.utilisation,
-    effect:'force_shadow_reveal',text:'Tout Shadow autre que le Caméléon doit révéler son identité'),
+    effect:'force_shadow_reveal',text:'Si vous êtes un Shadow, vous devez révéler votre identité (les autres joueurs ne sont pas affectés)'),
   GameCard(id:'L16',name:'Bucket de Poulet',deck:DeckType.lumiere,type:CardType.utilisation,
     effect:'heal_self_4',text:'Vous êtes soigné de 4 blessures'),
   GameCard(id:'L20',name:'Flamme des Arcades',deck:DeckType.lumiere,type:CardType.utilisation,
