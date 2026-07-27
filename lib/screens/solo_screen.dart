@@ -2037,13 +2037,15 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     final me = s.current;
 
     // ── Butin : récupérer l'équipement d'un joueur qu'on vient d'éliminer ──
-    if (s.lootKillerUid != null && s.lootDeadUid != null) {
-      final dead = s.players.where((p) => p.uid == s.lootDeadUid).firstOrNull;
+    // (file d'attente — plusieurs morts simultanées, ex: bazooka, passent
+    // une par une sans que la 2ème n'écrase la 1ère)
+    if (s.lootKillerUid != null && s.lootDeadQueue.isNotEmpty) {
+      final dead = s.players.where((p) => p.uid == s.lootDeadQueue.first).firstOrNull;
       if (dead != null && dead.equipment.isNotEmpty) {
         return [_LootChoiceWidget(ctrl: ctrl, dead: dead)];
       } else {
-        // plus rien à récupérer (cas limite) — nettoyer silencieusement
-        s.lootKillerUid = null; s.lootDeadUid = null;
+        // plus rien à récupérer pour ce mort — passer au suivant silencieusement
+        ctrl.lootSkip();
       }
     }
     // ── Choix de passif (Luc / Peintre) ──────────────────────
@@ -2083,6 +2085,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'ability_set5', 'ability_raph_heal', 'ability_tristan', 'ability_marin',
       'ability_damien',
       'ability_tommy',
+      'ability_oceane',
       'corne_des_woods_victim', 'corne_des_woods', 'creation_marin', 'heal_other_d4',
       'clemence_target', 'jeanne_mark_target', 'equip_choice',
       'swap_zone_pick1', 'swap_zone_pick2', 'jeanne_mark_target',
@@ -2402,7 +2405,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         final mustAttack = hasHache && !s.hasAttackedThisTurn && targets.isNotEmpty;
         final isMathieu = (me.copiedEffect ?? me.character?.abilityEffect) == 'third_attack_bonus';
         return [
-          // Compteur Mathieu
+          // Compteur Mathieu — bonus permanent à partir de la 3ème attaque
           if (isMathieu && !alreadyAttacked)
             Container(
               margin: const EdgeInsets.only(bottom: 8),
@@ -2411,16 +2414,20 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                 color: kBg3, borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: me.attackCount >= 2 ? kRed : kGold.withValues(alpha: 0.4))),
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text('⚔️ Attaques : ', style: body(11, c: kTextSub)),
-                ...List.generate(3, (i) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                  child: Icon(
-                    i < (me.attackCount % 3) ? Icons.circle : Icons.circle_outlined,
-                    size: 14,
-                    color: me.attackCount % 3 >= 2 && i == 2 ? kRed : kGold),
-                )),
-                if (me.attackCount % 3 >= 2)
-                  Text('  ⚡ Prochaine = +3 dmg!', style: body(11, c: kRed)),
+                if (me.attackCount >= 2) ...[
+                  const Icon(Icons.bolt, size: 16, color: kRed),
+                  const SizedBox(width: 4),
+                  Text('Bonus actif : +2 dégâts par attaque', style: body(11, c: kRed, fw: FontWeight.w700)),
+                ] else ...[
+                  Text('⚔️ Attaques : ', style: body(11, c: kTextSub)),
+                  ...List.generate(3, (i) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: Icon(
+                      i < me.attackCount ? Icons.circle : Icons.circle_outlined,
+                      size: 14, color: kGold),
+                  )),
+                  Text('  ⚡ 3ème = +2 dmg (permanent !)', style: body(11, c: kTextSub)),
+                ],
               ]),
             ),
           // Équipements actifs
@@ -2652,6 +2659,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'ability_set5')        title = '📍 Marion — Choisissez un joueur (placé à 5 blessures)';
     if (context == 'ability_damien')      title = '🍸 Damien — Choisissez qui servir';
     if (context == 'ability_tommy')       title = '🎭 Tommy — Copier le pouvoir de qui ?';
+    if (context == 'ability_oceane')      title = '🌊 Océane — Qui exclure du soin ?';
     if (context == 'ability_raph_heal')   title = '🥷 Raph (Soleil Levant) — Choisissez qui soigner de 3 (vous subissez 2)';
     if (context == 'ability_tristan')     title = '🔄 Tristan — Choisissez un joueur (échange un équipement au hasard)';
     if (context == 'heal_other_d4')       title = '🍓 Fraise Tagada — Choisissez qui soigner (D4)';

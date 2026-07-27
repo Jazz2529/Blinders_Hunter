@@ -1052,10 +1052,12 @@ class _ActionPanelState extends State<_ActionPanel> {
   List<Widget> _buildActions(BuildContext ctx) {
     final me = gp.me;
     // ── Butin : récupérer l'équipement d'un joueur qu'on vient d'éliminer ──
+    // (file d'attente — plusieurs morts simultanées, ex: bazooka, passent
+    // une par une sans que la 2ème n'écrase la 1ère)
     final lootKillerUid = gp.gameState?.lootKillerUid;
-    final lootDeadUid = gp.gameState?.lootDeadUid;
-    if (lootKillerUid != null && lootDeadUid != null) {
-      final dead = gp.players[lootDeadUid];
+    final lootQueue = gp.gameState?.lootDeadQueue ?? const [];
+    if (lootKillerUid != null && lootQueue.isNotEmpty) {
+      final dead = gp.players[lootQueue.first];
       if (dead != null && dead.equipment.isNotEmpty) {
         if (lootKillerUid == gp.myUid) {
           return [_LootChoicePanel(gp: gp, dead: dead)];
@@ -1063,6 +1065,9 @@ class _ActionPanelState extends State<_ActionPanel> {
         final killerName = gp.players[lootKillerUid]?.name ?? '?';
         return [Text('🎒 $killerName choisit un butin sur ${dead.name}…',
           style: body(13, c: const Color(0xFFB8860B)))];
+      } else if (lootKillerUid == gp.myUid) {
+        // plus rien à récupérer pour ce mort — passer au suivant silencieusement
+        gp.lootSkip();
       }
     }
     switch (gp.phase) {
@@ -1320,6 +1325,7 @@ class _ActionPanelState extends State<_ActionPanel> {
         if (pta == 'damage3_give_dague') title = '🗡️ Marin — Choisissez une cible (3 dégâts + dague)';
         if (pta == 'damien_serve') title = '🍸 Damien — Choisissez qui servir';
         if (pta == 'copy_ability') title = '🎭 Tommy — Copier le pouvoir de qui ?';
+        if (pta == 'd4_heal_neighbors') title = '🌊 Océane — Qui exclure du soin ?';
         if (pta == 'heal_other_d4') title = '🍓 Fraise Tagada — Choisissez qui soigner (D4)';
         if (pta == 'creation_marin') title = '🩸 Création de Marin — Choisissez une cible';
         if (pta == 'corne_des_woods') title = '🌳 Corne des Woods — Qui doit attaquer ?';

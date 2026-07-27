@@ -384,7 +384,7 @@ class GameState {
   final String? elaiaCard2Id;            // 2ème carte regardée
   final String? damienTargetUid;         // Damien : cible choisie, en attente du choix alcool/poison
   final String? lootKillerUid;    // qui vient d'éliminer quelqu'un avec équipement
-  final String? lootDeadUid;      // le joueur éliminé dont l'équipement peut être récupéré
+  final List<String> lootDeadQueue; // file d'attente des morts avec butin à choisir (kills simultanés)
   final int? richardActivateZone; // Richard II : zone dont l'effet doit être activé (pas forcément sa position)
   final String? publicRevealUid;      // qui vient de se révéler (visible/audible de tous)
   final int? publicRevealTimestamp;   // pour l'auto-expiration côté clients
@@ -434,7 +434,7 @@ class GameState {
     this.elaiaCard2Id,
     this.damienTargetUid,
     this.lootKillerUid,
-    this.lootDeadUid,
+    this.lootDeadQueue = const [],
     this.richardActivateZone,
     this.publicRevealUid,
     this.publicRevealTimestamp,
@@ -483,7 +483,7 @@ class GameState {
     'elaiaCard2Id': elaiaCard2Id,
     'damienTargetUid': damienTargetUid,
     'lootKillerUid': lootKillerUid,
-    'lootDeadUid': lootDeadUid,
+    'lootDeadQueue': lootDeadQueue,
     'richardActivateZone': richardActivateZone,
     'publicRevealUid': publicRevealUid,
     'publicRevealTimestamp': publicRevealTimestamp,
@@ -542,7 +542,7 @@ class GameState {
     elaiaCard2Id: j['elaiaCard2Id'] as String?,
     damienTargetUid: j['damienTargetUid'] as String?,
     lootKillerUid: j['lootKillerUid'] as String?,
-    lootDeadUid: j['lootDeadUid'] as String?,
+    lootDeadQueue: j['lootDeadQueue'] != null ? List<String>.from(j['lootDeadQueue'] as List) : const [],
     richardActivateZone: j['richardActivateZone'] as int?,
     publicRevealUid: j['publicRevealUid'] as String?,
     publicRevealTimestamp: j['publicRevealTimestamp'] as int?,

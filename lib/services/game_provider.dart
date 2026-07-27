@@ -357,24 +357,36 @@ class GameProvider extends ChangeNotifier {
     await _fb.setPhase(roomId!, GamePhase.ability, clearPending: true);
   }
 
-  /// Butin : récupère l'équipement choisi sur le cadavre.
+  /// Butin : récupère l'équipement choisi sur le cadavre (premier de la file).
   Future<void> lootChooseItem(int equipIndex) async {
-    final killerUid = gameState?.lootKillerUid; final deadUid = gameState?.lootDeadUid;
-    if (killerUid == null || deadUid == null) return;
+    final killerUid = gameState?.lootKillerUid;
+    final queue = List<String>.from(gameState?.lootDeadQueue ?? const []);
+    if (killerUid == null || queue.isEmpty) return;
+    final deadUid = queue.first;
     final all = _mutableAll();
     final killer = all.firstWhere((p) => p.uid == killerUid);
     final dead = all.firstWhere((p) => p.uid == deadUid);
-    if (equipIndex < 0 || equipIndex >= dead.equipment.length) return;
-    final item = dead.equipment.removeAt(equipIndex);
-    killer.equipment.add(item);
-    _eg.equipPassivePublic(killer, item);
-    await _commitAll(all, '🎒 ${killer.name} récupère "${item.name}" sur ${dead.name}');
-    await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack, clearPending: true);
+    String log = '';
+    if (equipIndex >= 0 && equipIndex < dead.equipment.length) {
+      final item = dead.equipment.removeAt(equipIndex);
+      killer.equipment.add(item);
+      _eg.equipPassivePublic(killer, item);
+      log = '🎒 ${killer.name} récupère "${item.name}" sur ${dead.name}';
+    }
+    await _commitAll(all, log);
+    queue.removeAt(0);
+    await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+        lootKillerUid: queue.isEmpty ? '__clear__' : killerUid,
+        lootDeadQueue: queue);
   }
 
-  /// Butin : ignore, ne récupère rien.
+  /// Butin : ignore ce mort, passe au suivant dans la file s'il y en a un.
   Future<void> lootSkip() async {
-    await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack, clearPending: true);
+    final queue = List<String>.from(gameState?.lootDeadQueue ?? const []);
+    if (queue.isNotEmpty) queue.removeAt(0);
+    await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+        lootKillerUid: queue.isEmpty ? '__clear__' : gameState?.lootKillerUid,
+        lootDeadQueue: queue);
   }
 
   Future<void> casinoWin() async {
@@ -944,13 +956,16 @@ class GameProvider extends ChangeNotifier {
     final target = all.firstWhere((p) => p.uid == targetId);
     attacker.attackCount++;
     final isMathieuThird = (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus'
-        && attacker.attackCount % 3 == 0;
+        && attacker.attackCount >= 3;
     bool scottCountered = false;
     String log;
     if (attacker.bazooka) {
       final bazTargets = _eg.attackTargets(attacker, all, gameState!.terrainLayout);
       final bazDmg = baseDmg + attacker.equipment.where((e) => e.effect == 'dague_voleur').length; // Dague(s) du Voleur
-      for (final t in bazTargets) { _eg.applyDamage(t, bazDmg); }
+      for (final t in bazTargets) {
+        _eg.applyDamage(t, bazDmg);
+        if (!t.alive) t.killedByUid = attacker.uid;
+      }
       log = '💥 ${attacker.name} (Bazooka) — $bazDmg dégâts à tous !';
     } else {
       final res = _eg.resolveAttack(attacker, target, baseDmg);
@@ -969,7 +984,28 @@ class GameProvider extends ChangeNotifier {
     }
     _eg.applyDeathPassives(all);
     await _commitAll(all, log);
-    await _checkWin(all, justDiedId: target.alive ? null : target.uid);
+    // Le bazooka peut tuer PLUSIEURS joueurs en même temps — vérifier la
+    // victoire/butin/récompense de Jeanne pour CHAQUE mort, pas seulement la
+    // cible cliquée (sinon un 2e joueur tué par la même volée était ignoré).
+    if (attacker.bazooka) {
+      final justDied = all.where((x) => !x.alive).toList();
+      if (justDied.isEmpty) {
+        await _checkWin(all);
+      } else {
+        final lootAcc = <MapEntry<String,String>>[];
+        for (final d in justDied) { await _checkWin(all, justDiedId: d.uid, lootAccumulator: lootAcc); }
+        // Une seule écriture combinée pour TOUTES les opportunités de butin
+        // détectées (au lieu d'une écriture par mort qui s'écraseraient).
+        if (lootAcc.isNotEmpty) {
+          final killerUid = lootAcc.first.key; // même tueur pour tous (même volée)
+          final deadQueue = lootAcc.map((e) => e.value).toList();
+          await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+              lootKillerUid: killerUid, lootDeadQueue: deadQueue);
+        }
+      }
+    } else {
+      await _checkWin(all, justDiedId: target.alive ? null : target.uid);
+    }
     await _fb.setPhase(roomId!, GamePhase.attack, hasAttacked: true,
         lastDiceResult: d4 > 0 ? {'d4': d4, 'd6': d6, 'sum': baseDmg} : null,
         lastDiceLabel: d4 > 0 ? 'Attaque' : null,
@@ -1066,7 +1102,8 @@ class GameProvider extends ChangeNotifier {
     await _fb.addLog(roomId!, log);
   }
 
-  Future<void> _checkWin(List<Player> all, {String? justDiedId}) async {
+  Future<void> _checkWin(List<Player> all, {String? justDiedId,
+      List<MapEntry<String,String>>? lootAccumulator}) async {
     // Jeanne : vérifie si le mort était la cible marquée
     if (justDiedId != null && gameState?.markedPlayerUid == justDiedId) {
       final (log, needsCard, killerUid) = _eg.checkJeanneReward(
@@ -1091,14 +1128,22 @@ class GameProvider extends ChangeNotifier {
       await _fb.setGameOver(roomId!, List<String>.from(res['winnerIds']!), res['reason'] as String);
       return;
     }
-    // Butin : le tueur peut choisir de récupérer un équipement de sa victime
+    // Butin : le tueur peut choisir de récupérer un équipement de sa victime.
+    // Si un accumulateur est fourni (kills multiples dans une même boucle
+    // synchrone, ex: bazooka), on y ajoute SANS écrire Firebase à chaque
+    // itération — sinon un 2e appel lirait un `gameState` local pas encore
+    // synchronisé et écraserait le résultat du 1er (condition de course).
     if (justDiedId != null) {
       final dead = all.firstWhere((p) => p.uid == justDiedId, orElse: () => all.first);
       final loot = _eg.checkLootOpportunity(dead, all);
       if (loot != null) {
         final (killerUid, deadUid) = loot;
-        await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
-            lootKillerUid: killerUid, lootDeadUid: deadUid);
+        if (lootAccumulator != null) {
+          lootAccumulator.add(MapEntry(killerUid, deadUid));
+        } else {
+          await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+              lootKillerUid: killerUid, lootDeadQueue: [deadUid]);
+        }
       }
     }
     // Jason : vient-il de perdre son déguisement (5+ dégâts en un tour) ?

@@ -321,19 +321,15 @@ class GameEngine with AbilityEngine {
         actor.wounds = 0; actor.shield = true; actor.shieldCharges = 99;
         return '🌙 ${actor.name} se soigne et se protège';
 
-      // ── Océane : D4 soigne soi + voisins ──
+      // ── Océane : D4 soigne tout le monde SAUF 1 joueur au choix ──
       case 'd4_heal_neighbors':
+        if (target == null) return 'cible_requise';
         final d = rollD4();
-        final order = all.where((x) => x.alive).toList();
-        final idx = order.indexWhere((x) => x.uid == actor.uid);
-        if (idx >= 0 && order.length >= 3) {
-          final prev = order[(idx - 1 + order.length) % order.length];
-          final next = order[(idx + 1) % order.length];
-          applyHeal(actor, d); applyHeal(prev, d); applyHeal(next, d);
-          return '🌊 ${actor.name} lance D4($d) — soigne ${actor.name}, ${prev.name}, ${next.name}';
+        int count = 0;
+        for (final p in all) {
+          if (p.alive && p.uid != target.uid) { applyHeal(p, d); count++; }
         }
-        applyHeal(actor, d);
-        return '🌊 ${actor.name} lance D4($d) — se soigne de $d';
+        return '🌊 ${actor.name} lance D4($d) — soigne $count joueur(s) (sauf ${target.name})';
 
       // ── Albane : rembobine (relance ses dés de déplacement, géré côté UI) ──
       case 'double_move_dice':
@@ -696,9 +692,10 @@ class GameEngine with AbilityEngine {
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'revealed_plus1_dmg') dmg += 1;
     // Felipe Pompims dernier Hunter +2
     if (atkEff == 'last_hunter_buff' && attacker.bonusMaxHp > 0) dmg += 2;
-    // Mathieu: 3ème attaque +3
+    // Mathieu : à partir de la 3ème attaque, +2 dégâts PERMANENT sur toutes
+    // les attaques suivantes (pas seulement un pic sur la 3ème).
     final mathieuCount = attackCount ?? 0;
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus' && mathieuCount % 3 == 2) dmg += 3;
+    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus' && mathieuCount >= 2) dmg += 2;
     // Vache: -1 infligé
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'reduce_all_by1') dmg = max(0, dmg - 1);
     // Louise: si 0 dmg → 4, sinon +1
@@ -838,6 +835,10 @@ class GameEngine with AbilityEngine {
         attacker.character?.faction == Faction.hunter && attacker.revealed) dmg += 2;
     if (dmg > 0) dmg += attacker.equipment.where((e) => e.effect == 'dague_voleur').length;
     if (attacker.epeeNinja && dmg > 0) dmg += 2;
+    // Mathieu : à partir de la 3ème attaque, +2 dégâts PERMANENT sur toutes
+    // les attaques suivantes (idem resolveAttackFull, utilisée par les bots).
+    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus'
+        && (attacker.attackCount - 1) >= 2) dmg += 2;
     // Louise : si 0 dmg → 4, sinon +1
     final atkEff = attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '';
     if (atkEff == 'zero_wound_power') {

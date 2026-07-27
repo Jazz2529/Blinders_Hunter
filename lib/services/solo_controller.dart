@@ -90,7 +90,7 @@ class SoloState {
   String? elaiaCard2Id;
   String? damienTargetUid; // Damien : cible choisie, en attente du choix alcool/poison
   String? lootKillerUid;   // qui vient d'éliminer quelqu'un avec équipement
-  String? lootDeadUid;     // le joueur éliminé dont l'équipement peut être récupéré
+  List<String> lootDeadQueue = []; // file d'attente des morts avec butin (kills simultanés, ex: bazooka)
   Map<String, List<String>> forcedDeckQueue = {}; // cartes forcées par pile
 
   SoloState({
@@ -616,6 +616,7 @@ class SoloController extends ChangeNotifier {
         // DOUBLE pour Lance de Lumière et la Dague, et la Lance de Longinus
         // manquait carrément de ce calcul manuel (elle restait correcte,
         // mais seule, ce qui semblait "trop faible" comparée aux autres).
+        bot.attackCount++; // sinon le bonus de Mathieu ne se déclenche jamais pour un bot
         final attackRes = _eg.resolveAttack(bot, target, dmg);
         final log = attackRes['log'] as String;
         _log(log);
@@ -936,18 +937,19 @@ class SoloController extends ChangeNotifier {
           _log('🎭 ${p.name} choisit : $passive', cls: 'player');
         }
 
-      // ── Océane: D4 soin voisins ──
+      // ── Océane: D4 soigne tout le monde SAUF 1 joueur au choix ──
       case 'd4_heal_neighbors':
+        if (target == null) { s.pendingTargetAction = 'ability_oceane'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
         final d = _eg.rollD4();
-        final order = s.players.where((x) => x.alive).toList();
-        final idx = order.indexWhere((x) => x.uid == p.uid);
-        final prev = order[(idx - 1 + order.length) % order.length];
-        final next = order[(idx + 1) % order.length];
-        _eg.applyHeal(p, d); _eg.applyHeal(prev, d); _eg.applyHeal(next, d);
+        int healedCount = 0;
+        for (final pl in s.players) {
+          if (pl.alive && pl.uid != target.uid) { _eg.applyHeal(pl, d); healedCount++; }
+        }
         p.abilityUsed = true;
+        s.pendingTargetAction = null;
         s.abilityOverlay = 'oceane_notes';
         s.abilityDiceResult = {'d': 4, 'result': d, 'dmg': -d};
-        _log('🌊 Océane lance D4($d) — soigne ${p.name}, ${prev.name}, ${next.name}', cls: 'player');
+        _log('🌊 Océane lance D4($d) — soigne $healedCount joueur(s) (sauf ${target.name})', cls: 'player');
 
       // ── Marion: place un joueur à 5 blessures (dans les deux sens) ──
       // ── Damien : sert un verre — nécessite une cible puis un choix ──
@@ -1377,7 +1379,7 @@ class SoloController extends ChangeNotifier {
 
       case 'third_attack_bonus':
         p.abilityUsed = false;
-        _log('📊 Mathieu — passif: 3ème attaque +3 dégâts', cls: 'player');
+        _log('📊 Mathieu — passif: à partir de la 3ème attaque, +2 dégâts permanent', cls: 'player');
         s.phase = GamePhase.move; notifyListeners(); return;
 
       case 'casino_bet':
@@ -1561,25 +1563,30 @@ class SoloController extends ChangeNotifier {
     state!.phase = GamePhase.move; notifyListeners();
   }
 
-  /// Butin : récupère l'équipement choisi sur le cadavre.
+  /// Butin : récupère l'équipement choisi sur le cadavre (premier de la file).
   void lootChooseItem(int equipIndex) {
     final s = state!;
-    final killerUid = s.lootKillerUid; final deadUid = s.lootDeadUid;
-    if (killerUid == null || deadUid == null) return;
+    final killerUid = s.lootKillerUid;
+    if (killerUid == null || s.lootDeadQueue.isEmpty) return;
+    final deadUid = s.lootDeadQueue.first;
     final killer = s.players.firstWhere((p) => p.uid == killerUid);
     final dead = s.players.firstWhere((p) => p.uid == deadUid);
-    if (equipIndex < 0 || equipIndex >= dead.equipment.length) return;
-    final item = dead.equipment.removeAt(equipIndex);
-    killer.equipment.add(item);
-    _eg.equipPassivePublic(killer, item);
-    _log('🎒 ${killer.name} récupère "${item.name}" sur ${dead.name}', cls: 'player');
-    s.lootKillerUid = null; s.lootDeadUid = null;
+    if (equipIndex >= 0 && equipIndex < dead.equipment.length) {
+      final item = dead.equipment.removeAt(equipIndex);
+      killer.equipment.add(item);
+      _eg.equipPassivePublic(killer, item);
+      _log('🎒 ${killer.name} récupère "${item.name}" sur ${dead.name}', cls: 'player');
+    }
+    s.lootDeadQueue.removeAt(0);
+    if (s.lootDeadQueue.isEmpty) s.lootKillerUid = null;
     notifyListeners();
   }
 
-  /// Butin : ignore, ne récupère rien.
+  /// Butin : ignore ce mort, passe au suivant dans la file s'il y en a un.
   void lootSkip() {
-    state!.lootKillerUid = null; state!.lootDeadUid = null;
+    final s = state!;
+    if (s.lootDeadQueue.isNotEmpty) s.lootDeadQueue.removeAt(0);
+    if (s.lootDeadQueue.isEmpty) s.lootKillerUid = null;
     notifyListeners();
   }
 
@@ -1830,7 +1837,7 @@ class SoloController extends ChangeNotifier {
     // Mathieu: incrémenter compteur
     attacker.attackCount++;
     final isMathieuThird = (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus'
-        && attacker.attackCount % 3 == 0;
+        && attacker.attackCount >= 3;
     final res = _eg.resolveAttackFull(attacker, target, actualDmg, state!.players, attackCount: attacker.attackCount - 1);
     _log(res['log'] as String, cls: 'player');
     if (!target.alive) { _log('💀 ${target.name} est éliminé !', cls: 'death'); }
@@ -1885,7 +1892,7 @@ class SoloController extends ChangeNotifier {
           state!.players, attackCount: attacker.attackCount - 1);
       _log(res['log'] as String, cls: 'player');
       if (!target.alive) {
-        _log('💀 \${target.name} est éliminé !', cls: 'death');
+        _log('💀 ${target.name} est éliminé !', cls: 'death');
         killed.add(target.uid);
       }
     }
@@ -2036,6 +2043,8 @@ class SoloController extends ChangeNotifier {
       return;
     }
     // Butin : le tueur peut choisir de récupérer un équipement de sa victime
+    // (mis en FILE D'ATTENTE — plusieurs morts simultanées, ex: bazooka,
+    // peuvent chacune offrir un butin sans s'écraser l'une l'autre).
     if (justDiedId != null) {
       final dead = state!.players.firstWhere((p) => p.uid == justDiedId, orElse: () => state!.players.first);
       final loot = _eg.checkLootOpportunity(dead, state!.players);
@@ -2054,7 +2063,7 @@ class SoloController extends ChangeNotifier {
           }
         } else {
           state!.lootKillerUid = killerUid;
-          state!.lootDeadUid = deadUid;
+          if (!state!.lootDeadQueue.contains(deadUid)) state!.lootDeadQueue.add(deadUid);
         }
       }
     }
@@ -2074,7 +2083,7 @@ class SoloController extends ChangeNotifier {
   bool _abilityNeedsTarget(String eff) => [
     'damage2_choice','damage2_then_heal3','set_wounds5','steal_equip_choice',
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
-    'swap_equipment','damien_serve','copy_ability',
+    'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors',
   ].contains(eff);
 
   // Liste synchronisée avec le switch needsTarget de resolveCard() —

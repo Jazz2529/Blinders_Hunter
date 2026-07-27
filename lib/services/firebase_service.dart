@@ -381,7 +381,7 @@ class FirebaseService {
     Map<String, List<String>>? forcedDeckQueue,
     String? damienTargetUid,
     String? lootKillerUid,
-    String? lootDeadUid,
+    List<String>? lootDeadQueue,
     int? richardActivateZone,
     String? publicRevealUid,
     int? publicRevealTimestamp,
@@ -405,7 +405,7 @@ class FirebaseService {
       updates['forcedAttackerUid'] = null;
       updates['damienTargetUid'] = null;
       updates['lootKillerUid'] = null;
-      updates['lootDeadUid'] = null;
+      updates['lootDeadQueue'] = <String>[];
       updates['richardActivateZone'] = null;
     }
     if (clearOverlay) {
@@ -447,8 +447,10 @@ class FirebaseService {
     if (elaiaCard2Id != null) updates['elaiaCard2Id'] = elaiaCard2Id;
     if (forcedDeckQueue != null) updates['forcedDeckQueue'] = forcedDeckQueue;
     if (damienTargetUid != null) updates['damienTargetUid'] = damienTargetUid;
-    if (lootKillerUid != null) updates['lootKillerUid'] = lootKillerUid;
-    if (lootDeadUid != null) updates['lootDeadUid'] = lootDeadUid;
+    if (lootKillerUid != null) {
+      updates['lootKillerUid'] = lootKillerUid == '__clear__' ? null : lootKillerUid;
+    }
+    if (lootDeadQueue != null) updates['lootDeadQueue'] = lootDeadQueue;
     if (richardActivateZone != null) {
       updates['richardActivateZone'] = richardActivateZone == -1 ? null : richardActivateZone;
     }

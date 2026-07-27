@@ -59,7 +59,7 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
   CharacterCard(id:'oceane', name:'Océane', faction:Faction.hunter, hp:12, icon:'🌊',
-    ability:'Unique: lancez le D4, soignez vous-même et les joueurs avant/après vous du résultat',
+    ability:'Unique: choisissez un joueur à exclure, lancez le D4, tous les autres joueurs se soignent du résultat',
     abilityEffect:'d4_heal_neighbors',
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
@@ -116,7 +116,7 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'mathieu', name:'Mathieu', faction:Faction.shadow, hp:11, icon:'📊',
-    ability:'Passif: toutes les 3 attaques, la 3ème inflige 3 blessures de plus',
+    ability:'Passif: à partir de sa 3ème attaque, toutes ses attaques infligent 2 blessures de plus (permanent)',
     abilityEffect:'third_attack_bonus', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
@@ -177,6 +177,16 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'full_heal_shield_turn', abilityRepeatable:false,
     winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),
 
+  CharacterCard(id:'tommy', name:'Tommy', faction:Faction.neutral, hp:13, icon:'🎭',
+    ability:'Unique, au début du tour: copiez le pouvoir d\'un joueur révélé de votre choix',
+    abilityEffect:'copy_ability', abilityRepeatable:false,
+    winCondition:'Éliminer la personne dont vous avez copié le pouvoir', winEffect:'kill_copied'),
+
+  CharacterCard(id:'mango', name:'Mango Loco', faction:Faction.neutral, hp:10, icon:'🥭',
+    ability:'Passif : si le joueur attaqué a 13 PV ou plus, vous attaquez 2 fois (lancez les dés 2 fois, dégâts additionnés)',
+    abilityEffect:'double_attack_if_tanky', abilityRepeatable:true,
+    winCondition:'Éliminer un joueur avec 13 PV ou plus', winEffect:'kill_hp13plus'),
+
   CharacterCard(id:'leo', name:'Léo', faction:Faction.neutral, hp:12, icon:'💀',
     ability:'Unique: lancez le D4 et infligez ce résultat à tout le monde (vous inclus)',
     abilityEffect:'d4_all', abilityRepeatable:false,
@@ -197,16 +207,6 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'swap_equipment', abilityRepeatable:true,
     winCondition:'Posséder 3 équipements de la même couleur (Lumière ou Ténèbres)',
     winEffect:'three_same_color_equip'),
-
-  CharacterCard(id:'tommy', name:'Tommy', faction:Faction.neutral, hp:13, icon:'🎭',
-    ability:'Unique, au début du tour: copiez le pouvoir d\'un joueur révélé de votre choix',
-    abilityEffect:'copy_ability', abilityRepeatable:false,
-    winCondition:'Éliminer la personne dont vous avez copié le pouvoir', winEffect:'kill_copied'),
-
-  CharacterCard(id:'mango', name:'Mango Loco', faction:Faction.neutral, hp:10, icon:'🥭',
-    ability:'Passif : si le joueur attaqué a 13 PV ou plus, vous attaquez 2 fois (lancez les dés 2 fois, dégâts additionnés)',
-    abilityEffect:'double_attack_if_tanky', abilityRepeatable:true,
-    winCondition:'Éliminer un joueur avec 13 PV ou plus', winEffect:'kill_hp13plus'),
 
   CharacterCard(id:'jason', name:'Jason', faction:Faction.neutral, hp:12, icon:'🦎',
     ability:'Passif: insensible aux cartes Vision. À sa révélation, choisit un Hunter et un Shadow en jeu, et affiche le reveal de l\'un des deux au choix.',
