@@ -244,15 +244,21 @@ class GameProvider extends ChangeNotifier {
     final isJeanne = p.character?.abilityEffect == 'prophete_mark';
     final offered = isClemence ? _eg.builderDraw3() : <String>[];
     await _commitPlayer(p, '🃏 ${p.name} révèle : ${p.character!.name}');
+    final revealTs = DateTime.now().millisecondsSinceEpoch;
+    // Diffuse la réplique de révélation (visible/audible de tous) — combiné
+    // avec la transition de phase suivante dans UNE SEULE écriture Firebase
+    // (deux écritures séquentielles créent une fenêtre de race condition).
     if (isClemence) {
       await _fb.setPhase(roomId!, gameState!.phase,
-          builderStep: 1, builderOffered: offered);
-    }
-    if (isJeanne) {
-      // Passer en chooseTarget pour sélectionner la cible à marquer
+          builderStep: 1, builderOffered: offered,
+          publicRevealUid: p.uid, publicRevealTimestamp: revealTs);
+    } else if (isJeanne) {
       await _fb.setPhase(roomId!, GamePhase.chooseTarget,
-          pendingTargetAction: 'jeanne_mark_target',
-          jeanneUid: p.uid);
+          pendingTargetAction: 'jeanne_mark_target', jeanneUid: p.uid,
+          publicRevealUid: p.uid, publicRevealTimestamp: revealTs);
+    } else {
+      await _fb.setPhase(roomId!, gameState!.phase,
+          publicRevealUid: p.uid, publicRevealTimestamp: revealTs);
     }
   }
 
@@ -701,6 +707,7 @@ class GameProvider extends ChangeNotifier {
       await _commitAll(all, '🚶 ${p.name} → ${t.name}');
     }
     await _fb.setPhase(roomId!, GamePhase.zoneEffect,
+        richardActivateZone: -1,
         lastDiceResult: d4 > 0 ? {'d4': d4, 'd6': d6, 'sum': diceSum} : null,
         lastDiceLabel: d4 > 0 ? 'Déplacement' : null,
         lastDiceTimestamp: d4 > 0 ? DateTime.now().millisecondsSinceEpoch : null);
@@ -714,19 +721,19 @@ class GameProvider extends ChangeNotifier {
     final t = all.firstWhere((x) => x.uid == target.uid, orElse: () => p);
     final tmp = p.zoneIndex; p.zoneIndex = t.zoneIndex; t.zoneIndex = tmp;
     await _commitAll(all, '🚗 ${p.name} échange sa place avec ${t.name}');
-    await _fb.setPhase(roomId!, GamePhase.zoneEffect);
+    await _fb.setPhase(roomId!, GamePhase.zoneEffect, richardActivateZone: -1);
   }
 
-  Future<void> applyTerrainEffect() async {
-    final t = gameState!.terrainLayout[me!.zoneIndex];
+  Future<void> applyTerrainEffect({int? zoneOverride}) async {
+    final t = gameState!.terrainLayout[zoneOverride ?? me!.zoneIndex];
     switch (t.effect) {
       case 'vision':    await drawCard(DeckType.vision); break;
       case 'lumiere':   await drawCard(DeckType.lumiere); break;
       case 'tenebres':  await drawCard(DeckType.tenebres); break;
-      case 'choice':    await _fb.setPhase(roomId!, GamePhase.cardChoice); break;
-      case 'damage9':   await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: 'terrain_damage9'); break;
-      case 'steal':     await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: 'terrain_steal'); break;
-      default:          await _fb.setPhase(roomId!, _postCardPhase(), peioReturnToMove: false); break;
+      case 'choice':    await _fb.setPhase(roomId!, GamePhase.cardChoice, clearPending: true); break;
+      case 'damage9':   await _fb.setPhase(roomId!, GamePhase.chooseTarget, clearPending: true, pendingTargetAction: 'terrain_damage9'); break;
+      case 'steal':     await _fb.setPhase(roomId!, GamePhase.chooseTarget, clearPending: true, pendingTargetAction: 'terrain_steal'); break;
+      default:          await _fb.setPhase(roomId!, _postCardPhase(), peioReturnToMove: false, clearPending: true); break;
     }
   }
 
@@ -742,7 +749,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   Future<void> skipTerrainEffect() async =>
-      await _fb.setPhase(roomId!, _postCardPhase(), peioReturnToMove: false);
+      await _fb.setPhase(roomId!, _postCardPhase(), peioReturnToMove: false, clearPending: true);
 
   /// Résout une cible pour les effets de terrain (Clairière / Tour du Voleur)
   Future<void> applyTerrainTarget(Player target) async {
@@ -980,7 +987,11 @@ class GameProvider extends ChangeNotifier {
       final z1 = gs.swapZone1!;
       if (z1 == zoneIdx) return;
       final all = _mutableAll();
-      // Déplacer les joueurs sur les zones échangées
+      final richard = all.firstWhere((p) => p.uid == myUid);
+      final richardStartZone = richard.zoneIndex; // avant tout changement
+      // Tous les joueurs présents sur les 2 zones échangées suivent leur
+      // tuile (échangent aussi de position) — Richard inclus, pour le
+      // déplacement visuel sur le plateau.
       for (final p in all) {
         if (p.zoneIndex == z1) p.zoneIndex = zoneIdx;
         else if (p.zoneIndex == zoneIdx) p.zoneIndex = z1;
@@ -991,10 +1002,12 @@ class GameProvider extends ChangeNotifier {
       final t1name = newLayout[z1].name; final t2name = newLayout[zoneIdx].name;
       await _commitAll(all, '👑 Richard II échange $t2name ↔ $t1name !');
       await _fb.setTerrainLayout(roomId!, newLayout);
-      // Richard II active l'effet du terrain sur lequel il atterrit
+      // Richard active l'effet du terrain qui vient d'arriver sur SA case de
+      // départ (celui avec lequel il a échangé), pas celui qu'il a emporté
+      // avec lui en se déplaçant.
       await _fb.setPhase(roomId!, GamePhase.zoneEffect,
           clearPending: true, swapZone1: -1, swapZone2: -1,
-          abilityOverlay: 'richard2_swap');
+          abilityOverlay: 'richard2_swap', richardActivateZone: richardStartZone);
     }
   }
 
@@ -1087,6 +1100,16 @@ class GameProvider extends ChangeNotifier {
         await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
             lootKillerUid: killerUid, lootDeadUid: deadUid);
       }
+    }
+    // Jason : vient-il de perdre son déguisement (5+ dégâts en un tour) ?
+    // Indépendant d'un kill éventuel — diffuse sa vraie révélation à tous.
+    final unmasked = _eg.checkDisguiseLost(all);
+    if (unmasked != null) {
+      unmasked.disguiseJustLost = false;
+      await _commitAll(all, '🎭 ${unmasked.name} perd son déguisement — sa vraie identité est révélée !');
+      await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+          publicRevealUid: unmasked.uid,
+          publicRevealTimestamp: DateTime.now().millisecondsSinceEpoch);
     }
   }
 }

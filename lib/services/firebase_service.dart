@@ -382,6 +382,9 @@ class FirebaseService {
     String? damienTargetUid,
     String? lootKillerUid,
     String? lootDeadUid,
+    int? richardActivateZone,
+    String? publicRevealUid,
+    int? publicRevealTimestamp,
     bool clearOverlay = false,
     bool clearPending = false,
   }) async {
@@ -403,6 +406,7 @@ class FirebaseService {
       updates['damienTargetUid'] = null;
       updates['lootKillerUid'] = null;
       updates['lootDeadUid'] = null;
+      updates['richardActivateZone'] = null;
     }
     if (clearOverlay) {
       updates['abilityOverlay'] = null;
@@ -445,6 +449,11 @@ class FirebaseService {
     if (damienTargetUid != null) updates['damienTargetUid'] = damienTargetUid;
     if (lootKillerUid != null) updates['lootKillerUid'] = lootKillerUid;
     if (lootDeadUid != null) updates['lootDeadUid'] = lootDeadUid;
+    if (richardActivateZone != null) {
+      updates['richardActivateZone'] = richardActivateZone == -1 ? null : richardActivateZone;
+    }
+    if (publicRevealUid != null) updates['publicRevealUid'] = publicRevealUid;
+    if (publicRevealTimestamp != null) updates['publicRevealTimestamp'] = publicRevealTimestamp;
     await _patch('rooms/$roomId/gameState', updates);
   }
 

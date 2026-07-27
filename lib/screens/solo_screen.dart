@@ -359,7 +359,7 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
         final rp = s.players.firstWhere(
           (p) => p.uid == s.privateRevealTargetUid,
           orElse: () => s.players.first);
-        return _RevealFullScreen(player: rp, onDone: () {
+        return _RevealFullScreen(player: rp, isRealReveal: false, onDone: () {
           ctrl.state!.privateRevealTargetUid = null;
           ctrl.notifyListeners();
         });
@@ -3006,7 +3006,8 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
 class _RevealFullScreen extends StatefulWidget {
   final Player player;
   final VoidCallback onDone;
-  const _RevealFullScreen({required this.player, required this.onDone});
+  final bool isRealReveal; // false = simple aperçu privé (Vision Suprême)
+  const _RevealFullScreen({required this.player, required this.onDone, this.isRealReveal = true});
   @override State<_RevealFullScreen> createState() => _RevealFullScreenState();
 }
 
@@ -3028,6 +3029,13 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
     _pulse = Tween<double>(begin: 1.0, end: 1.05)
         .animate(CurvedAnimation(parent: _pulseAc, curve: Curves.easeInOut));
     _enterAc.forward();
+    // Réplique de révélation — visible et audible de tous (placeholder audio).
+    // Jason déguisé : sonne comme le personnage imité. Une fois le
+    // déguisement perdu (disguiseCharIdOverride==null), sonne comme lui-même.
+    if (widget.isRealReveal && widget.player.character != null) {
+      final voiceId = widget.player.disguiseCharIdOverride ?? widget.player.character!.id;
+      audio.playRevealVoice(voiceId);
+    }
     // Auto-dismiss après 3.5s
     Future.delayed(const Duration(milliseconds: 3500), () {
       if (mounted) widget.onDone();
@@ -3110,6 +3118,18 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
                           const SizedBox(height: 8),
                           Text('Il est ${c.name}',
                             style: cinzel(16, c: kGold2, fw: FontWeight.w700)),
+                        ],
+                        if (widget.isRealReveal && c != null) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: kBg3, borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: fc.withValues(alpha: 0.4))),
+                            child: Text('« ${revealQuoteFor(p.disguiseCharIdOverride ?? c.id)} »',
+                              style: body(12, c: kTextSub, fw: FontWeight.w600),
+                              textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          ),
                         ],
                         const SizedBox(height: 8),
                         Text('Toucher pour continuer', style: body(10, c: kTextDim)),

@@ -460,8 +460,18 @@ class GameScreen extends StatelessWidget {
             (DateTime.now().millisecondsSinceEpoch - tsRope)) / 1000).ceil();
       }
       final burningRope = BurningRopeTimer(secondsLeft: ropeSecondsLeft);
+      // Réplique de révélation — visible/audible de tous, quelques secondes
+      final revealQuoteUid = gs?.publicRevealUid;
+      final revealTs = gs?.publicRevealTimestamp ?? 0;
+      final revealFresh = revealQuoteUid != null &&
+          (DateTime.now().millisecondsSinceEpoch - revealTs) < 4000;
+      final revealQuoteBanner = revealFresh
+          ? _RevealQuoteBanner(
+              key: ValueKey('reveal_${revealQuoteUid}_$revealTs'),
+              player: gp.players[revealQuoteUid])
+          : const SizedBox.shrink();
       if (overlay == null && diceResult == null && lastDice == null) {
-        return Stack(children: [baseScaffold, turnBanner, burningRope]);
+        return Stack(children: [baseScaffold, turnBanner, burningRope, revealQuoteBanner]);
       }
 
       void clearOverlay() => gp.clearAbilityOverlay();
@@ -501,6 +511,7 @@ class GameScreen extends StatelessWidget {
         if (overlay == 'albane_clock')        AlbaneClockOverlay(onDone: clearOverlay),
         turnBanner,
         burningRope,
+        revealQuoteBanner,
       ]);
     },
   );
@@ -688,6 +699,65 @@ class GameScreen extends StatelessWidget {
   }
 }
 
+/// Affiche la liste d'équipements d'un joueur donné (public, visible même
+/// si le joueur n'est pas révélé — l'équipement est une information publique).
+/// Remplace les tooltips (inadaptés au tactile — nécessitent un appui long
+/// peu découvrable) par un vrai bouton tapable, important pour le mobile.
+void _showEquipmentFor(BuildContext ctx, Player p) {
+  final items = p.equipment;
+  showDialog(context: ctx, builder: (_) => Dialog(
+    backgroundColor: kBg2,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    child: Container(
+      constraints: const BoxConstraints(maxWidth: 380, maxHeight: 520),
+      padding: const EdgeInsets.all(20),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          const Text('🎒', style: TextStyle(fontSize: 20)),
+          const SizedBox(width: 8),
+          Expanded(child: Text('ÉQUIPEMENTS — ${p.name.toUpperCase()}',
+            style: cinzel(13, c: kGold2, fw: FontWeight.w900),
+            overflow: TextOverflow.ellipsis)),
+        ]),
+        const SizedBox(height: 14),
+        if (items.isEmpty)
+          Padding(padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Text('Aucun équipement pour ce joueur.',
+              style: body(12, c: kTextSub), textAlign: TextAlign.center))
+        else
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (_, i) {
+                final eq = items[i];
+                final dc = deckColor(eq.deck.name);
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: kBg3, borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: dc.withValues(alpha: 0.5))),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(deckIcon(eq.deck.name), style: const TextStyle(fontSize: 20)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(eq.name, style: cinzel(12, c: kGold2, fw: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text(eq.text, style: body(11, c: kTextSub)),
+                    ])),
+                  ]),
+                );
+              },
+            ),
+          ),
+        const SizedBox(height: 14),
+        BHButton(label: 'Fermer', outlined: true, onTap: () => Navigator.pop(ctx)),
+      ]),
+    ),
+  ));
+}
+
 class _PlayerRow extends StatelessWidget {
   final Player p; final GameProvider gp;
   const _PlayerRow({required this.p,required this.gp});
@@ -784,11 +854,18 @@ class _PlayerRow extends StatelessWidget {
             ]),
             Text('${t?.icon??""} ${t?.name??""}',style:body(11,c:kTextSub)),
             if (p.equipment.isNotEmpty)
-              Padding(padding: const EdgeInsets.only(top: 2),
-                child: Wrap(spacing: 2, children: p.equipment.map((eq) => Tooltip(
-                  message: eq.name,
-                  child: Text('⚔', style: const TextStyle(fontSize: 10, color: kTextDim)),
-                )).toList())),
+              GestureDetector(
+                onTap: () => _showEquipmentFor(ctx, p),
+                child: Padding(padding: const EdgeInsets.only(top: 2),
+                  child: Row(children: [
+                    ...p.equipment.take(4).map((eq) =>
+                      const Padding(padding: EdgeInsets.only(right: 2),
+                        child: Text('⚔', style: TextStyle(fontSize: 10, color: kTextDim)))),
+                    Text(' (${p.equipment.length})',
+                      style: body(9, c: kGold, fw: FontWeight.w700)),
+                  ]),
+                ),
+              ),
           ])),
           // Blessures — barre PV seulement si on connaît le PV max
           if (!p.alive)
@@ -1163,7 +1240,8 @@ class _ActionPanelState extends State<_ActionPanel> {
         ];
       case GamePhase.zoneEffect:
         return [
-          BHButton(label:'Appliquer l\'effet du terrain',onTap:()=>_act(gp.applyTerrainEffect)),
+          BHButton(label:'Appliquer l\'effet du terrain',
+            onTap:()=>_act(() => gp.applyTerrainEffect(zoneOverride: gp.gameState?.richardActivateZone))),
           BHButton(label:'Ignorer → Attaquer',onTap:()=>_act(gp.skipTerrainEffect),outlined:true),
         ];
       case GamePhase.cardChoice:
@@ -2076,6 +2154,64 @@ class _LootChoicePanel extends StatelessWidget {
 }
 
 // ─── Bannière dés (visible des non-joueurs) ───────────────────────────────────
+// ─── Réplique de révélation — visible/audible de tous ────────────────────────
+class _RevealQuoteBanner extends StatefulWidget {
+  final Player? player;
+  const _RevealQuoteBanner({super.key, required this.player});
+  @override State<_RevealQuoteBanner> createState() => _RevealQuoteBannerState();
+}
+
+class _RevealQuoteBannerState extends State<_RevealQuoteBanner> {
+  @override
+  void initState() {
+    super.initState();
+    // La clé unique (uid + timestamp) garantit que ce initState — donc la
+    // lecture du son — ne se déclenche qu'UNE FOIS par révélation, jamais
+    // ré-exécuté sur les reconstructions ultérieures du même événement.
+    // Jason déguisé : sonne comme le personnage imité. Une fois démasqué
+    // (disguiseCharIdOverride==null), sonne comme lui-même.
+    final c = widget.player?.character;
+    if (c != null) {
+      final voiceId = widget.player!.disguiseCharIdOverride ?? c.id;
+      audio.playRevealVoice(voiceId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final p = widget.player;
+    final c = p?.character;
+    if (p == null || c == null) return const SizedBox.shrink();
+    final quoteId = p.disguiseCharIdOverride ?? c.id;
+    final shownCharName = p.disguiseNameOverride ?? c.name;
+    final fc = factionColor(c.faction.name);
+    return Positioned(
+      top: 90, left: 16, right: 16,
+      child: IgnorePointer(
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: kBg2.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: fc, width: 1.5),
+              boxShadow: [BoxShadow(color: fc.withValues(alpha: 0.4), blurRadius: 14)],
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('🃏 ${p.name} se révèle : $shownCharName',
+                style: cinzel(12, c: fc, fw: FontWeight.w900), textAlign: TextAlign.center),
+              const SizedBox(height: 4),
+              Text('« ${revealQuoteFor(quoteId)} »',
+                style: body(11, c: kTextSub, fw: FontWeight.w600),
+                textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _LastDiceBanner extends StatefulWidget {
   final Map<String, int> result;
   final String label;
@@ -2530,39 +2666,66 @@ class _PlayerChip extends StatelessWidget {
     final isMe = p.uid == gp.myUid;
     final isMarked = gp.gameState?.markedPlayerUid == p.uid;
     final fc = p.revealed && c != null ? factionColor(c.faction.name) : null;
-    return GestureDetector(
-      onTap: () {
-        if (p.revealed && c != null) {
-          final hasDisguise = !isMe && p.disguiseNameOverride != null;
-          final disguisedChar = hasDisguise && p.disguiseCharIdOverride != null
-              ? kAllCharacters.where((ch) => ch.id == p.disguiseCharIdOverride).firstOrNull
-              : null;
-          showFullCardDialog(ctx, disguisedChar ?? c);
-        }
-      },
-      child: Container(
-        width: 60, height: 56,
-        margin: const EdgeInsets.symmetric(horizontal: 3),
-        decoration: BoxDecoration(
-          color: isMe ? kBg3 : kBg2,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: fc != null ? fc : (isMe ? kGold : Colors.white12),
-            width: isMe ? 2 : 1),
-        ),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Stack(alignment: Alignment.topRight, children: [
-            TokenWidget(tokenId: p.token, size: 28, isDead: !p.alive),
-            if (isMe) const Positioned(top: 0, right: 0,
-              child: Text('★', style: TextStyle(fontSize: 7, color: kGold))),
-            if (isMarked) const Positioned(top: 0, left: 0,
-              child: Text('💀', style: TextStyle(fontSize: 8))),
+    final hasDisguiseChip = !isMe && p.disguiseNameOverride != null;
+    final disguisedCharChip = hasDisguiseChip && p.disguiseCharIdOverride != null
+        ? kAllCharacters.where((ch) => ch.id == p.disguiseCharIdOverride).firstOrNull
+        : null;
+    final displayMaxHp = disguisedCharChip?.hp ?? c?.hp ?? 0;
+    final knowMaxHp = (isMe || p.revealed) && c != null;
+    return Stack(clipBehavior: Clip.none, children: [
+      GestureDetector(
+        onTap: () {
+          if (p.revealed && c != null) {
+            showFullCardDialog(ctx, disguisedCharChip ?? c);
+          }
+        },
+        child: Container(
+          width: 60, height: 62,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          decoration: BoxDecoration(
+            color: isMe ? kBg3 : kBg2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: fc != null ? fc : (isMe ? kGold : Colors.white12),
+              width: isMe ? 2 : 1),
+          ),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Stack(alignment: Alignment.topRight, children: [
+              TokenWidget(tokenId: p.token, size: 26, isDead: !p.alive),
+              if (isMe) const Positioned(top: 0, right: 0,
+                child: Text('★', style: TextStyle(fontSize: 7, color: kGold))),
+              if (isMarked) const Positioned(top: 0, left: 0,
+                child: Text('💀', style: TextStyle(fontSize: 8))),
+            ]),
+            const SizedBox(height: 2),
+            if (!p.alive)
+              const Text('💀', style: TextStyle(fontSize: 12))
+            else if (knowMaxHp)
+              Text('${p.wounds}/$displayMaxHp',
+                style: body(9, c: p.wounds >= displayMaxHp - 2 ? kRed : kTextSub))
+            else
+              Text('${p.wounds}🩸',
+                style: body(9, c: p.wounds >= 8 ? kRed : kTextSub)),
           ]),
-          const SizedBox(height: 2),
-          Text('${p.wounds}🩸', style: body(9, c: p.wounds >= (c?.hp ?? 10) - 2 ? kRed : kTextSub)),
-        ]),
+        ),
       ),
-    );
+      // Badge équipement — tap pour voir la liste (info publique)
+      if (p.equipment.isNotEmpty)
+        Positioned(bottom: 1, left: 3,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _showEquipmentFor(ctx, p),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: kGold, borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: kBg1, width: 1)),
+              child: Text('⚔${p.equipment.length}',
+                style: cinzel(8, c: const Color(0xFF1A0D00), fw: FontWeight.w900)),
+            ),
+          ),
+        ),
+    ]);
   }
 }
 

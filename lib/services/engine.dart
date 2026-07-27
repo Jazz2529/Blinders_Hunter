@@ -87,6 +87,9 @@ class GameEngine with AbilityEngine {
       if (p.damageTakenThisTurn >= 5) {
         p.disguiseNameOverride = null;
         p.disguiseIconOverride = null;
+        p.disguiseFactionOverride = null;
+        p.disguiseCharIdOverride = null;
+        p.disguiseJustLost = true; // signale l'événement pour déclencher sa vraie révélation
       }
     }
     return n;
@@ -1178,6 +1181,16 @@ class GameEngine with AbilityEngine {
     return (killer.uid, dead.uid);
   }
 
+  /// Vérifie si un joueur vient de perdre son déguisement (Jason, 5+ dégâts
+  /// en un tour) — retourne ce joueur pour déclencher sa vraie révélation
+  /// (texte + son), ou null si personne n'est concerné. Ne fait QUE lire
+  /// l'état ici ; c'est à l'appelant de remettre disguiseJustLost à false
+  /// une fois l'animation déclenchée.
+  Player? checkDisguiseLost(List<Player> all) {
+    for (final p in all) { if (p.disguiseJustLost) return p; }
+    return null;
+  }
+
   /// Vérifie si le joueur mort était la cible de Jeanne et applique la
   /// récompense au tueur si c'est le cas. Retourne (log, needsCard, killerUid).
   /// À appeler après applyDeathPassives.
@@ -1454,25 +1467,30 @@ class GameEngine with AbilityEngine {
     }
   }
 
-  /// Richard II : échange deux zones du plateau.
-  /// Retourne le log. Seul Richard II active l'effet du terrain d'arrivée
-  /// (géré côté controller après appel).
-  String swapTerrainZones(int zone1, int zone2, List<Player> all,
+  /// Richard II : échange deux zones du plateau. TOUS les joueurs présents
+  /// sur ces deux zones suivent leur tuile (échangent aussi de position),
+  /// SAUF Richard qui doit activer le terrain qui vient d'arriver sur SA
+  /// case de départ (celui avec lequel il a échangé), pas celui qu'il a
+  /// emporté avec lui. Retourne (log, idxTerrainQueRichardDoitActiver).
+  (String, int) swapTerrainZones(int zone1, int zone2, List<Player> all,
       List<Terrain> layout, Player richard) {
+    final richardStartZone = richard.zoneIndex; // avant tout changement
     // Échange les deux tuiles dans le layout
     final tmp = layout[zone1];
     layout[zone1] = layout[zone2];
     layout[zone2] = tmp;
-    // Les joueurs gardent leur zoneIndex — ils suivent la tuile physiquement
-    // Mais zoneIndex = position dans la grille, pas la tuile.
-    // Donc on échange l'index de TOUS les joueurs sur ces zones.
+    // Tous les joueurs présents sur zone1/zone2 suivent leur tuile (échangent
+    // de position avec elle) — Richard inclus, pour le déplacement visuel.
     for (final p in all) {
       if (p.zoneIndex == zone1) p.zoneIndex = zone2;
       else if (p.zoneIndex == zone2) p.zoneIndex = zone1;
     }
     final t1 = layout[zone1]; // nouvelle tuile en zone1 (anciennement zone2)
     final t2 = layout[zone2]; // nouvelle tuile en zone2 (anciennement zone1)
-    return '👑 Richard II échange ${t2.name} ↔ ${t1.name} !';
+    // Richard active le terrain qui vient d'arriver sur SA case de départ
+    // (celui avec lequel il a échangé) — pas celui qu'il a emporté avec lui.
+    final richardActivatesZone = richardStartZone;
+    return ('👑 Richard II échange ${t2.name} ↔ ${t1.name} !', richardActivatesZone);
   }
 
   void recalcPassives(Player p) {

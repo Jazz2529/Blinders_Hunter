@@ -124,6 +124,22 @@ class AudioService extends ChangeNotifier {
     try { await _ropePlayer.stop(); } catch (_) {}
   }
 
+  // ── Réplique de révélation (voix du personnage) ─────────────────────────
+  // PLACEHOLDER : cherche 'assets/audio/reveal_<id>.mp3'. Remplace ces
+  // fichiers un par un au fur et à mesure que tu les enregistres — aucun
+  // changement de code nécessaire. Utilise le lecteur secondaire (_sfxPlayer2)
+  // pour ne pas couper un autre effet sonore en cours (dégâts, dés...).
+  Future<void> playRevealVoice(String characterId) async {
+    if (!_sfxEnabled) return;
+    try {
+      await _sfxPlayer2.stop();
+      await _sfxPlayer2.setVolume(_sfxVolume);
+      await _sfxPlayer2.play(AssetSource('audio/reveal_$characterId.mp3'));
+    } catch (e) {
+      debugPrint('Audio: reveal_$characterId.mp3 not found (placeholder) — $e');
+    }
+  }
+
   Future<void> _sfx(String name) async {
     if (!_sfxEnabled) return;
     try {

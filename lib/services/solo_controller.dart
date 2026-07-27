@@ -761,13 +761,15 @@ class SoloController extends ChangeNotifier {
         _log('👑 Choisissez une zone différente !', cls: 'player');
         notifyListeners(); return;
       }
-      final log = _eg.swapTerrainZones(z1, z2, s.players, s.terrainLayout, s.current);
+      final (log, richardActivatesZone) = _eg.swapTerrainZones(z1, z2, s.players, s.terrainLayout, s.current);
       _log(log, cls: 'player');
       s.swapZone1 = null; s.swapZone2 = null;
       s.pendingTargetAction = null;
-      // Richard II active l'effet du terrain sur lequel il se trouve maintenant
+      // Richard II active l'effet du terrain qui vient d'arriver sur SA
+      // case de départ (celui avec lequel il a échangé), pas celui qu'il a
+      // emporté avec lui en se déplaçant.
       s.abilityOverlay = 'richard2_swap';
-      humanApplyTerrainEffect(nextPhaseIfDefault: GamePhase.attack);
+      humanApplyTerrainEffect(nextPhaseIfDefault: GamePhase.attack, zoneOverride: richardActivatesZone);
       notifyListeners();
     }
   }
@@ -1604,8 +1606,8 @@ class SoloController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void humanApplyTerrainEffect({GamePhase nextPhaseIfDefault = GamePhase.attack}) {
-    final terrain = state!.terrainLayout[state!.current.zoneIndex];
+  void humanApplyTerrainEffect({GamePhase nextPhaseIfDefault = GamePhase.attack, int? zoneOverride}) {
+    final terrain = state!.terrainLayout[zoneOverride ?? state!.current.zoneIndex];
     switch (terrain.effect) {
       case 'vision':   humanDrawCard(DeckType.vision);
       case 'lumiere':  humanDrawCard(DeckType.lumiere);
@@ -2055,6 +2057,14 @@ class SoloController extends ChangeNotifier {
           state!.lootDeadUid = deadUid;
         }
       }
+    }
+    // Jason : vient-il de perdre son déguisement (5+ dégâts en un tour) ?
+    // Indépendant d'un kill éventuel — déclenche sa vraie révélation.
+    final unmasked = _eg.checkDisguiseLost(state!.players);
+    if (unmasked != null) {
+      unmasked.disguiseJustLost = false;
+      state!.pendingRevealAnimation = unmasked.uid;
+      _log('🎭 ${unmasked.name} perd son déguisement — sa vraie identité est révélée !', cls: 'player');
     }
   }
 

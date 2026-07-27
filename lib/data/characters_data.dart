@@ -1,6 +1,50 @@
 // lib/data/characters_data.dart
 // Mapping character id → image illustration
 
+const Map<String, String> kRevealQuotes = {
+  // PLACEHOLDER — remplace chaque réplique par le texte définitif.
+  'albane': '[Réplique de Albane à personnaliser]',
+  'amelia': '[Réplique de Amélia à personnaliser]',
+  'artcade': '[Réplique de Art\'Cade à personnaliser]',
+  'augustin': '[Réplique de Augustin à personnaliser]',
+  'fijacked': '[Réplique de Fijacked à personnaliser]',
+  'scott': '[Réplique de Scott à personnaliser]',
+  'louna': '[Réplique de Louna à personnaliser]',
+  'richard2': '[Réplique de Richard II à personnaliser]',
+  'clemence': '[Réplique de Clémence à personnaliser]',
+  'marion': '[Réplique de Marion à personnaliser]',
+  'oceane': '[Réplique de Océane à personnaliser]',
+  'elaia': '[Réplique de Elaia à personnaliser]',
+  'damien': '[Réplique de Damien à personnaliser]',
+  'tommy': '[Réplique de Tommy à personnaliser]',
+  'mango': '[Réplique de Mango Loco à personnaliser]',
+  'raph_soleil': '[Réplique de Raph du Soleil Levant à personnaliser]',
+  'elise': '[Réplique de Élise à personnaliser]',
+  'baleine': '[Réplique de Baleine à personnaliser]',
+  'gege': '[Réplique de Gège le Fantôme à personnaliser]',
+  'bibble': '[Réplique de Bibble à personnaliser]',
+  'jeanne': '[Réplique de Jeanne à personnaliser]',
+  'ninja': '[Réplique de Ninja à personnaliser]',
+  'louise': '[Réplique de Louise à personnaliser]',
+  'mathieu': '[Réplique de Mathieu à personnaliser]',
+  'mr_casino': '[Réplique de Mr Casino à personnaliser]',
+  'monkey': '[Réplique de Monkey Raph à personnaliser]',
+  'pirate': '[Réplique de Pirate à personnaliser]',
+  'hong_yi': '[Réplique de Hong Yi à personnaliser]',
+  'vlad': '[Réplique de Vlad à personnaliser]',
+  'travert': '[Réplique de Travert à personnaliser]',
+  'fifi_shadow': '[Réplique de Fifi à personnaliser]',
+  'marin': '[Réplique de Marin à personnaliser]',
+  'peio': '[Réplique de Peio à personnaliser]',
+  'julien': '[Réplique de Julien à personnaliser]',
+  'cambou': '[Réplique de Cambou à personnaliser]',
+  'leo': '[Réplique de Léo à personnaliser]',
+  'rat_rouen': '[Réplique de Rat d\'Rouen à personnaliser]',
+  'carapatte': '[Réplique de Carapatte à personnaliser]',
+  'tristan': '[Réplique de Tristan à personnaliser]',
+  'jason': '[Réplique de Jason à personnaliser]',
+};
+
 const Map<String, String> kCharacterImages = {
   '3pintes': 'assets/images/characters/3_pinte.png',
   '80ans': 'assets/images/characters/80ans.png',
@@ -185,4 +229,14 @@ const String kVisionOtherImage = 'assets/images/cards/vision_other.png';
 String? characterImagePath(String id) => kCharacterImages[id];
 String? terrainImagePath(String effect) => kTerrainImages[effect];
 String? cardImagePath(String effect) => kCardImages[effect];
+
+/// Réplique personnalisée affichée (et jouée en audio) quand ce personnage
+/// se révèle — visible/audible de tous les joueurs.
+String revealQuoteFor(String characterId) =>
+    kRevealQuotes[characterId] ?? '« ... »';
+
+/// PLACEHOLDER : chemin du fichier audio de la réplique de révélation.
+/// Remplace `assets/audio/reveal_<id>.mp3` par le vrai fichier une fois
+/// enregistré — aucun changement de code nécessaire.
+String revealVoicePath(String characterId) => 'assets/audio/reveal_$characterId.mp3';
 String? anyCardImagePath(String effect) => kCardImages[effect];

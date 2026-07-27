@@ -68,7 +68,7 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'peek_reorder_deck', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
-   CharacterCard(id:'raph_soleil', name:'Raph du Soleil Levant', faction:Faction.hunter, hp:12, icon:'🥷',
+  CharacterCard(id:'raph_soleil', name:'Raph du Soleil Levant', faction:Faction.hunter, hp:12, icon:'🥷',
     ability:'Répétable: subissez 2 blessures pour soigner un joueur de votre choix de 3 blessures',
     abilityEffect:'damage2_then_heal3', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
@@ -182,16 +182,6 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'d4_all', abilityRepeatable:false,
     winCondition:'Être le premier à mourir ou éliminer tous les Hunters', winEffect:'die_first_or_kill_hunters'),
 
-  CharacterCard(id:'tommy', name:'Tommy', faction:Faction.neutral, hp:13, icon:'🎭',
-    ability:'Unique, au début du tour: copiez le pouvoir d\'un joueur révélé de votre choix',
-    abilityEffect:'copy_ability', abilityRepeatable:false,
-    winCondition:'Éliminer la personne dont vous avez copié le pouvoir', winEffect:'kill_copied'),
-
-  CharacterCard(id:'mango', name:'Mango Loco', faction:Faction.neutral, hp:10, icon:'🥭',
-    ability:'Passif : si le joueur attaqué a 13 PV ou plus, vous attaquez 2 fois (lancez les dés 2 fois, dégâts additionnés)',
-    abilityEffect:'double_attack_if_tanky', abilityRepeatable:true,
-    winCondition:'Éliminer un joueur avec 13 PV ou plus', winEffect:'kill_hp13plus'),
-
   CharacterCard(id:'rat_rouen', name:"Rat d'Rouen", faction:Faction.neutral, hp:10, icon:'🐀',
     ability:'Passif: vous vous soignez de 1 blessure chaque fois que l\'une de VOS attaques inflige des blessures',
     abilityEffect:'heal1_on_own_attack', abilityRepeatable:true,
@@ -207,6 +197,16 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'swap_equipment', abilityRepeatable:true,
     winCondition:'Posséder 3 équipements de la même couleur (Lumière ou Ténèbres)',
     winEffect:'three_same_color_equip'),
+
+  CharacterCard(id:'tommy', name:'Tommy', faction:Faction.neutral, hp:13, icon:'🎭',
+    ability:'Unique, au début du tour: copiez le pouvoir d\'un joueur révélé de votre choix',
+    abilityEffect:'copy_ability', abilityRepeatable:false,
+    winCondition:'Éliminer la personne dont vous avez copié le pouvoir', winEffect:'kill_copied'),
+
+  CharacterCard(id:'mango', name:'Mango Loco', faction:Faction.neutral, hp:10, icon:'🥭',
+    ability:'Passif : si le joueur attaqué a 13 PV ou plus, vous attaquez 2 fois (lancez les dés 2 fois, dégâts additionnés)',
+    abilityEffect:'double_attack_if_tanky', abilityRepeatable:true,
+    winCondition:'Éliminer un joueur avec 13 PV ou plus', winEffect:'kill_hp13plus'),
 
   CharacterCard(id:'jason', name:'Jason', faction:Faction.neutral, hp:12, icon:'🦎',
     ability:'Passif: insensible aux cartes Vision. À sa révélation, choisit un Hunter et un Shadow en jeu, et affiche le reveal de l\'un des deux au choix.',
@@ -286,7 +286,7 @@ const List<GameCard> kTenebresCards = [
   GameCard(id:'T05b',name:'Dague du Voleur',deck:DeckType.tenebres,type:CardType.equipement,
     effect:'dague_voleur',text:'+1 blessure si votre attaque inflige des dégâts'),
   GameCard(id:'T05c',name:'Dague du Voleur',deck:DeckType.tenebres,type:CardType.equipement,
-    effect:'dague_du roi',text:'+1 blessure si votre attaque inflige des dégâts'),
+    effect:'dague_voleur',text:'+1 blessure si votre attaque inflige des dégâts'),
   GameCard(id:'T06',name:'Sabre Hanté Masamune',deck:DeckType.tenebres,type:CardType.equipement,
     effect:'hache_berserker',text:'Vous êtes obligé d\'attaquer durant votre tour, avec le D4 uniquement (résultat brut)'),
   GameCard(id:'T07',name:'Révolver des Ténèbres',deck:DeckType.tenebres,type:CardType.equipement,
