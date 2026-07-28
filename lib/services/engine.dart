@@ -7,6 +7,7 @@ import 'engine_abilities.dart';
 import '../models/models.dart';
 import 'audio_service.dart';
 import '../data/game_data.dart';
+import '../data/interactions_data.dart';
 
 class GameEngine with AbilityEngine {
   static final GameEngine instance = GameEngine._();
@@ -1188,6 +1189,19 @@ class GameEngine with AbilityEngine {
     return null;
   }
 
+  /// Travert utilise son pouvoir — réplique spéciale si Clémence est révélée,
+  /// sinon réplique générale.
+  CharInteraction travertInteraction(List<Player> all) {
+    final clemenceRevealed = all.any((p) =>
+        p.alive && p.revealed && p.character?.id == 'clemence');
+    return clemenceRevealed ? kTravertClemenceInteraction : kTravertGeneralInteraction;
+  }
+
+  /// Tommy utilise sa capacité (copie un pouvoir) alors que Richard II est révélé.
+  bool checkTommyRichardInteraction(List<Player> all) {
+    return all.any((p) => p.alive && p.revealed && p.character?.id == 'richard2');
+  }
+
   /// Vérifie si le joueur mort était la cible de Jeanne et applique la
   /// récompense au tueur si c'est le cas. Retourne (log, needsCard, killerUid).
   /// À appeler après applyDeathPassives.
@@ -1515,6 +1529,19 @@ class GameEngine with AbilityEngine {
       case 'dague_voleur':         p.dague = true; break;
       case 'epee_ninja':           p.epeeNinja = true; break;
       case 'mirror_damage':        p.mirrorDamage = true; break;
+    }
+    // Jason — voice line arme spéciale (une seule fois par partie)
+    if (p.character?.id == 'jason' &&
+        (card.effect == 'bazooka' || card.effect == 'revolver_tenebres' || card.effect == 'sniper') &&
+        !p.jasonWeaponVoicePlayed) {
+      p.jasonWeaponVoicePlayed = true;
+      audio.playInteractionVoice(kJasonWeaponInteraction.key);
+    }
+    // Marin révélé reçoit une Dague du Voleur (une seule fois par partie)
+    if (p.character?.id == 'marin' && card.effect == 'dague_voleur' && p.revealed &&
+        !p.marinDagueVoicePlayed) {
+      p.marinDagueVoicePlayed = true;
+      audio.playInteractionVoice(kMarinDagueInteraction.key);
     }
   }
 

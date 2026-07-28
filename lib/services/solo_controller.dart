@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import '../data/game_data.dart';
+import '../data/interactions_data.dart';
 import '../services/audio_service.dart';
 import 'engine.dart';
 
@@ -487,6 +488,9 @@ class SoloController extends ChangeNotifier {
         // Tommy (bot) : le pouvoir copié se déclenche immédiatement si besoin
         final parts = log.split(':');
         _log('🎭 ${bot.name} copie le pouvoir de ${parts.length > 1 ? parts[1] : "?"}');
+        if (_eg.checkTommyRichardInteraction(state!.players)) {
+          audio.playInteractionVoice(kTommyRichardInteraction.key);
+        }
         if (bot.copiedEffect == 'builder_power') {
           state!.builderStep = 1;
           state!.builderEffect1 = null;
@@ -575,6 +579,10 @@ class SoloController extends ChangeNotifier {
     if (state!.pendingCard != null) {
       await Future.delayed(d);
       final card = state!.pendingCard!;
+      // Julien pioche le Bucket de Poulet
+      if (card.id == 'L16' && bot.character?.id == 'julien') {
+        audio.playInteractionVoice(kJulienBucketInteraction.key);
+      }
       if (_ai.shouldApplyCard(card, bot, difficulty)) {
         Player? target;
         if (_cardNeedsTarget(card.effect)) {
@@ -620,6 +628,10 @@ class SoloController extends ChangeNotifier {
         final attackRes = _eg.resolveAttack(bot, target, dmg);
         final log = attackRes['log'] as String;
         _log(log);
+        if ((bot.copiedEffect ?? bot.character?.abilityEffect ?? '') == 'third_attack_bonus'
+            && bot.attackCount == 3) {
+          audio.playInteractionVoice(kMathieuActivateInteraction.key);
+        }
         if (attackRes['scottCountered'] == true) state!.abilityOverlay = 'scott_counter';
         if (!target.alive) { _log('💀 ${target.name} est éliminé !', cls: 'death'); }
         state!.woundFlashUid = target.uid;
@@ -969,6 +981,10 @@ class SoloController extends ChangeNotifier {
         p.abilityUsed = !target.character!.abilityRepeatable;
         s.pendingTargetAction = null;
         _log('🎭 ${p.name} copie le pouvoir de ${target.name} : ${target.character!.ability}', cls: 'player');
+        // Tommy utilise sa capacité alors que Richard II est révélé
+        if (_eg.checkTommyRichardInteraction(s.players)) {
+          audio.playInteractionVoice(kTommyRichardInteraction.key);
+        }
         // Certains pouvoirs se déclenchent normalement à la révélation — pour
         // Tommy (déjà révélé), on les déclenche immédiatement après la copie.
         if (p.copiedEffect == 'builder_power') {
@@ -1241,6 +1257,8 @@ class SoloController extends ChangeNotifier {
         s.abilityDiceResult = {'d': 6, 'result': dt, 'dmg': dealtTr};
         s.abilityOverlay = 'travert_shockwave';
         _log('🎲 Travert lance D6($dt) → inflige $dealtTr blessures à ${target.name} !', cls: 'player');
+        final travertIt = _eg.travertInteraction(s.players);
+        audio.playInteractionVoice(travertIt.key);
         _checkWin(justDiedId: target.alive ? null : target.uid);
         s.phase = GamePhase.move; notifyListeners(); return;
 
@@ -1602,6 +1620,10 @@ class SoloController extends ChangeNotifier {
     state!.phase = GamePhase.cardDrawn;
     if (card.deck != DeckType.vision) {
       _log('🃏 Tu pioches : ${card.name}', cls: 'player');
+      // Julien pioche le Bucket de Poulet
+      if (card.id == 'L16' && state!.current.character?.id == 'julien') {
+        audio.playInteractionVoice(kJulienBucketInteraction.key);
+      }
     } else {
       _log('🔮 Tu pioches une carte Vision...', cls: 'player');
       // Jeanne Baba: peut infliger 4 à une cible en recevant une vision
@@ -1841,8 +1863,12 @@ class SoloController extends ChangeNotifier {
     final res = _eg.resolveAttackFull(attacker, target, actualDmg, state!.players, attackCount: attacker.attackCount - 1);
     _log(res['log'] as String, cls: 'player');
     if (!target.alive) { _log('💀 ${target.name} est éliminé !', cls: 'death'); }
-    // Mathieu 3e attaque : animation
+    // Mathieu 3e attaque : animation + voice line (au moment précis de l'activation)
     if (isMathieuThird) state!.abilityOverlay = 'mathieu_bullet';
+    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus'
+        && attacker.attackCount == 3) {
+      audio.playInteractionVoice(kMathieuActivateInteraction.key);
+    }
     // Scott contre-attaque : animation
     if (res['scottCountered'] == true) state!.abilityOverlay = 'scott_counter';
     // Gège le Fantôme : attaque automatiquement la même cible

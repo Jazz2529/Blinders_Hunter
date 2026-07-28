@@ -179,6 +179,8 @@ class Player {
   String? disguiseFactionOverride;
   String? disguiseCharIdOverride; // ID du perso imité — pour afficher sa carte complète
   bool disguiseJustLost = false; // Jason : vient de perdre son déguisement (5+ dégâts/tour) — déclenche sa vraie révélation
+  bool jasonWeaponVoicePlayed = false; // Jason : voice line arme spéciale déjà jouée cette partie (une seule fois)
+  bool marinDagueVoicePlayed = false; // Marin : voice line dague déjà jouée cette partie (une seule fois)
   int damageTakenThisTurn; // remis à 0 au début de CHAQUE tour (Jason: perd son déguisement à 5+)
   List<GameCard> equipment;
 
@@ -233,6 +235,8 @@ class Player {
     this.disguiseCharIdOverride,
     this.damageTakenThisTurn = 0,
     this.disguiseJustLost = false,
+    this.jasonWeaponVoicePlayed = false,
+    this.marinDagueVoicePlayed = false,
     List<GameCard>? equipment,
   }) : equipment = equipment ?? [];
 
@@ -267,6 +271,8 @@ class Player {
     'disguiseFactionOverride': disguiseFactionOverride,
     'damageTakenThisTurn': damageTakenThisTurn,
     'disguiseJustLost': disguiseJustLost,
+    'jasonWeaponVoicePlayed': jasonWeaponVoicePlayed,
+    'marinDagueVoicePlayed': marinDagueVoicePlayed,
     'equipment': equipment.map((e) => e.toJson()).toList(),
   };
 
@@ -323,6 +329,8 @@ class Player {
     disguiseCharIdOverride: j['disguiseCharIdOverride'] as String?,
     damageTakenThisTurn: (j['damageTakenThisTurn'] as int?) ?? 0,
     disguiseJustLost: (j['disguiseJustLost'] as bool?) ?? false,
+    jasonWeaponVoicePlayed: (j['jasonWeaponVoicePlayed'] as bool?) ?? false,
+    marinDagueVoicePlayed: (j['marinDagueVoicePlayed'] as bool?) ?? false,
     equipment: ((j['equipment'] as List?) ?? [])
         .map((e) => GameCard.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(),

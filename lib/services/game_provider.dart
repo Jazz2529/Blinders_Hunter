@@ -5,7 +5,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import '../data/game_data.dart';
+import '../data/interactions_data.dart';
 import 'engine.dart';
+import 'audio_service.dart';
 import 'firebase_service.dart';
 import 'persistence.dart';
 
@@ -598,6 +600,10 @@ class GameProvider extends ChangeNotifier {
       final copiedName = parts.length > 1 ? parts[1] : '?';
       final copiedAbilityText = parts.length > 2 ? parts.sublist(2).join(':') : '';
       await _commitAll(all, '🎭 ${actor.name} copie le pouvoir de $copiedName : $copiedAbilityText');
+      // Tommy utilise sa capacité alors que Richard II est révélé
+      if (_eg.checkTommyRichardInteraction(all)) {
+        audio.playInteractionVoice(kTommyRichardInteraction.key);
+      }
       // Certains pouvoirs se déclenchent normalement à la révélation — pour
       // Tommy (déjà révélé), on les déclenche immédiatement après la copie.
       if (actor.copiedEffect == 'builder_power') {
@@ -682,6 +688,11 @@ class GameProvider extends ChangeNotifier {
     await _commitAll(all, log);
     await _checkWin(all, justDiedId: tgt != null && !tgt.alive ? tgt.uid
         : (!actor.alive ? actor.uid : null));
+
+    // Travert : voice line (spéciale si Clémence révélée, sinon générale)
+    if ((actor.copiedEffect ?? actor.character?.abilityEffect ?? '') == 'd6_global_attack') {
+      audio.playInteractionVoice(_eg.travertInteraction(all).key);
+    }
 
     final overlay = _abilityOverlays[actor.copiedEffect ?? actor.character?.abilityEffect ?? ''];
     final dice = _extractDiceFromLog(log);
@@ -802,6 +813,10 @@ class GameProvider extends ChangeNotifier {
       await _fb.addPrivateLog(roomId!, myUid!, '🔮 Tu as pioché : ${card.name}');
     } else {
       await _fb.addLog(roomId!, '🃏 ${me!.name} pioche : ${card.name}');
+      // Julien pioche le Bucket de Poulet
+      if (card.id == 'L16' && me!.character?.id == 'julien') {
+        audio.playInteractionVoice(kJulienBucketInteraction.key);
+      }
     }
   }
 
@@ -957,6 +972,10 @@ class GameProvider extends ChangeNotifier {
     attacker.attackCount++;
     final isMathieuThird = (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus'
         && attacker.attackCount >= 3;
+    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus'
+        && attacker.attackCount == 3) {
+      audio.playInteractionVoice(kMathieuActivateInteraction.key);
+    }
     bool scottCountered = false;
     String log;
     if (attacker.bazooka) {

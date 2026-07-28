@@ -124,6 +124,20 @@ class AudioService extends ChangeNotifier {
     try { await _ropePlayer.stop(); } catch (_) {}
   }
 
+  // ── Interaction entre personnages (voice lines) ─────────────────────────
+  // PLACEHOLDER : cherche 'assets/audio/interact_<key>.mp3'. Utilise le
+  // lecteur secondaire pour ne pas couper le son de révélation en cours.
+  Future<void> playInteractionVoice(String key) async {
+    if (!_sfxEnabled) return;
+    try {
+      await _sfxPlayer2.stop();
+      await _sfxPlayer2.setVolume(_sfxVolume);
+      await _sfxPlayer2.play(AssetSource('audio/interact_$key.mp3'));
+    } catch (e) {
+      debugPrint('Audio: interact_$key.mp3 not found (placeholder) — $e');
+    }
+  }
+
   // ── Réplique de révélation (voix du personnage) ─────────────────────────
   // PLACEHOLDER : cherche 'assets/audio/reveal_<id>.mp3'. Remplace ces
   // fichiers un par un au fur et à mesure que tu les enregistres — aucun

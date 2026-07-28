@@ -20,6 +20,7 @@ import 'home_screen.dart';
 import '../widgets/terrain_widget.dart';
 import '../data/tokens_data.dart';
 import '../data/characters_data.dart';
+import '../data/interactions_data.dart';
 import '../data/game_data.dart'; // cardImagePath, characterImagePath, terrainImagePath
 
 // ─────────────────────────────────────────────
@@ -348,7 +349,7 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
         final rp = s.players.firstWhere(
           (p) => p.uid == s.pendingRevealAnimation,
           orElse: () => s.players.first);
-        return _RevealFullScreen(player: rp, onDone: () {
+        return _RevealFullScreen(player: rp, allPlayers: s.players, onDone: () {
           ctrl.state!.pendingRevealAnimation = null;
           ctrl.notifyListeners();
         });
@@ -3015,7 +3016,8 @@ class _RevealFullScreen extends StatefulWidget {
   final Player player;
   final VoidCallback onDone;
   final bool isRealReveal; // false = simple aperçu privé (Vision Suprême)
-  const _RevealFullScreen({required this.player, required this.onDone, this.isRealReveal = true});
+  final List<Player>? allPlayers; // pour détecter les interactions entre personnages
+  const _RevealFullScreen({required this.player, required this.onDone, this.isRealReveal = true, this.allPlayers});
   @override State<_RevealFullScreen> createState() => _RevealFullScreenState();
 }
 
@@ -3023,6 +3025,7 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
     with TickerProviderStateMixin {
   late AnimationController _enterAc, _pulseAc;
   late Animation<double> _scale, _fade, _pulse;
+  CharInteraction? _interaction;
 
   @override
   void initState() {
@@ -3043,6 +3046,22 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
     if (widget.isRealReveal && widget.player.character != null) {
       final voiceId = widget.player.disguiseCharIdOverride ?? widget.player.character!.id;
       audio.playRevealVoice(voiceId);
+      // Interaction entre personnages : si un autre joueur déjà révélé
+      // matche une interaction connue, jouer sa réplique juste après (léger
+      // délai pour ne pas se superposer à la voix de révélation).
+      if (widget.allPlayers != null) {
+        final effId = widget.player.disguiseCharIdOverride ?? widget.player.character!.id;
+        final otherRevealed = widget.allPlayers!
+            .where((p) => p.uid != widget.player.uid && p.alive && p.revealed && p.character != null)
+            .map((p) => p.character!.id).toSet();
+        final it = findRevealInteraction(effId, otherRevealed);
+        if (it != null) {
+          _interaction = it;
+          Future.delayed(const Duration(milliseconds: 4000), () {
+            if (mounted) audio.playInteractionVoice(it.key);
+          });
+        }
+      }
     }
     // Auto-dismiss après 3.5s
     Future.delayed(const Duration(milliseconds: 3500), () {
@@ -3136,6 +3155,18 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
                               border: Border.all(color: fc.withValues(alpha: 0.4))),
                             child: Text('« ${revealQuoteFor(p.disguiseCharIdOverride ?? c.id)} »',
                               style: body(12, c: kTextSub, fw: FontWeight.w600),
+                              textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          ),
+                        ],
+                        if (_interaction != null) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: kGold.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: kGold.withValues(alpha: 0.5))),
+                            child: Text('💬 ${_interaction!.text}',
+                              style: body(12, c: kGold2, fw: FontWeight.w600),
                               textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
                           ),
                         ],

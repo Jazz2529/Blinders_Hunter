@@ -18,6 +18,7 @@ import '../widgets/terrain_widget.dart';
 import '../widgets/ability_animations.dart';
 import '../data/tokens_data.dart';
 import '../data/characters_data.dart';
+import '../data/interactions_data.dart';
 import '../data/game_data.dart';
 import '../services/audio_service.dart';
 import '../services/engine.dart';
@@ -459,7 +460,8 @@ class GameScreen extends StatelessWidget {
         ropeSecondsLeft = ((GameProvider.turnTimeoutMs -
             (DateTime.now().millisecondsSinceEpoch - tsRope)) / 1000).ceil();
       }
-      final burningRope = BurningRopeTimer(secondsLeft: ropeSecondsLeft);
+      final scottInGame = gp.players.values.any((p) => p.alive && p.character?.id == 'scott');
+      final burningRope = BurningRopeTimer(secondsLeft: ropeSecondsLeft, scottInGame: scottInGame);
       // Réplique de révélation — visible/audible de tous, quelques secondes
       final revealQuoteUid = gs?.publicRevealUid;
       final revealTs = gs?.publicRevealTimestamp ?? 0;
@@ -468,7 +470,8 @@ class GameScreen extends StatelessWidget {
       final revealQuoteBanner = revealFresh
           ? _RevealQuoteBanner(
               key: ValueKey('reveal_${revealQuoteUid}_$revealTs'),
-              player: gp.players[revealQuoteUid])
+              player: gp.players[revealQuoteUid],
+              allPlayers: gp.players.values.toList())
           : const SizedBox.shrink();
       if (overlay == null && diceResult == null && lastDice == null) {
         return Stack(children: [baseScaffold, turnBanner, burningRope, revealQuoteBanner]);
@@ -2163,11 +2166,14 @@ class _LootChoicePanel extends StatelessWidget {
 // ─── Réplique de révélation — visible/audible de tous ────────────────────────
 class _RevealQuoteBanner extends StatefulWidget {
   final Player? player;
-  const _RevealQuoteBanner({super.key, required this.player});
+  final List<Player>? allPlayers; // pour détecter les interactions entre personnages
+  const _RevealQuoteBanner({super.key, required this.player, this.allPlayers});
   @override State<_RevealQuoteBanner> createState() => _RevealQuoteBannerState();
 }
 
 class _RevealQuoteBannerState extends State<_RevealQuoteBanner> {
+  CharInteraction? _interaction;
+
   @override
   void initState() {
     super.initState();
@@ -2180,6 +2186,20 @@ class _RevealQuoteBannerState extends State<_RevealQuoteBanner> {
     if (c != null) {
       final voiceId = widget.player!.disguiseCharIdOverride ?? c.id;
       audio.playRevealVoice(voiceId);
+      // Interaction entre personnages : réplique complémentaire si un autre
+      // joueur déjà révélé matche une interaction connue.
+      if (widget.allPlayers != null) {
+        final otherRevealed = widget.allPlayers!
+            .where((p) => p.uid != widget.player!.uid && p.alive && p.revealed && p.character != null)
+            .map((p) => p.character!.id).toSet();
+        final it = findRevealInteraction(voiceId, otherRevealed);
+        if (it != null) {
+          _interaction = it;
+          Future.delayed(const Duration(milliseconds: 4000), () {
+            if (mounted) audio.playInteractionVoice(it.key);
+          });
+        }
+      }
     }
   }
 
@@ -2210,6 +2230,12 @@ class _RevealQuoteBannerState extends State<_RevealQuoteBanner> {
               Text('« ${revealQuoteFor(quoteId)} »',
                 style: body(11, c: kTextSub, fw: FontWeight.w600),
                 textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+              if (_interaction != null) ...[
+                const SizedBox(height: 6),
+                Text('💬 ${_interaction!.text}',
+                  style: body(11, c: kGold, fw: FontWeight.w600),
+                  textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+              ],
             ]),
           ),
         ),

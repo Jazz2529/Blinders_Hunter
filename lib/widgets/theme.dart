@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import '../services/audio_service.dart';
+import '../data/interactions_data.dart';
 
 // ─── Palette ─────────────────────────────────
 const kBg0    = Color(0xFF080604);
@@ -347,7 +348,8 @@ class EntranceScale extends StatelessWidget {
 /// la corde finit de brûler.
 class BurningRopeTimer extends StatefulWidget {
   final int secondsLeft; // 0..30 (ou plus — le widget est alors invisible)
-  const BurningRopeTimer({super.key, required this.secondsLeft});
+  final bool scottInGame; // Scott a une réplique spéciale quand le minuteur atteint 30s
+  const BurningRopeTimer({super.key, required this.secondsLeft, this.scottInGame = false});
 
   static const int warningThreshold = 30;
 
@@ -383,6 +385,10 @@ class _BurningRopeTimerState extends State<BurningRopeTimer> {
     if (_visible && !_soundPlaying) {
       audio.playRopeBurningSound();
       _soundPlaying = true;
+      // Scott : réplique spéciale quand le minuteur passe sous 30s
+      if (widget.scottInGame) {
+        audio.playInteractionVoice(kScottTimerInteraction.key);
+      }
     } else if (!_visible && _soundPlaying) {
       audio.stopRopeBurningSound();
       _soundPlaying = false;
