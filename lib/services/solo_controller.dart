@@ -387,11 +387,6 @@ class SoloController extends ChangeNotifier {
     _log('─── Tour de ${p.name} ${p.isBot ? "(Bot)" : "(Vous)"} ───', cls: p.isBot ? 'bot' : 'player');
     // Sauvegarder la zone de départ du tour (pour Chaise Merguez)
     p.startZone = p.zoneIndex;
-    // Monkey Raph — pioche ténèbres au début du tour si révélé
-    if (pEff == 'draw_dark' && p.revealed) {
-      humanDrawCard(DeckType.tenebres);
-      _log('🐒 Monkey Raph pioche une carte Ténèbres (visible de tous)', cls: 'player');
-    }
     // Artcade — actif répétable (géré dans humanUseAbility)
     notifyListeners();
     if (p.isBot) await _playBot(p);
@@ -421,10 +416,40 @@ class SoloController extends ChangeNotifier {
               x.character != null &&
               !GameEngine.uncopyableAbilities.contains(x.character!.abilityEffect)))) {
       if (!bot.revealed) {
-        bot.revealed = true;
-        state!.pendingRevealAnimation = bot.uid;
-        audio.playReveal();
-        _log('🃏 ${bot.name} révèle sa carte');
+        if (bot.character!.abilityEffect == 'chameleon_passive') {
+          // Jason (bot) : se déguise en un Hunter ou Shadow réellement en jeu,
+          // au lieu de se révéler tel quel — sinon son mécanisme unique
+          // (usurper l'identité d'un autre personnage) est complètement ignoré.
+          final hunters = state!.players
+              .where((p) => p.character?.faction == Faction.hunter && p.character != null)
+              .map((p) => p.character!).toList();
+          final shadows = state!.players
+              .where((p) => p.character?.faction == Faction.shadow && p.character != null)
+              .map((p) => p.character!).toList();
+          if (hunters.isNotEmpty && shadows.isNotEmpty) {
+            final pool = [...hunters, ...shadows];
+            final disguise = pool[Random().nextInt(pool.length)];
+            bot.revealed = true;
+            bot.disguiseNameOverride = disguise.name;
+            bot.disguiseIconOverride = disguise.icon;
+            bot.disguiseFactionOverride = disguise.faction.name;
+            bot.disguiseCharIdOverride = disguise.id;
+            state!.pendingRevealAnimation = bot.uid;
+            audio.playReveal();
+            _log('🃏 ${bot.name} révèle : ${disguise.name}');
+          } else {
+            // Cas limite (pas assez de personnages des 2 factions en jeu)
+            bot.revealed = true;
+            state!.pendingRevealAnimation = bot.uid;
+            audio.playReveal();
+            _log('🃏 ${bot.name} révèle sa carte');
+          }
+        } else {
+          bot.revealed = true;
+          state!.pendingRevealAnimation = bot.uid;
+          audio.playReveal();
+          _log('🃏 ${bot.name} révèle sa carte');
+        }
       }
       final needsTarget = _abilityNeedsTarget(bot.character!.abilityEffect);
       Player? target;
@@ -1926,6 +1951,15 @@ class SoloController extends ChangeNotifier {
     state!.hasAttackedThisTurn = true;
     state!.phase = GamePhase.attack;
 
+    // Gège le Fantôme : variante Bazooka (AoE, un seul jet) si l'attaquant a
+    // le Bazooka et qu'il est un Hunter révélé.
+    final (gegeLog, gegeTriggered) = _eg.applyGegePassiveBazooka(attacker, state!.players);
+    if (gegeLog != null) {
+      _log(gegeLog, cls: 'player');
+      if (gegeTriggered) state!.abilityOverlay = 'gege_ghost';
+      for (final p in state!.players) { if (!p.alive && !killed.contains(p.uid)) killed.add(p.uid); }
+    }
+
     // Check wins after all attacks
     for (final uid in killed) _checkWin(justDiedId: uid);
     if (!state!.isOver) notifyListeners();
@@ -2021,9 +2055,13 @@ class SoloController extends ChangeNotifier {
   List<Player> get humanAttackTargets {
     if (state == null) return [];
     final targets = _eg.attackTargets(state!.current, state!.players, state!.terrainLayout);
-    // Hache / Sabre : si aucune cible accessible, le joueur s'attaque lui-même
+    // Hache / Sabre : si aucune cible accessible, le joueur s'attaque
+    // lui-même — SAUF si le Révolver des Ténèbres est équipé (règle de
+    // portée stricte inversée), sinon on proposait à tort un bouton
+    // "s'attaquer soi-même" qui n'a aucun sens avec le Révolver.
     final me = state!.current;
-    if (targets.isEmpty && (me.hache || me.epeeNinja)) return [me];
+    final hasRevolver = me.equipment.any((e) => e.effect == 'revolver_tenebres');
+    if (targets.isEmpty && (me.hache || me.epeeNinja) && !hasRevolver) return [me];
     return targets;
   }
 

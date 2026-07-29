@@ -1254,9 +1254,9 @@ class _ActionPanelState extends State<_ActionPanel> {
         ];
       case GamePhase.cardChoice:
         return [
-          BHButton(label:'✨ Deck Lumière',   onTap:()=>gp.drawCard(DeckType.lumiere)),
-          BHButton(label:'🌑 Deck Ténèbres',  onTap:()=>gp.drawCard(DeckType.tenebres)),
-          BHButton(label:'🔮 Deck Vision',    onTap:()=>gp.drawCard(DeckType.vision)),
+          BHButton(label:'✨ Deck Lumière',   onTap:()=>_act(()=>gp.drawCard(DeckType.lumiere))),
+          BHButton(label:'🌑 Deck Ténèbres',  onTap:()=>_act(()=>gp.drawCard(DeckType.tenebres))),
+          BHButton(label:'🔮 Deck Vision',    onTap:()=>_act(()=>gp.drawCard(DeckType.vision))),
         ];
       case GamePhase.cardDrawn:
         final cardId = gp.gameState?.pendingAction;
@@ -1376,7 +1376,7 @@ class _ActionPanelState extends State<_ActionPanel> {
                 Text('Aucun équipement disponible', style: body(12, c: kTextSub))
               else ...equipList.asMap().entries.map((entry) => BHButton(
                 label: entry.value.name,
-                onTap: () => gp.resolveEquipChoiceMulti(mode, actorUid, targetUid, entry.key),
+                onTap: () => _act(() => gp.resolveEquipChoiceMulti(mode, actorUid, targetUid, entry.key)),
               )),
             ];
           }
@@ -1386,21 +1386,28 @@ class _ActionPanelState extends State<_ActionPanel> {
           const SizedBox(height: 6),
           if (all.isEmpty) Text('Aucune cible valide.', style: body(13, c: kTextSub)),
           ...all.map((t) {
-            void onTap() {
+            // IMPORTANT : enveloppé dans _act() (verrou anti-double-clic) —
+            // sans ça, un clic rapide/répété pouvait déclencher 2 appels
+            // concurrents basés sur le même instantané Firebase pas encore
+            // synchronisé, le 2ème écrasant le 1er (dégâts qui semblaient
+            // "annulés"/soignés après une attaque de Vlad par exemple).
+            Future<void> onTap() async {
               if (pta == 'terrain_damage9' || pta == 'terrain_steal') {
-                gp.applyTerrainTarget(t);
+                await gp.applyTerrainTarget(t);
               } else if (pta == 'corne_des_woods_victim') {
-                gp.resolveCorneVictim(t);
+                await gp.resolveCorneVictim(t);
               } else if (pta == 'ability_vlad_adjacent') {
-                gp.useAbility(target: t);
+                await gp.useAbility(target: t);
               } else if (pta == 'terrain_max_aoe') {
-                gp.hongYiApplyAbility(t);
+                await gp.hongYiApplyAbility(t);
               } else if (pta == 'jeanne_mark_target') {
-                gp.jeanneChooseTarget(t);
+                await gp.jeanneChooseTarget(t);
               } else if (pta == 'casino_win') {
-                gp.casinoApplyDamage(t);
+                await gp.casinoApplyDamage(t);
               } else if (pta == 'damien_serve') {
-                gp.damienChooseTarget(t);
+                await gp.damienChooseTarget(t);
+              } else if (pta == 'clemence_target') {
+                await gp.clemenceApplyToTarget(t);
               } else if (pta != null && pta.startsWith('vision_') ||
                   pta == 'banane_demonique' || pta == 'vampirisation' ||
                   pta == 'blue_shell' || pta == 'veuve_noire' ||
@@ -1408,15 +1415,15 @@ class _ActionPanelState extends State<_ActionPanel> {
                   pta == 'trebuchet' || pta == 'set_marker7_choice' ||
                   pta == 'heal_other_d6' || pta == 'heal_other_d4' ||
                   pta == 'creation_marin' || pta == 'corne_des_woods') {
-                gp.applyCard(target: t);
+                await gp.applyCard(target: t);
               } else {
                 // Pouvoirs nécessitant une cible (set_wounds5, damage2_then_heal3, etc.)
-                gp.useAbility(target: t);
+                await gp.useAbility(target: t);
               }
             }
             return BHButton(
               label:'${t.name} (${t.token})  ${t.wounds}🩸',
-              onTap: onTap,
+              onTap: () => _act(onTap),
             );
           }),
         ];
@@ -2195,7 +2202,7 @@ class _RevealQuoteBannerState extends State<_RevealQuoteBanner> {
         final it = findRevealInteraction(voiceId, otherRevealed);
         if (it != null) {
           _interaction = it;
-          Future.delayed(const Duration(milliseconds: 4000), () {
+          Future.delayed(const Duration(milliseconds: 1600), () {
             if (mounted) audio.playInteractionVoice(it.key);
           });
         }

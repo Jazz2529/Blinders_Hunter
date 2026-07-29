@@ -230,6 +230,7 @@ class GameEngine with AbilityEngine {
         if (target == null || target.equipment.isEmpty) return '${actor.name} — aucun équipement à voler';
         final e = target.equipment.removeAt(_rng.nextInt(target.equipment.length));
         actor.equipment.add(e); _equipPassive(actor, e);
+        recalcPassives(target); // sinon la victime garde le passif de l'objet volé
         return '🗡 ${actor.name} vole "${e.name}" à ${target.name}';
 
       case 'draw_dark':
@@ -531,6 +532,7 @@ class GameEngine with AbilityEngine {
         }
         final eMarin = actor.equipment.removeAt(0);
         target.equipment.add(eMarin); _equipPassive(target, eMarin);
+        recalcPassives(actor); // sinon il garde le passif de l'objet qu'il vient de donner
         applyDamage(target, 2);
         return {'log': '🩸 ${actor.name} donne "${eMarin.name}" à ${target.name} et lui infligez 2 blessures', 'needsTarget': false};
       case 'corne_des_woods':
@@ -553,6 +555,13 @@ class GameEngine with AbilityEngine {
         applyDamage(target, 2, isTenebresCard: true); applyHeal(actor, 1);
         return {'log': '🦇 ${actor.name} vampirise ${target.name}', 'needsTarget': false};
       case 'blue_shell':
+        if (target.revealed &&
+            (target.copiedEffect ?? target.character?.abilityEffect ?? '') == 'tenebres_heal_instead') {
+          // Bibble : cette carte Ténèbres le soigne au lieu de le blesser.
+          final wouldBe = target.wounds < 5 ? (5 - target.wounds) : 0;
+          if (wouldBe > 0) applyHeal(target, wouldBe);
+          return {'log': '🐚 ${target.name} (Bibble) se soigne de $wouldBe au lieu de subir la carte', 'needsTarget': false};
+        }
         if (target.wounds < 5) target.wounds = 5;
         return {'log': '🐚 ${target.name} passe à 5 blessures', 'needsTarget': false};
       case 'veuve_noire':
@@ -578,7 +587,9 @@ class GameEngine with AbilityEngine {
         return {'log': '🗡 ${actor.name} vole "${ep.name}" à ${target.name}', 'needsTarget': false};
       case 'trebuchet':
         if (actor.equipment.isEmpty) { applyDamage(actor, 1, isTenebresCard: true); return {'log': '⚙️ ${actor.name} sans équipement — subit 1', 'needsTarget': false}; }
-        final e = actor.equipment.removeAt(0); target.equipment.add(e); _equipPassive(target, e); applyDamage(target, 3, isTenebresCard: true);
+        final e = actor.equipment.removeAt(0); target.equipment.add(e); _equipPassive(target, e);
+        recalcPassives(actor); // sinon il garde le passif de l'objet qu'il vient de perdre (ex: Sainte Tunique)
+        applyDamage(target, 3, isTenebresCard: true);
         return {'log': '⚙️ ${actor.name} envoie "${e.name}" + 3 dégâts à ${target.name}', 'needsTarget': false};
       case 'vision_shadow_2': return _vision(actor, target, Faction.shadow, 2);
       case 'vision_shadow_1': return _vision(actor, target, Faction.shadow, 1);
@@ -1108,6 +1119,34 @@ class GameEngine with AbilityEngine {
   String? applyGegePassive(Player attacker, Player target, List<Player> all) =>
       applyGegePassiveEx(attacker, target, all).$1;
 
+  /// Gège le Fantôme — variante Bazooka : si le Hunter révélé qui vient
+  /// d'attaquer possédait le Bazooka (Mitrailleuse Funeste), Gège inflige
+  /// lui aussi des dégâts à TOUS les joueurs à portée, avec un seul jet de
+  /// dés (comme le bazooka lui-même), plutôt qu'une attaque simple sur une
+  /// seule cible.
+  (String?, bool) applyGegePassiveBazooka(Player attacker, List<Player> all) {
+    if (attacker.character?.faction != Faction.hunter || !attacker.revealed) return (null, false);
+    Player? gege;
+    for (final p in all) {
+      if (p.alive && p.revealed && p.uid != attacker.uid &&
+          (p.copiedEffect ?? p.character?.abilityEffect ?? '') == 'gege_passive') {
+        gege = p; break;
+      }
+    }
+    if (gege == null) return (null, false);
+    final r = rollAttack();
+    final dmg = r['damage']!;
+    int hit = 0;
+    for (final p in all) {
+      if (p.alive && p.uid != gege.uid && p.uid != attacker.uid) {
+        applyDamage(p, dmg);
+        if (!p.alive) p.killedByUid = gege.uid;
+        hit++;
+      }
+    }
+    return ('👻 Gège tire aussi au Bazooka — D4(${r['d4']}) D6(${r['d6']}) → $dmg dégâts à $hit joueur(s)', true);
+  }
+
   /// Résout le choix de la cible pour les cartes "Divination X ou Y" :
   /// `giveEquipment = true` → la cible donne un équipement (choisi par
   /// `equipmentIndex` si fourni, sinon le premier) à l'auteur de la carte.
@@ -1121,6 +1160,7 @@ class GameEngine with AbilityEngine {
     final idx = (equipmentIndex != null && equipmentIndex < target.equipment.length) ? equipmentIndex : 0;
     final e = target.equipment.removeAt(idx);
     actor.equipment.add(e); _equipPassive(actor, e);
+    recalcPassives(target); // sinon la cible garde le passif de l'objet donné
     return '🔮 ${target.name} donne "${e.name}" à ${actor.name}';
   }
 
@@ -1353,6 +1393,7 @@ class GameEngine with AbilityEngine {
         if (target.equipment.isNotEmpty) {
           final eq = target.equipment.removeAt(0);
           actor.equipment.add(eq); _equipPassive(actor, eq);
+          recalcPassives(target); // sinon la victime garde le passif de l'objet volé
           return '🗡️ Clémence vole "${eq.name}" à ${target.name}';
         }
         return '🗡️ Clémence : ${target.name} n\'a aucun équipement';

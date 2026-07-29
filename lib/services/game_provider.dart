@@ -46,8 +46,12 @@ class GameProvider extends ChangeNotifier {
   List<Player> get attackTargets {
     final actor = me; if (actor == null || gameState == null) return [];
     final targets = _eg.attackTargets(actor, players.values.toList(), gameState!.terrainLayout);
-    // Hache / Sabre : si aucune cible accessible, s'attaque soi-même
-    if (targets.isEmpty && (actor.hache || actor.epeeNinja)) return [actor];
+    // Hache / Sabre : si aucune cible accessible, s'attaque soi-même — SAUF
+    // si le Révolver des Ténèbres est équipé (règle de portée stricte
+    // inversée), sinon on proposait à tort un bouton "s'attaquer soi-même"
+    // qui n'a aucun sens avec le Révolver et créait un bouton fantôme.
+    final hasRevolver = actor.equipment.any((e) => e.effect == 'revolver_tenebres');
+    if (targets.isEmpty && (actor.hache || actor.epeeNinja) && !hasRevolver) return [actor];
     return targets;
   }
 
@@ -991,7 +995,11 @@ class GameProvider extends ChangeNotifier {
       log = res['log'] as String;
       if (res['scottCountered'] == true) scottCountered = true;
     }
-    final (gegeLog, gegeTriggered) = _eg.applyGegePassiveEx(attacker, target, all);
+    // Gège le Fantôme : variante Bazooka (AoE, un seul jet) si l'attaquant a
+    // le Bazooka, sinon variante normale (cible unique).
+    final (gegeLog, gegeTriggered) = attacker.bazooka
+        ? _eg.applyGegePassiveBazooka(attacker, all)
+        : _eg.applyGegePassiveEx(attacker, target, all);
     if (gegeLog != null) log = '$log\n$gegeLog';
     // Gège le Fantôme : la contre-attaque de Scott EST aussi une attaque d'un
     // Hunter révélé — sans ce check séparé, Gège ne se déclenchait jamais
