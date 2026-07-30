@@ -829,6 +829,11 @@ class GameProvider extends ChangeNotifier {
     final card = findCardById(cardId); if (card == null) return;
     final all   = _mutableAll();
     final actor = all.firstWhere((p) => p.uid == myUid);
+    // Snapshot des joueurs vivants AVANT résolution — pour n'attribuer le
+    // killedByUid de rattrapage qu'aux joueurs qui viennent VRAIMENT de
+    // mourir à cause de cette carte, pas à un mort plus ancien d'une autre
+    // cause (bot, poison...), ce qui offrait sinon un faux butin.
+    final aliveBeforeUids = all.where((x) => x.alive).map((x) => x.uid).toSet();
     final tgt = target != null
         ? all.firstWhere((p) => p.uid == target.uid, orElse: () => actor)
         : null;
@@ -885,12 +890,15 @@ class GameProvider extends ChangeNotifier {
     // Rattrapage : de nombreux effets de carte infligent des dégâts sans
     // attribuer explicitement killedByUid — sans ça, Tommy ne serait jamais
     // reconnu comme l'auteur du kill quand il joue une carte lui-même.
-    for (final d in all.where((x) => !x.alive)) { d.killedByUid ??= actor.uid; }
+    for (final d in all.where((x) => !x.alive && aliveBeforeUids.contains(x.uid))) { d.killedByUid ??= actor.uid; }
     await _commitAll(all, res['log'] as String);
     // Une carte peut tuer plusieurs joueurs (AoE, Dynamite...) — vérifier la
     // victoire pour CHAQUE joueur mort, pas seulement la cible unique passée
     // (sinon Tommy/Mango Loco ne gagnent jamais quand le kill vient d'une carte).
-    final justDied = all.where((x) => !x.alive).toList();
+    // IMPORTANT : uniquement les joueurs NOUVELLEMENT morts (aliveBeforeUids) —
+    // sinon un joueur déjà mort d'une autre cause se voyait re-proposé en
+    // butin à chaque nouvelle carte jouée par n'importe qui.
+    final justDied = all.where((x) => !x.alive && aliveBeforeUids.contains(x.uid)).toList();
     if (justDied.isEmpty) {
       await _checkWin(all);
     } else {
@@ -973,6 +981,10 @@ class GameProvider extends ChangeNotifier {
     final all = _mutableAll();
     final attacker = all.firstWhere((p) => p.uid == myUid);
     final target = all.firstWhere((p) => p.uid == targetId);
+    // Snapshot des vivants avant l'attaque — pour ne considérer que les morts
+    // VRAIMENT causées par cette attaque (bazooka notamment), pas un mort
+    // plus ancien resté par erreur non traité.
+    final aliveBeforeUids = all.where((x) => x.alive).map((x) => x.uid).toSet();
     attacker.attackCount++;
     final isMathieuThird = (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus'
         && attacker.attackCount >= 3;
@@ -1015,7 +1027,7 @@ class GameProvider extends ChangeNotifier {
     // victoire/butin/récompense de Jeanne pour CHAQUE mort, pas seulement la
     // cible cliquée (sinon un 2e joueur tué par la même volée était ignoré).
     if (attacker.bazooka) {
-      final justDied = all.where((x) => !x.alive).toList();
+      final justDied = all.where((x) => !x.alive && aliveBeforeUids.contains(x.uid)).toList();
       if (justDied.isEmpty) {
         await _checkWin(all);
       } else {

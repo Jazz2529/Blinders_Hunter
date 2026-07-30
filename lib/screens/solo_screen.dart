@@ -2011,7 +2011,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
   String? _atkTarget;
   // Pour terrain9 et steal : on montre les cibles inline
   bool _showingTargetList = false;
-  String? _targetContext; // 'terrain9' | 'terrain_steal' | 'card' | 'ability'
+  String? _targetContext; // 'terrain_damage9' | 'terrain_steal' | 'card' | 'ability'
 
   SoloController get ctrl => widget.ctrl;
   SoloState get s => ctrl.state!;
@@ -2340,7 +2340,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                 // Ne PAS appeler humanApplyTerrainEffect() ici — ça change la phase
                 // On set directement pendingTargetAction dans le state
                 ctrl.state!.pendingTargetAction = 'terrain_damage9';
-                setState(() { _showingTargetList = true; _targetContext = 'terrain9'; });
+                setState(() { _showingTargetList = true; _targetContext = 'terrain_damage9'; });
               }),
             BHButton(label: 'Ignorer → Attaquer',
               onTap: () { ctrl.humanSkipTerrain(); setState(() {}); }, outlined: true),
@@ -2582,7 +2582,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       targets = s.players.where((p) => p.alive).toList();
     }
     // Terrain 9 : peut aussi se cibler soi-même
-    if (context == 'terrain9') {
+    if (context == 'terrain_damage9') {
       targets = s.players.where((p) => p.alive).toList();
     }
     // Premier Secours ("vous compris") : peut aussi se cibler soi-même
@@ -2650,7 +2650,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     }
 
     String title = 'Choisir une cible';
-    if (context == 'terrain9')            title = '🏹 Qui infliger 2 dégâts ?';
+    if (context == 'terrain_damage9')     title = '🏹 Qui infliger 2 dégâts ?';
     if (context.contains('steal'))        title = '🗼 Voler l\'équipement de qui ?';
     if (context.contains('heal'))         title = '💚 Qui soigner ?';
     if (context == 'ability_vladimir')    title = '💨 Vlad — Joueur adjacent (D4)';
@@ -2755,8 +2755,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     setState(() { _showingTargetList = false; _targetContext = null; });
     // Ne PAS effacer pendingTargetAction ici — chaque branche le fait elle-même
 
-    if (context == 'terrain9') {
-      ctrl.state!.pendingTargetAction = 'terrain_damage9';
+    if (context == 'terrain_damage9') {
       ctrl.humanApplyTerrainTarget(target.uid);
     } else if (context == 'terrain_steal') {
       ctrl.state!.pendingTargetAction = 'terrain_steal';

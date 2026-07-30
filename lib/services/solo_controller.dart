@@ -1680,6 +1680,12 @@ class SoloController extends ChangeNotifier {
   void humanApplyCard({Player? target}) {
     final card = state!.pendingCard; if (card == null) return;
     final p = state!.current;
+    // Snapshot des joueurs vivants AVANT résolution — indispensable pour ne
+    // rattraper le killedByUid QUE des joueurs qui viennent de mourir à
+    // cause de cette carte précise, pas de n'importe quel mort plus ancien
+    // (sinon on pouvait attribuer à tort un kill fait par un bot/autre
+    // source à celui qui vient de jouer une carte sans rapport).
+    final aliveBeforeUids = state!.players.where((x) => x.alive).map((x) => x.uid).toSet();
     // BIBBLE: si carte Ténèbres → soigner au lieu de blesser
     final bEff = p.copiedEffect ?? p.character?.abilityEffect ?? '';
     if (bEff == 'tenebres_heal_instead' && p.revealed && card.deck == DeckType.tenebres) {
@@ -1761,7 +1767,11 @@ class SoloController extends ChangeNotifier {
     // Une carte peut tuer un ou plusieurs joueurs (AoE) — vérifier la victoire
     // pour CHAQUE joueur mort suite à cette carte (sinon Tommy/Mango Loco ne
     // sont jamais reconnus vainqueurs quand le kill vient d'une carte).
-    final justDied = state!.players.where((x) => !x.alive).toList();
+    // IMPORTANT : on ne considère que les joueurs qui étaient VIVANTS avant
+    // cette résolution (aliveBeforeUids) — sinon un joueur déjà mort d'une
+    // autre cause (bot, poison...) se retrouvait à tort attribué à celui qui
+    // vient de jouer une carte sans rapport, lui offrant un faux butin.
+    final justDied = state!.players.where((x) => !x.alive && aliveBeforeUids.contains(x.uid)).toList();
     // Rattrapage : de nombreux effets de carte infligent des dégâts sans
     // attribuer explicitement killedByUid — sans ça, Tommy ne serait jamais
     // reconnu comme l'auteur du kill quand il joue une carte lui-même.
@@ -1934,6 +1944,9 @@ class SoloController extends ChangeNotifier {
     final targets = _eg.attackTargets(attacker, state!.players, state!.terrainLayout);
     if (targets.isEmpty) { notifyListeners(); return; }
 
+    // Snapshot des vivants avant l'attaque — pour ne jamais ré-attribuer à
+    // tort le kill d'un joueur déjà mort d'une autre cause plus ancienne.
+    final aliveBeforeUids = state!.players.where((x) => x.alive).map((x) => x.uid).toSet();
     final actualDmg = state!.fifiGoldenTurn ? state!.fifiAtkResult : dmg;
     final killed = <String>[];
 
@@ -1957,7 +1970,9 @@ class SoloController extends ChangeNotifier {
     if (gegeLog != null) {
       _log(gegeLog, cls: 'player');
       if (gegeTriggered) state!.abilityOverlay = 'gege_ghost';
-      for (final p in state!.players) { if (!p.alive && !killed.contains(p.uid)) killed.add(p.uid); }
+      for (final p in state!.players) {
+        if (!p.alive && !killed.contains(p.uid) && aliveBeforeUids.contains(p.uid)) killed.add(p.uid);
+      }
     }
 
     // Check wins after all attacks

@@ -217,12 +217,12 @@ const List<CharacterCard> kAllCharacters = [
 
 // ─── Terrains ────────────────────────────────────────────────────────────────
 const List<Terrain> kAllTerrains = [
-  Terrain(num:'2-3', id:0, name:'Bosquet du Sorcier', effect:'vision',   desc:'Piochez une carte Vision',    icon:'🔮'),
-  Terrain(num:'4-5', id:1, name:'Marché des Ombres',  effect:'choice',   desc:'Piochez une carte de votre choix', icon:'🏪'),
-  Terrain(num:'6',   id:2, name:'Chapelle Sacrée',     effect:'lumiere',  desc:'Piochez une carte Lumière',   icon:'⛪'),
-  Terrain(num:'8',   id:3, name:'Forge Maudite',       effect:'tenebres', desc:'Piochez une carte Ténèbres',  icon:'🔨'),
-  Terrain(num:'9',   id:4, name:'Clairière',            effect:'damage9',  desc:'Infligez 2 blessures au joueur de votre choix', icon:'🏹'),
-  Terrain(num:'10',  id:5, name:'Tour du Voleur',       effect:'steal',    desc:'Volez une carte équipement',  icon:'🗼'),
+  Terrain(num:'2-3', id:0, name:'Bibliothèque', effect:'vision',   desc:'Piochez une carte Vision',    icon:'🔮'),
+  Terrain(num:'4-5', id:1, name:'Hall',  effect:'choice',   desc:'Piochez une carte de votre choix', icon:'🏪'),
+  Terrain(num:'6',   id:2, name:'Salle de Bain',     effect:'lumiere',  desc:'Piochez une carte Lumière',   icon:'⛪'),
+  Terrain(num:'8',   id:3, name:'Cuisine',       effect:'tenebres', desc:'Piochez une carte Ténèbres',  icon:'🔨'),
+  Terrain(num:'9',   id:4, name:'Salon',            effect:'damage9',  desc:'Infligez 2 blessures au joueur de votre choix', icon:'🏹'),
+  Terrain(num:'10',  id:5, name:'Chambre',       effect:'steal',    desc:'Volez une carte équipement',  icon:'🗼'),
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

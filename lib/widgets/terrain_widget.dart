@@ -114,6 +114,7 @@ class TerrainTile extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         decoration: BoxDecoration(
+          color: kBg2,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: borderColor, width: borderWidth),
           boxShadow: glowColor != null
@@ -276,7 +277,7 @@ class _TerrainImg extends StatelessWidget {
   Widget build(BuildContext context) {
     final path = terrainImagePath(effect);
     if (path == null) return _fallback(effect);
-    return Image.asset(path, fit: BoxFit.cover,
+    return Image.asset(path, fit: BoxFit.contain,
       errorBuilder: (_, __, ___) => _fallback(effect));
   }
 

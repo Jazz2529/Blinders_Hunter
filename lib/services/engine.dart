@@ -1211,6 +1211,7 @@ class GameEngine with AbilityEngine {
   /// butin doit être proposée, sinon null. Ne se déclenche pas si le tueur
   /// a déjà volé automatiquement tout l'équipement (Crucifix en Argent).
   (String, String)? checkLootOpportunity(Player dead, List<Player> all) {
+    if (dead.alive) return null; // sécurité : jamais de butin sur un joueur encore en vie
     if (dead.equipment.isEmpty || dead.killedByUid == null) return null;
     Player? killer;
     for (final k in all) { if (k.uid == dead.killedByUid) { killer = k; break; } }
