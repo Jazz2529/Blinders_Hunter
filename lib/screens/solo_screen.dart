@@ -245,7 +245,7 @@ class _SoloSetupState extends State<SoloSetupScreen> with SingleTickerProviderSt
   Widget? _charImg(String id) {
     final path = characterImagePath(id);
     if (path == null) return null;
-    return Image.asset(path, fit: BoxFit.cover,
+    return Image.asset(path, fit: BoxFit.cover, cacheWidth: 240,
       errorBuilder: (_, __, ___) => const SizedBox.shrink());
   }
 
@@ -1369,6 +1369,7 @@ class _RoleRevealScreenState extends State<_RoleRevealScreen>
                             aspectRatio: 2 / 3,
                             child: imgPath != null
                               ? Image.asset(imgPath, fit: BoxFit.cover,
+                                  cacheWidth: 360, cacheHeight: 540,
                                   errorBuilder: (_, __, ___) => Container(color: fbg,
                                     child: Center(child: Text(char.icon,
                                       style: const TextStyle(fontSize: 60)))))
@@ -1613,6 +1614,7 @@ class _PlayerCardSide extends StatelessWidget {
             ),
             child: img != null
               ? Image.asset(img, fit: BoxFit.cover, width: double.infinity,
+                  cacheWidth: 320,
                   errorBuilder: (_, __, ___) => _fallback(c, fbg))
               : _fallback(c, fbg),
           ),
@@ -1702,20 +1704,22 @@ class _HpLeaderboard extends StatelessWidget {
 
     return Container(
       color: kBg1,
-      padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('🗡 BLESSURES', style: cinzel(8, c: kGold, ls: 2)),
-        const SizedBox(height: 6),
-        Row(children: players.map((p) => Expanded(
-          child: _WoundsColumn(
-            player: p,
-            isCurrent: s.players.indexOf(p) == s.currentIdx,
-            isMe: !p.isBot,
-            isFlashing: s.woundFlashUid == p.uid,
-            isMarked: s.markedPlayerUid == p.uid,
-            onTap: (target) { _showOpponentCard(ctx, target); },
-          ),
-        )).toList()),
+        const SizedBox(height: 3),
+        Expanded(
+          child: Row(children: players.map((p) => Expanded(
+            child: _WoundsColumn(
+              player: p,
+              isCurrent: s.players.indexOf(p) == s.currentIdx,
+              isMe: !p.isBot,
+              isFlashing: s.woundFlashUid == p.uid,
+              isMarked: s.markedPlayerUid == p.uid,
+              onTap: (target) { _showOpponentCard(ctx, target); },
+            ),
+          )).toList()),
+        ),
       ]),
     );
   }
@@ -1801,7 +1805,9 @@ class _WoundsColumnState extends State<_WoundsColumn>
         ),
         child: Opacity(
           opacity: p.alive ? 1.0 : 0.35,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
             // Cadre coloré selon faction si révélé
             AnimatedContainer(
               duration: const Duration(milliseconds: 400),
@@ -1859,6 +1865,7 @@ class _WoundsColumnState extends State<_WoundsColumn>
                 ),
               ),
           ]),
+          ),
         ),
       ),
     ));
@@ -3120,6 +3127,7 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
                             child: AspectRatio(aspectRatio: 2 / 3,
                               child: imgPath != null
                                 ? Image.asset(imgPath, fit: BoxFit.cover,
+                                    cacheWidth: 400, cacheHeight: 600,
                                     errorBuilder: (_, __, ___) => Container(color: fb,
                                       child: Center(child: Text(c?.icon ?? '?',
                                         style: const TextStyle(fontSize: 72)))))
@@ -3611,6 +3619,7 @@ class _CardWidget extends StatelessWidget {
                   child: AspectRatio(
                     aspectRatio: 2 / 3,
                     child: Image.asset(imgPath, fit: BoxFit.cover,
+                      cacheWidth: 320, cacheHeight: 480,
                       errorBuilder: (_, __, ___) => Container(
                         height: 80, color: dc.withValues(alpha: 0.1),
                         child: Center(child: Text(deckIcon(card.deck.name),
@@ -3987,6 +3996,7 @@ class _SoloGameOverScreenState extends State<SoloGameOverScreen>
                               height: 130, width: double.infinity,
                               child: imgPath != null
                                 ? Image.asset(imgPath, fit: BoxFit.cover,
+                                    cacheHeight: 260,
                                     errorBuilder: (_, __, ___) => Container(color: fbg,
                                       child: Center(child: Text(c2?.icon ?? '?',
                                         style: const TextStyle(fontSize: 40)))))

@@ -366,6 +366,11 @@ class _CharacterCardState extends State<_CharacterCard>
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
             child: imgPath != null
               ? Image.asset(imgPath, fit: BoxFit.contain, width: double.infinity,
+                  // Limite la résolution de décodage — une grille peut
+                  // afficher jusqu'à 40 personnages en même temps, décoder
+                  // chacun à sa pleine résolution source épuiserait vite la
+                  // RAM sur un appareil limité (émulateur notamment).
+                  cacheWidth: 320,
                   errorBuilder: (_, __, ___) => _fallback(fc, fbg, c.icon))
               : _fallback(fc, fbg, c.icon),
           ),

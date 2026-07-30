@@ -346,6 +346,85 @@ class EntranceScale extends StatelessWidget {
 /// les 30 dernières secondes du tour (2 minutes au total). Un son démarre
 /// dès l'apparition de la corde et s'arrête quand le tour se termine ou que
 /// la corde finit de brûler.
+/// Bannière plein écran annonçant la récompense de Jeanne quand elle se
+/// déclenche (le tueur de la cible marquée reçoit son bonus) — visible et
+/// marquante pour tous les joueurs, pas juste une ligne dans le journal.
+class JeanneRewardBanner extends StatefulWidget {
+  final String text;
+  final VoidCallback onDone;
+  const JeanneRewardBanner({super.key, required this.text, required this.onDone});
+
+  @override
+  State<JeanneRewardBanner> createState() => _JeanneRewardBannerState();
+}
+
+class _JeanneRewardBannerState extends State<JeanneRewardBanner>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ac;
+  late Animation<double> _scale, _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this, duration: const Duration(milliseconds: 3200));
+    _scale = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.5, end: 1.08)
+          .chain(CurveTween(curve: Curves.easeOutBack)), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: 1.08, end: 1.0), weight: 10),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 55),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.9), weight: 15),
+    ]).animate(_ac);
+    _fade = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 70),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 15),
+    ]).animate(_ac);
+    _ac.forward().whenComplete(widget.onDone);
+  }
+
+  @override
+  void dispose() { _ac.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _ac,
+          builder: (_, __) => Opacity(
+            opacity: _fade.value.clamp(0.0, 1.0),
+            child: Center(
+              child: Transform.scale(
+                scale: _scale.value,
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+                  decoration: BoxDecoration(
+                    color: kBg1.withValues(alpha: 0.96),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFB86BFF), width: 2.5),
+                    boxShadow: [
+                      BoxShadow(color: const Color(0xFFB86BFF).withValues(alpha: 0.5), blurRadius: 26),
+                      const BoxShadow(color: Colors.black54, blurRadius: 12),
+                    ],
+                  ),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text('🔮 RÉCOMPENSE DE JEANNE', textAlign: TextAlign.center,
+                      style: cinzel(16, c: const Color(0xFFDDB8FF), fw: FontWeight.w900, ls: 2)),
+                    const SizedBox(height: 10),
+                    Text(widget.text, textAlign: TextAlign.center,
+                      style: cinzel(14, c: Colors.white, fw: FontWeight.w700)),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class BurningRopeTimer extends StatefulWidget {
   final int secondsLeft; // 0..30 (ou plus — le widget est alors invisible)
   final bool scottInGame; // Scott a une réplique spéciale quand le minuteur atteint 30s

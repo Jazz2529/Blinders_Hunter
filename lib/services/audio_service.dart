@@ -15,6 +15,7 @@ class AudioService extends ChangeNotifier {
   final AudioPlayer _musicPlayer = AudioPlayer();
   final AudioPlayer _sfxPlayer   = AudioPlayer();
   final AudioPlayer _sfxPlayer2  = AudioPlayer(); // pour chevauchements
+  final AudioPlayer _voicePlayer = AudioPlayer(); // dédié aux voice lines (révélation + interactions) — évite qu'un effet générique (_sfx2) ou qu'une 2e voice line ne coupe la précédente avant la fin
   final AudioPlayer _ropePlayer  = AudioPlayer(); // son dédié "corde qui brûle"
 
   // ── Volumes (0.0 → 1.0) ──────────────────────────────────────────────────
@@ -43,6 +44,7 @@ class AudioService extends ChangeNotifier {
     await _musicPlayer.setVolume(_musicEnabled ? _musicVolume : 0.0);
     await _sfxPlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
     await _sfxPlayer2.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
+    await _voicePlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
     await _ropePlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
   }
 
@@ -130,9 +132,9 @@ class AudioService extends ChangeNotifier {
   Future<void> playInteractionVoice(String key) async {
     if (!_sfxEnabled) return;
     try {
-      await _sfxPlayer2.stop();
-      await _sfxPlayer2.setVolume(_sfxVolume);
-      await _sfxPlayer2.play(AssetSource('audio/interact_$key.mp3'));
+      await _voicePlayer.stop();
+      await _voicePlayer.setVolume(_sfxVolume);
+      await _voicePlayer.play(AssetSource('audio/interact_$key.mp3'));
     } catch (e) {
       debugPrint('Audio: interact_$key.mp3 not found (placeholder) — $e');
     }
@@ -141,14 +143,15 @@ class AudioService extends ChangeNotifier {
   // ── Réplique de révélation (voix du personnage) ─────────────────────────
   // PLACEHOLDER : cherche 'assets/audio/reveal_<id>.mp3'. Remplace ces
   // fichiers un par un au fur et à mesure que tu les enregistres — aucun
-  // changement de code nécessaire. Utilise le lecteur secondaire (_sfxPlayer2)
-  // pour ne pas couper un autre effet sonore en cours (dégâts, dés...).
+  // changement de code nécessaire. Utilise un lecteur dédié (_voicePlayer)
+  // pour ne pas couper un autre effet sonore en cours (dégâts, dés...) NI
+  // se faire couper par un effet générique qui utiliserait _sfxPlayer2.
   Future<void> playRevealVoice(String characterId) async {
     if (!_sfxEnabled) return;
     try {
-      await _sfxPlayer2.stop();
-      await _sfxPlayer2.setVolume(_sfxVolume);
-      await _sfxPlayer2.play(AssetSource('audio/reveal_$characterId.mp3'));
+      await _voicePlayer.stop();
+      await _voicePlayer.setVolume(_sfxVolume);
+      await _voicePlayer.play(AssetSource('audio/reveal_$characterId.mp3'));
     } catch (e) {
       debugPrint('Audio: reveal_$characterId.mp3 not found (placeholder) — $e');
     }
@@ -187,6 +190,7 @@ class AudioService extends ChangeNotifier {
     _sfxVolume = v.clamp(0.0, 1.0);
     await _sfxPlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
     await _sfxPlayer2.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
+    await _voicePlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
     await _ropePlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
     await _savePrefs(); notifyListeners();
   }
@@ -201,6 +205,7 @@ class AudioService extends ChangeNotifier {
     _sfxEnabled = !_sfxEnabled;
     await _sfxPlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
     await _sfxPlayer2.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
+    await _voicePlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
     await _ropePlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
     if (!_sfxEnabled) await stopRopeBurningSound();
     await _savePrefs(); notifyListeners();
@@ -227,6 +232,7 @@ class AudioService extends ChangeNotifier {
     _musicPlayer.dispose();
     _sfxPlayer.dispose();
     _sfxPlayer2.dispose();
+    _voicePlayer.dispose();
     super.dispose();
   }
 }

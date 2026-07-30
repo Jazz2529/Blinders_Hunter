@@ -1148,14 +1148,25 @@ class GameProvider extends ChangeNotifier {
       final (log, needsCard, killerUid) = _eg.checkJeanneReward(
           gameState?.markedPlayerUid, gameState?.jeanneReward,
           gameState?.jeanneUid, all);
+      String? bannerText; int? bannerTs;
       if (log.isNotEmpty) {
         // Commit les changements (soins killer + Jeanne)
         await _fb.updatePlayers(roomId!, all);
         await _fb.addLog(roomId!, log);
+        // Bannière plein écran — bien visible, pas juste une ligne de journal
+        final killerP = all.where((p) => p.uid == killerUid).firstOrNull;
+        final deadP = all.where((p) => p.uid == justDiedId).firstOrNull;
+        if (killerP != null && deadP != null) {
+          final rewardName = gameState?.jeanneReward ?? '';
+          bannerText = '${killerP.name} a éliminé ${deadP.name} (cible de Jeanne) !\n${_eg.jeanneRewardLabel(rewardName)}';
+          bannerTs = DateTime.now().millisecondsSinceEpoch;
+        }
       }
-      // Effacer le marquage
+      // Effacer le marquage — combiné avec la bannière dans UNE SEULE écriture
+      // (deux écritures séquentielles créent une fenêtre de race condition).
       await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
-          markedPlayerUid: '__clear__');
+          markedPlayerUid: '__clear__',
+          jeanneRewardBanner: bannerText, jeanneRewardBannerTimestamp: bannerTs);
       if (needsCard && killerUid == myUid) {
         final gs = gameState;
         if (gs?.jeanneReward == 'heal3_lumiere') await drawCard(DeckType.lumiere);

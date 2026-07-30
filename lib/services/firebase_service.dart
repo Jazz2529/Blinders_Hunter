@@ -384,6 +384,8 @@ class FirebaseService {
     List<String>? lootDeadQueue,
     int? richardActivateZone,
     String? publicRevealUid,
+    String? jeanneRewardBanner,
+    int? jeanneRewardBannerTimestamp,
     int? publicRevealTimestamp,
     bool clearOverlay = false,
     bool clearPending = false,
@@ -455,6 +457,8 @@ class FirebaseService {
       updates['richardActivateZone'] = richardActivateZone == -1 ? null : richardActivateZone;
     }
     if (publicRevealUid != null) updates['publicRevealUid'] = publicRevealUid;
+    if (jeanneRewardBanner != null) updates['jeanneRewardBanner'] = jeanneRewardBanner;
+    if (jeanneRewardBannerTimestamp != null) updates['jeanneRewardBannerTimestamp'] = jeanneRewardBannerTimestamp;
     if (publicRevealTimestamp != null) updates['publicRevealTimestamp'] = publicRevealTimestamp;
     await _patch('rooms/$roomId/gameState', updates);
   }

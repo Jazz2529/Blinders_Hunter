@@ -91,6 +91,7 @@ class SoloState {
   String? elaiaCard2Id;
   String? damienTargetUid; // Damien : cible choisie, en attente du choix alcool/poison
   String? lootKillerUid;   // qui vient d'éliminer quelqu'un avec équipement
+  String? jeanneRewardBanner; // texte à afficher en grand quand la récompense de Jeanne se déclenche
   List<String> lootDeadQueue = []; // file d'attente des morts avec butin (kills simultanés, ex: bazooka)
   Map<String, List<String>> forcedDeckQueue = {}; // cartes forcées par pile
 
@@ -767,6 +768,9 @@ class SoloController extends ChangeNotifier {
       if (jeanne.alive) _eg.applyHeal(jeanne, 3);
     }
     if (log.isNotEmpty) _log(log, cls: 'important');
+    // Bannière plein écran — bien visible, pas juste une ligne de journal
+    state!.jeanneRewardBanner =
+        '${killer.name} a éliminé ${dead.name} (cible de Jeanne) !\n${_eg.jeanneRewardLabel(reward)}';
     // Cas spéciaux nécessitant une pioche de carte
     if (needsCard && reward == 'heal3_lumiere') {
       state!.pendingCard = _eg.drawCard(DeckType.lumiere, forcedQueue: state!.forcedDeckQueue);

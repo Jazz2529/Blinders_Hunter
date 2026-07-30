@@ -57,6 +57,14 @@ class TokenWidget extends StatelessWidget {
                 width: size,
                 height: size,
                 fit: BoxFit.cover,
+                // IMPORTANT : sans cacheWidth/cacheHeight, Flutter décode
+                // l'image à sa résolution SOURCE complète en mémoire, même
+                // pour un petit jeton affiché à l'écran — si les fichiers
+                // sources sont en haute résolution, ça peut faire échouer
+                // silencieusement le chargement sur un appareil à RAM
+                // limitée (émulateur) alors que ça passe sans souci sur PC.
+                cacheWidth: (size * 3).round(),
+                cacheHeight: (size * 3).round(),
                 errorBuilder: (_, __, ___) => _buildFallback(token.fallbackEmoji),
               ),
             ),
@@ -128,6 +136,8 @@ class TokenPicker extends StatelessWidget {
                 child: Image.asset(
                   token.imagePath,
                   fit: BoxFit.cover,
+                  cacheWidth: 114, // 38 * 3 — voir TokenWidget pour l'explication
+                  cacheHeight: 114,
                   errorBuilder: (_, __, ___) => Container(
                     color: kBg3,
                     child: Center(child: Text(token.fallbackEmoji,

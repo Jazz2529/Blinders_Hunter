@@ -193,6 +193,7 @@ class _RoleRevealState extends State<RoleRevealScreen> {
                 child: SizedBox(height: 240,
                   child: AspectRatio(aspectRatio: 2/3,
                     child: Image.asset(imgPath, fit: BoxFit.cover,
+                      cacheWidth: 320, cacheHeight: 480,
                       errorBuilder: (_, __, ___) => Container(
                         width: 100, height: 100,
                         color: fc.withOpacity(0.15),
@@ -1858,6 +1859,7 @@ class _CardWidget extends StatelessWidget {
                   child: AspectRatio(
                     aspectRatio: 2 / 3,
                     child: Image.asset(imgPath, fit: BoxFit.cover,
+                      cacheWidth: 320, cacheHeight: 480,
                       errorBuilder: (_, __, ___) => Container(
                         height: 80, color: dc.withValues(alpha: 0.1),
                         child: Center(child: Text(deckIcon(card.deck.name),

@@ -108,6 +108,11 @@ class _CardImage extends StatelessWidget {
         borderRadius: BorderRadius.circular(w * 0.045),
         child: imgPath != null
             ? Image.asset(imgPath, fit: BoxFit.contain,
+                // Limite la résolution de décodage à ~2x la taille affichée
+                // — sans ça, une image source haute résolution peut faire
+                // échouer le chargement sur un appareil à RAM limitée.
+                cacheWidth: (w * 2).round(),
+                cacheHeight: (h * 2).round(),
                 errorBuilder: (_, __, ___) => Container(color: fbg,
                     child: Center(child: Text(c.icon,
                         style: const TextStyle(fontSize: 84)))))

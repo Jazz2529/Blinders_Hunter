@@ -278,6 +278,7 @@ class _TerrainImg extends StatelessWidget {
     final path = terrainImagePath(effect);
     if (path == null) return _fallback(effect);
     return Image.asset(path, fit: BoxFit.contain,
+      cacheWidth: 400, // images sources en 1060x1484 — bien trop grand pour une tuile de plateau
       errorBuilder: (_, __, ___) => _fallback(effect));
   }
 
@@ -438,6 +439,7 @@ class CharacterCardFull extends StatelessWidget {
             height: 180, width: double.infinity,
             child: imgPath != null
               ? Image.asset(imgPath, fit: BoxFit.cover,
+                  cacheWidth: 560, cacheHeight: 360,
                   errorBuilder: (_, __, ___) => _fallbackBg(fc, fbg))
               : _fallbackBg(fc, fbg),
           ),

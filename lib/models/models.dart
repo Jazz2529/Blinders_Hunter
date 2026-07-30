@@ -395,6 +395,8 @@ class GameState {
   final List<String> lootDeadQueue; // file d'attente des morts avec butin à choisir (kills simultanés)
   final int? richardActivateZone; // Richard II : zone dont l'effet doit être activé (pas forcément sa position)
   final String? publicRevealUid;      // qui vient de se révéler (visible/audible de tous)
+  final String? jeanneRewardBanner;      // texte à afficher en grand quand la récompense de Jeanne se déclenche
+  final int? jeanneRewardBannerTimestamp; // pour l'auto-expiration côté clients
   final int? publicRevealTimestamp;   // pour l'auto-expiration côté clients
   final Map<String, List<String>> forcedDeckQueue; // cartes forcées par pile (Elaia)
 
@@ -445,6 +447,8 @@ class GameState {
     this.lootDeadQueue = const [],
     this.richardActivateZone,
     this.publicRevealUid,
+    this.jeanneRewardBanner,
+    this.jeanneRewardBannerTimestamp,
     this.publicRevealTimestamp,
     this.forcedDeckQueue = const {},
   });
@@ -494,6 +498,8 @@ class GameState {
     'lootDeadQueue': lootDeadQueue,
     'richardActivateZone': richardActivateZone,
     'publicRevealUid': publicRevealUid,
+    'jeanneRewardBanner': jeanneRewardBanner,
+    'jeanneRewardBannerTimestamp': jeanneRewardBannerTimestamp,
     'publicRevealTimestamp': publicRevealTimestamp,
     'forcedDeckQueue': forcedDeckQueue,
   };
@@ -553,6 +559,8 @@ class GameState {
     lootDeadQueue: j['lootDeadQueue'] != null ? List<String>.from(j['lootDeadQueue'] as List) : const [],
     richardActivateZone: j['richardActivateZone'] as int?,
     publicRevealUid: j['publicRevealUid'] as String?,
+    jeanneRewardBanner: j['jeanneRewardBanner'] as String?,
+    jeanneRewardBannerTimestamp: j['jeanneRewardBannerTimestamp'] as int?,
     publicRevealTimestamp: j['publicRevealTimestamp'] as int?,
     forcedDeckQueue: j['forcedDeckQueue'] != null
         ? Map<String, List<String>>.from((j['forcedDeckQueue'] as Map).map(
