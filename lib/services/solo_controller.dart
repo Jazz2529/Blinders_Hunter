@@ -586,7 +586,12 @@ class SoloController extends ChangeNotifier {
     }
     else if (terrain.effect == 'damage9')    {
       final t = _ai.bestTarget(bot, state!.players, difficulty);
-      if (t != null) { _eg.applyDamage(t, 2, isTerrain9Dmg: true); _log('🏹 ${bot.name} inflige 2 à ${t.name}'); _checkWin(justDiedId: t.alive?null:t.uid); }
+      if (t != null) {
+        _eg.applyDamage(t, 2, isTerrain9Dmg: true);
+        if (!t.alive) t.killedByUid = bot.uid; // sinon aucun butin possible
+        _log('🏹 ${bot.name} inflige 2 à ${t.name}');
+        _checkWin(justDiedId: t.alive?null:t.uid);
+      }
     }
     else if (terrain.effect == 'steal') {
       final t = _ai.bestTarget(bot, state!.players, difficulty, context: 'steal');
@@ -650,7 +655,9 @@ class SoloController extends ChangeNotifier {
         // DOUBLE pour Lance de Lumière et la Dague, et la Lance de Longinus
         // manquait carrément de ce calcul manuel (elle restait correcte,
         // mais seule, ce qui semblait "trop faible" comparée aux autres).
-        bot.attackCount++; // sinon le bonus de Mathieu ne se déclenche jamais pour un bot
+        // Mathieu : seules les attaques faites une fois RÉVÉLÉ comptent pour
+        // le seuil des 3 attaques (une attaque en étant caché ne compte pas).
+        if (bot.revealed) bot.attackCount++;
         final attackRes = _eg.resolveAttack(bot, target, dmg);
         final log = attackRes['log'] as String;
         _log(log);
@@ -1809,6 +1816,7 @@ class SoloController extends ChangeNotifier {
     if (action == 'terrain_damage9') {
       final dmg9 = _eg.applyDamage(target, 2, isTerrain9Dmg: true);
       _log('🏹 Terrain 9 — tu infliges $dmg9 à ${target.name}', cls: 'player');
+      if (!target.alive) target.killedByUid = state!.current.uid; // sinon aucun butin possible
       _checkWin(justDiedId: target.alive ? null : target.uid);
     } else if (action == 'terrain_steal') {
       if (target.equipment.isNotEmpty) {
@@ -1895,8 +1903,9 @@ class SoloController extends ChangeNotifier {
     final target = state!.players.firstWhere((p) => p.uid == targetId);
     // Fifi Golden: force 5 dégâts
     final actualDmg = state!.fifiGoldenTurn ? 5 : dmg;
-    // Mathieu: incrémenter compteur
-    attacker.attackCount++;
+    // Mathieu: incrémenter compteur — seulement si déjà révélé (une attaque
+    // faite en étant caché ne doit pas compter pour le seuil des 3 attaques).
+    if (attacker.revealed) attacker.attackCount++;
     final isMathieuThird = (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus'
         && attacker.attackCount >= 3;
     final res = _eg.resolveAttackFull(attacker, target, actualDmg, state!.players, attackCount: attacker.attackCount - 1);
@@ -1955,7 +1964,8 @@ class SoloController extends ChangeNotifier {
     final killed = <String>[];
 
     for (final target in targets) {
-      attacker.attackCount++;
+      // Mathieu : seules les attaques faites une fois révélé comptent.
+      if (attacker.revealed) attacker.attackCount++;
       final res = _eg.resolveAttackFull(attacker, target, actualDmg,
           state!.players, attackCount: attacker.attackCount - 1);
       _log(res['log'] as String, cls: 'player');

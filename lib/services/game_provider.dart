@@ -787,8 +787,10 @@ class GameProvider extends ChangeNotifier {
 
     if (pta == 'terrain_damage9') {
       _eg.applyDamage(t, 2, isTerrain9Dmg: true);
+      if (!t.alive) t.killedByUid = actor.uid; // sinon aucun butin possible
       _eg.applyDeathPassives(all);
       await _commitAll(all, '🏹 ${actor.name} inflige 2 blessures à ${t.name}');
+      await _checkWin(all, justDiedId: t.alive ? null : t.uid);
     } else if (pta == 'terrain_steal') {
       if (t.equipment.isNotEmpty) {
         final e = t.equipment.removeAt(0);
@@ -985,7 +987,9 @@ class GameProvider extends ChangeNotifier {
     // VRAIMENT causées par cette attaque (bazooka notamment), pas un mort
     // plus ancien resté par erreur non traité.
     final aliveBeforeUids = all.where((x) => x.alive).map((x) => x.uid).toSet();
-    attacker.attackCount++;
+    // Mathieu : seules les attaques faites une fois révélé comptent pour le
+    // seuil des 3 attaques.
+    if (attacker.revealed) attacker.attackCount++;
     final isMathieuThird = (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus'
         && attacker.attackCount >= 3;
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus'

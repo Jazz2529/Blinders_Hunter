@@ -245,7 +245,8 @@ class _SoloSetupState extends State<SoloSetupScreen> with SingleTickerProviderSt
   Widget? _charImg(String id) {
     final path = characterImagePath(id);
     if (path == null) return null;
-    return Image.asset(path, fit: BoxFit.cover, cacheWidth: 240,
+    return Image.asset(path, fit: BoxFit.cover, cacheWidth: 640,
+      filterQuality: FilterQuality.high,
       errorBuilder: (_, __, ___) => const SizedBox.shrink());
   }
 
@@ -1369,7 +1370,7 @@ class _RoleRevealScreenState extends State<_RoleRevealScreen>
                             aspectRatio: 2 / 3,
                             child: imgPath != null
                               ? Image.asset(imgPath, fit: BoxFit.cover,
-                                  cacheWidth: 360, cacheHeight: 540,
+                                  cacheWidth: 720, cacheHeight: 1080,
                                   errorBuilder: (_, __, ___) => Container(color: fbg,
                                     child: Center(child: Text(char.icon,
                                       style: const TextStyle(fontSize: 60)))))
@@ -1614,7 +1615,7 @@ class _PlayerCardSide extends StatelessWidget {
             ),
             child: img != null
               ? Image.asset(img, fit: BoxFit.cover, width: double.infinity,
-                  cacheWidth: 320,
+                  cacheWidth: 640,
                   errorBuilder: (_, __, ___) => _fallback(c, fbg))
               : _fallback(c, fbg),
           ),
@@ -3127,7 +3128,7 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
                             child: AspectRatio(aspectRatio: 2 / 3,
                               child: imgPath != null
                                 ? Image.asset(imgPath, fit: BoxFit.cover,
-                                    cacheWidth: 400, cacheHeight: 600,
+                                    cacheWidth: 800, cacheHeight: 1200,
                                     errorBuilder: (_, __, ___) => Container(color: fb,
                                       child: Center(child: Text(c?.icon ?? '?',
                                         style: const TextStyle(fontSize: 72)))))
@@ -3619,7 +3620,7 @@ class _CardWidget extends StatelessWidget {
                   child: AspectRatio(
                     aspectRatio: 2 / 3,
                     child: Image.asset(imgPath, fit: BoxFit.cover,
-                      cacheWidth: 320, cacheHeight: 480,
+                      cacheWidth: 640, cacheHeight: 960,
                       errorBuilder: (_, __, ___) => Container(
                         height: 80, color: dc.withValues(alpha: 0.1),
                         child: Center(child: Text(deckIcon(card.deck.name),
@@ -3996,7 +3997,7 @@ class _SoloGameOverScreenState extends State<SoloGameOverScreen>
                               height: 130, width: double.infinity,
                               child: imgPath != null
                                 ? Image.asset(imgPath, fit: BoxFit.cover,
-                                    cacheHeight: 260,
+                                    cacheHeight: 520,
                                     errorBuilder: (_, __, ___) => Container(color: fbg,
                                       child: Center(child: Text(c2?.icon ?? '?',
                                         style: const TextStyle(fontSize: 40)))))
