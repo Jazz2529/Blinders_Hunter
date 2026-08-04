@@ -80,6 +80,8 @@ class _HomeScreenState extends State<HomeScreen>
                   style: body(12, c: kTextSub).copyWith(letterSpacing: 2)),
                 Text('Du fond du cœur, merci pour tout, By Order of the Sporty Blinders',
                   style: body(12, c: kTextSub).copyWith(letterSpacing: 2)),
+                Text('By Order of the Sporty Blinders',
+                  style: body(12, c: kTextSub).copyWith(letterSpacing: 2)),
               ]),
             ),
           )),

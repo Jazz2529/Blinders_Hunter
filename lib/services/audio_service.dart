@@ -81,6 +81,18 @@ class AudioService extends ChangeNotifier {
     await _musicPlayer.stop();
   }
 
+  /// Arrête TOUS les effets sonores/bruits de partie (dégâts, dés, voice
+  /// lines, corde qui brûle...) — à appeler systématiquement en quittant une
+  /// partie (retour au menu), sinon un son en cours (ex: corde qui brûle en
+  /// boucle) continue indéfiniment même sur l'écran d'accueil. Ne touche PAS
+  /// à la musique — appeler stopMusic()/playLobbyMusic() séparément pour ça.
+  Future<void> stopAllSfx() async {
+    try { await _sfxPlayer.stop(); } catch (_) {}
+    try { await _sfxPlayer2.stop(); } catch (_) {}
+    try { await _voicePlayer.stop(); } catch (_) {}
+    try { await _ropePlayer.stop(); } catch (_) {}
+  }
+
   Future<void> fadeOutMusic({int ms = 800}) async {
     final myGeneration = ++_musicGeneration;
     double v = _musicVolume;

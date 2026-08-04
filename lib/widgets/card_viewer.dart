@@ -8,8 +8,8 @@ import '../data/characters_data.dart';
 /// panneau d'infos : nom, faction, PV, capacité et condition de victoire.
 /// Sur écran étroit (téléphone), l'illustration passe au-dessus du texte.
 /// Tap n'importe où pour fermer.
-void showFullCardDialog(BuildContext ctx, CharacterCard c) {
-  showDialog(
+Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c) {
+  return showDialog(
     context: ctx,
     barrierColor: Colors.black.withValues(alpha: 0.88),
     builder: (dctx) {

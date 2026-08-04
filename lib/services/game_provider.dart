@@ -198,7 +198,15 @@ class GameProvider extends ChangeNotifier {
     _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel();
     _pSub  = _fb.watchPlayers(roomId!).listen((d) { players = d; notifyListeners(); });
     _gsSub = _fb.watchGameState(roomId!).listen((d) { gameState = d; _maybeForceTurn(); notifyListeners(); });
-    _stSub = _fb.watchStatus(roomId!).listen((d) { roomStatus = d; notifyListeners(); });
+    _stSub = _fb.watchStatus(roomId!).listen((d) {
+      final wasPlaying = roomStatus == 'playing';
+      roomStatus = d;
+      // Musique de jeu : se déclenche une seule fois, au moment où la partie
+      // démarre réellement (transition lobby → playing) — jusqu'ici rien ne
+      // la lançait du tout côté multijoueur.
+      if (!wasPlaying && roomStatus == 'playing') audio.playGameMusic();
+      notifyListeners();
+    });
     _rSub  = _fb.watchResult(roomId!).listen((d) { gameResult = d; _recordMultiResult(d); notifyListeners(); });
     _rcSub = _fb.watchRoleConfirms(roomId!).listen((d) { roleConfirms = d; notifyListeners(); });
     _logSub = _fb.watchLog(roomId!).listen((d) { log = d; notifyListeners(); });

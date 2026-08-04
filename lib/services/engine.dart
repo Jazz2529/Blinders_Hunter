@@ -1028,7 +1028,10 @@ class GameEngine with AbilityEngine {
         ...shadows.map((p) => p.uid),
         ...alive.where((p) {
           final we = p.character!.winEffect;
-          return we == 'survive' || we == 'kill_felipe_or_shadows';
+          // Léo : sa condition de victoire inclut aussi "éliminer tous les
+          // Hunters", pas seulement "être le premier mort" — sans ce check,
+          // il ne gagnait jamais dans ce cas précis malgré son texte.
+          return we == 'survive' || we == 'kill_felipe_or_shadows' || we == 'die_first_or_kill_hunters';
         }).map((p) => p.uid),
       }.toList();
       return {'winnerIds': ids, 'reason': 'Les Shadows éliminent tous les Hunters !'};

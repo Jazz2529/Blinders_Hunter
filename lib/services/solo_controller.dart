@@ -308,6 +308,9 @@ class SoloController extends ChangeNotifier {
 
   // ─── Setup ──────────────────────────────
   void startGame() {
+    // Repartir sur une base saine — sinon un son laissé en cours (corde qui
+    // brûle notamment) depuis la partie précédente continuerait indéfiniment.
+    audio.stopAllSfx();
     // 5 joueurs : humain + 4 bots
     // Tous les tokens disponibles — nom bot = nom du token
     const allTokenIds = [

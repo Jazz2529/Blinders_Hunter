@@ -766,9 +766,9 @@ class _PlayerRow extends StatelessWidget {
   final Player p; final GameProvider gp;
   const _PlayerRow({required this.p,required this.gp});
 
-  void _showCard(BuildContext ctx) {
+  Future<void> _showCard(BuildContext ctx) {
     final c = p.character;
-    if (c == null) return;
+    if (c == null) return Future.value();
     final isMe = p.uid == gp.myUid;
     final hasDisguise = !isMe && p.disguiseNameOverride != null;
     // Jason (Caméléon) : afficher la carte du personnage IMITÉ, pas la sienne
@@ -777,7 +777,7 @@ class _PlayerRow extends StatelessWidget {
         ? kAllCharacters.where((ch) => ch.id == disguisedCharId).firstOrNull
         : null;
     final shown = (hasDisguise && disguisedChar != null) ? disguisedChar : c;
-    showFullCardDialog(ctx, shown);
+    return showFullCardDialog(ctx, shown);
   }
 
   @override
@@ -804,7 +804,17 @@ class _PlayerRow extends StatelessWidget {
         : null;
 
     return GestureDetector(
-      onTap: (p.revealed && p.character != null) ? () => _showCard(ctx) : null,
+      onTap: () async {
+        // Toucher un joueur montre toujours son équipement (info publique),
+        // et en plus sa carte s'il est révélé (carte d'abord, puis
+        // équipement une fois la carte fermée).
+        if (p.revealed && p.character != null) {
+          await _showCard(ctx);
+        }
+        if (p.equipment.isNotEmpty && ctx.mounted) {
+          _showEquipmentFor(ctx, p);
+        }
+      },
       child: Opacity(
       opacity:p.alive?1.0:0.35,
       child:WoundDelta(
@@ -2715,9 +2725,15 @@ class _PlayerChip extends StatelessWidget {
     final knowMaxHp = (isMe || p.revealed) && c != null;
     return Stack(clipBehavior: Clip.none, children: [
       GestureDetector(
-        onTap: () {
+        onTap: () async {
+          // Toucher un joueur montre toujours son équipement (info publique),
+          // et en plus sa carte s'il est révélé (carte d'abord, puis
+          // équipement une fois la carte fermée).
           if (p.revealed && c != null) {
-            showFullCardDialog(ctx, disguisedCharChip ?? c);
+            await showFullCardDialog(ctx, disguisedCharChip ?? c);
+          }
+          if (p.equipment.isNotEmpty && ctx.mounted) {
+            _showEquipmentFor(ctx, p);
           }
         },
         child: Container(

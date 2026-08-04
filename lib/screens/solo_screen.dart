@@ -1835,6 +1835,8 @@ class _WoundsColumnState extends State<_WoundsColumn>
                     child: Text('👁', style: TextStyle(fontSize: 8))),
                   if (widget.isMarked) const Positioned(top: 0, left: 0,
                     child: Text('💀', style: TextStyle(fontSize: 9))),
+                  if (p.shield && p.alive) const Positioned(bottom: -1, left: 0,
+                    child: Text('🛡', style: TextStyle(fontSize: 10))),
                 ]),
               ),
             ),
