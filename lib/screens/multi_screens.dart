@@ -768,7 +768,10 @@ class _PlayerRow extends StatelessWidget {
 
   Future<void> _showCard(BuildContext ctx) {
     final c = p.character;
-    if (c == null) return Future.value();
+    if (!p.revealed || c == null) {
+      // Pas révélé : carte "mystère" (silhouette + réplique cryptique).
+      return showMysteryCardDialog(ctx, p);
+    }
     final isMe = p.uid == gp.myUid;
     final hasDisguise = !isMe && p.disguiseNameOverride != null;
     // Jason (Caméléon) : afficher la carte du personnage IMITÉ, pas la sienne
@@ -805,12 +808,10 @@ class _PlayerRow extends StatelessWidget {
 
     return GestureDetector(
       onTap: () async {
-        // Toucher un joueur montre toujours son équipement (info publique),
-        // et en plus sa carte s'il est révélé (carte d'abord, puis
-        // équipement une fois la carte fermée).
-        if (p.revealed && p.character != null) {
-          await _showCard(ctx);
-        }
+        // Toucher un joueur montre toujours quelque chose : sa vraie carte
+        // si révélé, sinon une carte "mystère" — puis son équipement dans
+        // tous les cas (info publique, connue même sans identité).
+        await _showCard(ctx);
         if (p.equipment.isNotEmpty && ctx.mounted) {
           _showEquipmentFor(ctx, p);
         }
@@ -2726,11 +2727,13 @@ class _PlayerChip extends StatelessWidget {
     return Stack(clipBehavior: Clip.none, children: [
       GestureDetector(
         onTap: () async {
-          // Toucher un joueur montre toujours son équipement (info publique),
-          // et en plus sa carte s'il est révélé (carte d'abord, puis
-          // équipement une fois la carte fermée).
+          // Toucher un joueur montre toujours quelque chose : sa vraie carte
+          // si révélé, sinon une carte "mystère" — puis son équipement dans
+          // tous les cas (info publique, connue même sans identité).
           if (p.revealed && c != null) {
             await showFullCardDialog(ctx, disguisedCharChip ?? c);
+          } else {
+            await showMysteryCardDialog(ctx, p);
           }
           if (p.equipment.isNotEmpty && ctx.mounted) {
             _showEquipmentFor(ctx, p);

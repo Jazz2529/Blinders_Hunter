@@ -308,9 +308,6 @@ class SoloController extends ChangeNotifier {
 
   // ─── Setup ──────────────────────────────
   void startGame() {
-    // Repartir sur une base saine — sinon un son laissé en cours (corde qui
-    // brûle notamment) depuis la partie précédente continuerait indéfiniment.
-    audio.stopAllSfx();
     // 5 joueurs : humain + 4 bots
     // Tous les tokens disponibles — nom bot = nom du token
     const allTokenIds = [
@@ -1617,6 +1614,22 @@ class SoloController extends ChangeNotifier {
   }
 
   void humanSkipAbility() {
+    state!.phase = GamePhase.move; notifyListeners();
+  }
+
+  /// Julien : choix explicite "se soigner" — sépare bien du choix "attaquer"
+  /// (qui passe par pendingTargetAction='ability_julien'). Sans cette
+  /// fonction dédiée, appeler humanUseAbility() sans cible posait à tort
+  /// pendingTargetAction='ability_julien' (interprété comme "en attente d'une
+  /// cible d'attaque") au lieu de soigner — et cette valeur restait bloquée
+  /// en mémoire, permettant de déclencher l'attaque en boucle au clic suivant
+  /// sur n'importe quel joueur.
+  void humanJulienHeal() {
+    final p = state!.current;
+    _eg.applyHeal(p, 1);
+    p.abilityUsed = false; // répétable
+    state!.pendingTargetAction = null;
+    _log('💚 ${p.name} se soigne de 1 blessure', cls: 'player');
     state!.phase = GamePhase.move; notifyListeners();
   }
 

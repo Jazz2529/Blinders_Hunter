@@ -1727,8 +1727,76 @@ class _HpLeaderboard extends StatelessWidget {
 
   void _showOpponentCard(BuildContext ctx, Player p) {
     final c = p.character;
-    if (c == null) return;
-    showFullCardDialog(ctx, c);
+    if (p.revealed && c != null) {
+      showFullCardDialog(ctx, c).then((_) {
+        if (p.equipment.isNotEmpty && ctx.mounted) _showEquipmentForSolo(ctx, p);
+      });
+    } else {
+      // Pas révélé : carte "mystère" (silhouette + réplique cryptique),
+      // mais l'équipement reste visible — info publique quel que soit le
+      // statut de révélation.
+      showMysteryCardDialog(ctx, p).then((_) {
+        if (p.equipment.isNotEmpty && ctx.mounted) _showEquipmentForSolo(ctx, p);
+      });
+    }
+  }
+
+  /// Équipement — info publique, affichée quel que soit le statut de
+  /// révélation du joueur (contrairement à la carte de personnage).
+  void _showEquipmentForSolo(BuildContext ctx, Player p) {
+    final items = p.equipment;
+    showDialog(context: ctx, builder: (_) => Dialog(
+      backgroundColor: kBg2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 380, maxHeight: 520),
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            const Text('🎒', style: TextStyle(fontSize: 20)),
+            const SizedBox(width: 8),
+            Expanded(child: Text('ÉQUIPEMENTS — ${p.name.toUpperCase()}',
+              style: cinzel(13, c: kGold2, fw: FontWeight.w900),
+              overflow: TextOverflow.ellipsis)),
+          ]),
+          const SizedBox(height: 14),
+          if (items.isEmpty)
+            Padding(padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text('Aucun équipement pour ce joueur.',
+                style: body(12, c: kTextSub), textAlign: TextAlign.center))
+          else
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (_, i) {
+                  final eq = items[i];
+                  final dc = deckColor(eq.deck.name);
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: kBg3, borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: dc.withValues(alpha: 0.5))),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(deckIcon(eq.deck.name), style: const TextStyle(fontSize: 20)),
+                      const SizedBox(width: 10),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(eq.name, style: cinzel(12, c: kGold2, fw: FontWeight.w700)),
+                        const SizedBox(height: 4),
+                        Text(eq.text, style: body(11, c: kTextSub)),
+                      ])),
+                    ]),
+                  );
+                },
+              ),
+            ),
+          const SizedBox(height: 14),
+          TextButton(onPressed: () => Navigator.pop(ctx),
+            child: Text('Fermer', style: cinzel(12, c: kTextSub))),
+        ]),
+      ),
+    ));
   }
 }
 
@@ -1786,7 +1854,7 @@ class _WoundsColumnState extends State<_WoundsColumn>
     // Blessures toujours visibles — mais PAS les PV max
 
     return GestureDetector(
-      onTap: (!isMe && p.revealed && p.alive && widget.onTap != null)
+      onTap: (!isMe && p.alive && widget.onTap != null)
           ? () => widget.onTap!(p) : null,
       child: WoundDelta(
       wounds: p.wounds,
@@ -1835,8 +1903,6 @@ class _WoundsColumnState extends State<_WoundsColumn>
                     child: Text('👁', style: TextStyle(fontSize: 8))),
                   if (widget.isMarked) const Positioned(top: 0, left: 0,
                     child: Text('💀', style: TextStyle(fontSize: 9))),
-                  if (p.shield && p.alive) const Positioned(bottom: -1, left: 0,
-                    child: Text('🛡', style: TextStyle(fontSize: 10))),
                 ]),
               ),
             ),
@@ -2871,7 +2937,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         TextButton(
           onPressed: () {
             Navigator.pop(dctx);
-            ctrl.humanUseAbility(); ctrl.humanSkipAbility(); setState(() {});
+            ctrl.humanJulienHeal(); setState(() {});
           },
           child: Text('💚 Se soigner', style: cinzel(12, c: kGreen)),
         ),
