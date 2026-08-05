@@ -78,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen>
                 const SizedBox(height: 6),
                 Text('Musique composée par le talentueux Dams.',
                   style: body(12, c: kTextSub).copyWith(letterSpacing: 2)),
-                Text('Du fond du cœur, merci pour tout, By Order of the Sporty Blinders',
+                Text('Du fond du cœur, Merci pour tout',
                   style: body(12, c: kTextSub).copyWith(letterSpacing: 2)),
                 Text('By Order of the Sporty Blinders',
                   style: body(12, c: kTextSub).copyWith(letterSpacing: 2)),

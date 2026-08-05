@@ -41,6 +41,28 @@ class AudioService extends ChangeNotifier {
   // ── Init ──────────────────────────────────────────────────────────────────
   Future<void> init() async {
     await _loadPrefs();
+    // IMPORTANT (Android) : par défaut, chaque lecteur audio demande le
+    // "focus audio" en exclusivité — ce qui met la musique en pause dès
+    // qu'un effet sonore démarre. Sur PC ce souci n'existe pas (mixage libre
+    // par défaut), d'où le comportement différent entre les deux. On
+    // configure ici tous les lecteurs pour qu'ils puissent jouer en même
+    // temps sans jamais s'interrompre les uns les autres.
+    final mixContext = AudioContext(
+      android: AudioContextAndroid(
+        isSpeakerphoneOn: false,
+        stayAwake: false,
+        contentType: AndroidContentType.sonification,
+        usageType: AndroidUsageType.game,
+        audioFocus: AndroidAudioFocus.none,
+      ),
+      iOS: AudioContextIOS(
+        category: AVAudioSessionCategory.ambient,
+        options: {AVAudioSessionOptions.mixWithOthers},
+      ),
+    );
+    for (final p in [_musicPlayer, _sfxPlayer, _sfxPlayer2, _voicePlayer, _ropePlayer]) {
+      try { await p.setAudioContext(mixContext); } catch (_) {}
+    }
     await _musicPlayer.setVolume(_musicEnabled ? _musicVolume : 0.0);
     await _sfxPlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
     await _sfxPlayer2.setVolume(_sfxEnabled ? _sfxVolume : 0.0);

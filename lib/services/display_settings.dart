@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import '../widgets/theme.dart';
 import 'persistence.dart';
@@ -15,7 +16,16 @@ class DisplaySettings extends ChangeNotifier {
   /// Charge les réglages sauvegardés (à appeler après Prefs.init()).
   void load() {
     final d = Prefs.loadDisplay();
-    if (d == null) return;
+    if (d == null) {
+      // Premier lancement, aucun réglage sauvegardé : sur téléphone/tablette,
+      // le texte est difficile à lire à l'échelle par défaut (1.0, pensée
+      // pour PC) — on démarre un peu plus grand par confort, l'utilisateur
+      // peut toujours ajuster ensuite via les réglages d'affichage.
+      try {
+        if (Platform.isAndroid || Platform.isIOS) uiScale = 1.2;
+      } catch (_) {} // Platform indisponible sur web — ignorer sans planter
+      return;
+    }
     deviceMode = d.mode;
     uiScale = d.scale;
     resolutionIdx = d.resIdx;

@@ -46,7 +46,13 @@ class TokenWidget extends StatelessWidget {
               if (selected)
                 BoxShadow(color: kGold.withValues(alpha: 0.5), blurRadius: 10, spreadRadius: 1),
               if (!isDead)
-                const BoxShadow(color: Colors.black45, blurRadius: 4, offset: Offset(0, 2)),
+                // Ombre portée franche, projetée d'un seul côté (bas-droite)
+                // — comme un vrai jeton posé sur le plateau, éclairé d'en
+                // haut à gauche. Beaucoup plus marquée que la version
+                // précédente (opacité et décalage nettement augmentés).
+                BoxShadow(color: Colors.black.withValues(alpha: 0.65),
+                  blurRadius: size * 0.14, spreadRadius: 0,
+                  offset: Offset(size * 0.11, size * 0.14)),
             ],
           ),
           child: Opacity(

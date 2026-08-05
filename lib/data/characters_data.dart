@@ -23,7 +23,7 @@ const Map<String, String> kRevealQuotes = {
   'baleine': "[Fill the skies with a cascade of sparkles !]",
   'gege': "[I cannot find eternal rest and neither will you]",
   'bibble': "[Mrglglrglglglglglglgl.. or whatever he said]",
-  'jeanne': "[You're already dead. You just don't know it yet]",
+  'jeanne': "[I've seen your future]",
   'ninja': "[Go with Honor, Friend]",
   'louise': "[Roll out the Red carpet !]",
   'mathieu': "[Evil will be purged !]",

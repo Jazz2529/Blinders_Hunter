@@ -266,7 +266,18 @@ class GameScreen extends StatelessWidget {
   static String? _shownRevealFor;
 
   @override
-  Widget build(BuildContext ctx) => Consumer<GameProvider>(
+  Widget build(BuildContext ctx) => PopScope(
+    canPop: true,
+    onPopInvoked: (didPop) {
+      // Le bouton retour automatique (AppBar ou geste système) ne passait
+      // par aucun nettoyage — sons ET musique de la partie en cours
+      // continuaient de jouer en fond après être revenu au menu.
+      if (didPop) {
+        audio.stopAllSfx();
+        audio.stopMusic();
+      }
+    },
+    child: Consumer<GameProvider>(
     builder:(_, gp, __) {
       final isMyTurn = gp.isMyTurn;
       final gs = gp.gameState;
@@ -518,7 +529,7 @@ class GameScreen extends StatelessWidget {
         revealQuoteBanner,
       ]);
     },
-  );
+  ));
 
   void _showPunishChoiceDialog(BuildContext ctx, GameProvider gp) {
     final me = gp.me;

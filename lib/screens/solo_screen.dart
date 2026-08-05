@@ -337,7 +337,19 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
   }
 
   @override
-  Widget build(BuildContext ctx) => Consumer<SoloController>(
+  Widget build(BuildContext ctx) => PopScope(
+    canPop: true,
+    onPopInvoked: (didPop) {
+      // Le bouton retour automatique de l'AppBar (ou le geste retour du
+      // téléphone) ne passait par aucun nettoyage — sons ET musique de la
+      // partie en cours continuaient de jouer en fond après être revenu au
+      // menu (stopAllSfx() seul ne suffisait pas, la musique est séparée).
+      if (didPop) {
+        audio.stopAllSfx();
+        audio.stopMusic();
+      }
+    },
+    child: Consumer<SoloController>(
     builder: (_, ctrl, __) {
       final s = ctrl.state;
       if (s == null) return const Scaffold(backgroundColor: kBg0,
@@ -482,7 +494,7 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
           }),
       ]);
     },
-  );
+  ));
 
   // CORRECTION : showDialog simple, données copiées AVANT l'ouverture
 
