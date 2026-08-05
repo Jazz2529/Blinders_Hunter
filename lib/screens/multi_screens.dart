@@ -257,21 +257,32 @@ class _InfoBox extends StatelessWidget {
 // ─────────────────────────────────────────────
 // GAME SCREEN (multi)
 // ─────────────────────────────────────────────
-class GameScreen extends StatelessWidget {
+class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
+  @override State<GameScreen> createState() => _GameScreenState();
+}
 
+class _GameScreenState extends State<GameScreen> {
   // Garde-fou pour éviter d'ouvrir le même dialogue plusieurs fois lors des
   // re-renders répétés (polling REST) tant que l'état pending reste actif.
   static String? _shownPunishFor;
   static String? _shownRevealFor;
 
   @override
+  void dispose() {
+    // Filet de sécurité garanti : dispose() se déclenche TOUJOURS quand cet
+    // écran est retiré, peu importe comment (bouton retour, geste système,
+    // navigation programmatique...) — contrairement à PopScope qui peut ne
+    // pas se déclencher dans tous les cas selon le contexte de navigation.
+    audio.stopAllSfx();
+    audio.stopMusic();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext ctx) => PopScope(
     canPop: true,
     onPopInvoked: (didPop) {
-      // Le bouton retour automatique (AppBar ou geste système) ne passait
-      // par aucun nettoyage — sons ET musique de la partie en cours
-      // continuaient de jouer en fond après être revenu au menu.
       if (didPop) {
         audio.stopAllSfx();
         audio.stopMusic();
@@ -853,7 +864,7 @@ class _PlayerRow extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: fc != null ? Border.all(color: fc, width: 2.5) : null,
               ),
-              child: Stack(alignment: Alignment.topRight, children: [
+              child: Stack(alignment: Alignment.topRight, clipBehavior: Clip.none, children: [
                 // Jason garde toujours son jeton — seul le contour change de couleur
                 TokenWidget(tokenId: p.token, size: 32, isDead: !p.alive),
                 if (isMe) const Positioned(top: 0, right: 0,
@@ -2761,7 +2772,7 @@ class _PlayerChip extends StatelessWidget {
               width: isMe ? 2 : 1),
           ),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Stack(alignment: Alignment.topRight, children: [
+            Stack(alignment: Alignment.topRight, clipBehavior: Clip.none, children: [
               TokenWidget(tokenId: p.token, size: 26, isDead: !p.alive),
               if (isMe) const Positioned(top: 0, right: 0,
                 child: Text('★', style: TextStyle(fontSize: 7, color: kGold))),

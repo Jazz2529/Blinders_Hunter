@@ -279,6 +279,16 @@ class SoloController extends ChangeNotifier {
   final Random     _rng = Random();
   Map<String, Map<String, dynamic>> _currentSnapshot = {};
 
+  // Quand l'utilisateur quitte l'écran de jeu en pleine partie, la boucle
+  // asynchrone des bots (_playBot, faite de multiples "await
+  // Future.delayed(...)") continuait de tourner en arrière-plan — jouant les
+  // tours suivants et leurs sons associés — jusqu'à atteindre le tour du
+  // joueur humain, où elle se bloquait naturellement en attendant une
+  // action qui ne viendrait jamais. Ce drapeau, vérifié après chaque pause,
+  // permet d'arrêter proprement cette boucle dès que l'écran est quitté.
+  bool _stopped = false;
+  void stopController() { _stopped = true; }
+
   SoloState? state;
   AiDifficulty difficulty;
   String humanName;
@@ -344,7 +354,7 @@ class SoloController extends ChangeNotifier {
 
   // ─── Tour suivant ────────────────────────
   Future<void> nextTurn() async {
-    if (state == null || state!.isOver) return;
+    if (state == null || state!.isOver || _stopped) return;
     // 🍀 Fifi — le "tour parfait" ne dure qu'UN tour : on le consomme ici,
     // avant de passer au joueur suivant, pour revenir à l'aléatoire ensuite.
     if (state!.fifiGoldenTurn) {
@@ -411,6 +421,7 @@ class SoloController extends ChangeNotifier {
 
     // Capacité
     await Future.delayed(d);
+    if (_stopped) return;
     if (_ai.shouldUseAbility(bot, state!.players, state!.terrainLayout, difficulty) &&
         !(bot.character!.abilityEffect == 'copy_ability' &&
           !state!.players.any((x) => x.uid != bot.uid && x.alive && x.revealed &&
@@ -553,6 +564,7 @@ class SoloController extends ChangeNotifier {
 
     // Déplacement
     await Future.delayed(d);
+    if (_stopped) return;
     final roll = _eg.rollMove();
     final sum = roll['sum']!;
     int zoneIdx;
@@ -569,6 +581,7 @@ class SoloController extends ChangeNotifier {
 
     // Effet terrain
     await Future.delayed(d);
+    if (_stopped) return;
     final terrain = state!.terrainLayout[bot.zoneIndex];
     if (terrain.effect == 'choice') {
       final deck = _ai.bestDeck(bot, difficulty);
@@ -609,6 +622,7 @@ class SoloController extends ChangeNotifier {
     // Carte
     if (state!.pendingCard != null) {
       await Future.delayed(d);
+      if (_stopped) return;
       final card = state!.pendingCard!;
       // Julien pioche le Bucket de Poulet
       if (card.id == 'L16' && bot.character?.id == 'julien') {
@@ -636,6 +650,7 @@ class SoloController extends ChangeNotifier {
 
     // Attaque
     await Future.delayed(d);
+    if (_stopped) return;
     if (_ai.shouldAttack(bot, state!.players, state!.terrainLayout, difficulty)) {
       final targets = _eg.attackTargets(bot, state!.players, state!.terrainLayout);
       final target = _ai.bestTarget(bot, targets, difficulty, context: 'attack');
@@ -691,6 +706,7 @@ class SoloController extends ChangeNotifier {
     _log('⏩ ${bot.name} termine son tour', cls: 'bot');
     state!.botThinking = false; notifyListeners();
     await Future.delayed(const Duration(milliseconds: 400));
+    if (_stopped) return;
     await nextTurn();
   }
 

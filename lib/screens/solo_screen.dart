@@ -329,11 +329,34 @@ class SoloGameScreen extends StatefulWidget {
 }
 
 class _SoloGameScreenState extends State<SoloGameScreen> {
+  SoloController? _ctrl;
+
   @override
   void initState() {
     super.initState();
     // Couper la musique lobby → lancer la musique de partie
     audio.fadeOutMusic(ms: 400).then((_) => audio.playGameMusic());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Capturé ici (context encore valide) plutôt que dans dispose() — accéder
+    // au Provider depuis dispose() peut échouer une fois le widget retiré.
+    _ctrl ??= Provider.of<SoloController>(context, listen: false);
+  }
+
+  @override
+  void dispose() {
+    // Filet de sécurité garanti : dispose() se déclenche TOUJOURS quand cet
+    // écran est retiré, peu importe comment (bouton retour, geste système,
+    // navigation programmatique...). Sans stopController(), la boucle
+    // asynchrone des bots continuait de tourner en arrière-plan (tours
+    // suivants + leurs sons) jusqu'à atteindre le tour du joueur humain.
+    _ctrl?.stopController();
+    audio.stopAllSfx();
+    audio.stopMusic();
+    super.dispose();
   }
 
   @override
