@@ -691,7 +691,10 @@ class GameEngine with AbilityEngine {
     if (attacker.lanceLonginus && dmg > 0 &&
         attacker.character?.faction == Faction.hunter && attacker.revealed) dmg += 2;
     if (dmg > 0) dmg += attacker.equipment.where((e) => e.effect == 'dague_voleur').length;
-    if (attacker.sainteTunique) dmg = max(0, dmg - 1);
+    // NOTE : la réduction de la Sainte Tunique se fait déjà correctement
+    // DANS applyDamage(), en vérifiant le porteur qui SUBIT les dégâts (la
+    // cible), pas l'attaquant — une ligne ici vérifiait à tort la Tunique de
+    // l'ATTAQUANT, ce qui n'a aucun sens pour un objet défensif. Supprimée.
 
     // Luc/Peintre passive +1 dmg
     final atkEff = attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '';
@@ -753,16 +756,12 @@ class GameEngine with AbilityEngine {
     if (actual > 0 && attacker.epeeNinja) applyDamage(target, 2);
     String log = '⚔️ ${attacker.name} attaque ${target.name} — $actual dégâts';
 
-    // Bazooka: AoE
-    if (attacker.bazooka && dmg > 0) {
-      final z = attacker.zoneIndex;
-      final adj = kAdjacences[z];
-      final splashed = all.where((p) =>
-        p.alive && p.uid != attacker.uid && p.uid != target.uid &&
-        (p.zoneIndex == z || adj.contains(p.zoneIndex))).toList();
-      for (final p in splashed) { applyDamage(p, dmg); if (!p.alive) p.killedByUid = attacker.uid; }
-      if (splashed.isNotEmpty) log += ' + 💥 Bazooka sur ${splashed.length} joueurs';
-    }
+    // NOTE : le Bazooka ne se gère plus ici. humanBazookaAttack() (solo) et
+    // la branche dédiée de attackPlayer() (multi) bouclent déjà sur CHAQUE
+    // joueur à portée et appliquent les dégâts une seule fois chacun — un
+    // ancien bloc de "splash" ici dupliquait ce travail et multipliait les
+    // dégâts (chaque cible recevait aussi les dégâts destinés aux AUTRES
+    // cibles de la même salve, en plus des siens).
 
     // Scott: contre-attaque (uniquement s'il survit à l'attaque)
     bool scottCountered = false;
@@ -852,7 +851,10 @@ class GameEngine with AbilityEngine {
     if (atkEff == 'zero_wound_power') {
       if (dmg == 0) dmg = 4; else dmg += 1;
     }
-    if (attacker.sainteTunique) dmg = max(0, dmg - 1);
+    // NOTE : la réduction de la Sainte Tunique se fait déjà correctement DANS
+    // applyDamage() en vérifiant le porteur qui SUBIT les dégâts (la cible),
+    // pas l'attaquant — une ligne ici vérifiait à tort la Tunique de
+    // l'ATTAQUANT. Supprimée (voir resolveAttackFull pour la même correction).
     // Fourrure de Chaussette : renvoie l'attaque sur l'attaquant lui-même
     if (target.equipment.any((e) => e.effect == 'mirror_damage') || target.mirrorDamage) {
       final reflected = applyDamage(attacker, dmg);

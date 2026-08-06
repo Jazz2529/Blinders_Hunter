@@ -35,7 +35,11 @@ class GameBoard extends StatelessWidget {
   Widget build(BuildContext context) {
     final adjacent = Set<int>.from(kAdjacences[humanZoneIndex]);
     return LayoutBuilder(builder: (ctx, bc) {
-      // Calcule la taille de chaque tuile exactement
+      // Retour au remplissage complet de l'espace disponible — le respect
+      // strict du ratio des images donnait des tuiles minuscules dès que la
+      // forme de l'écran ne correspondait pas exactement à 9:7. Un léger
+      // rognage via BoxFit.cover est un bien meilleur compromis visuel que
+      // des tuiles microscopiques.
       const cols = 3;
       const rows = 2;
       const gap = 4.0;
@@ -278,7 +282,7 @@ class _TerrainImg extends StatelessWidget {
     final path = terrainImagePath(effect);
     if (path == null) return _fallback(effect);
     return Image.asset(path, fit: BoxFit.contain,
-      cacheWidth: 400, // images sources en 1060x1484 — bien trop grand pour une tuile de plateau
+      cacheWidth: 500,
       errorBuilder: (_, __, ___) => _fallback(effect));
   }
 
@@ -321,13 +325,21 @@ class _TokensOverlay extends StatelessWidget {
           // Couleur du cadre selon faction si révélé
           Color borderColor = Colors.white;
           double borderWidth = 1.5;
-          List<BoxShadow> shadows = const [BoxShadow(color: Colors.black, blurRadius: 4)];
+          // Même ombre directionnelle marquée que les jetons du classement
+          // (TokenWidget) — projetée d'un seul côté, comme posée sur le
+          // plateau. Sans ça, les jetons du plateau lui-même n'avaient
+          // qu'une ombre symétrique à peine visible.
+          List<BoxShadow> shadows = [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.85),
+              blurRadius: tileSize * 0.22, spreadRadius: tileSize * 0.03,
+              offset: Offset(tileSize * 0.18, tileSize * 0.22)),
+          ];
 
           if (revealed && faction.isNotEmpty) {
             borderColor = _factionColor(faction);
             borderWidth = 2.5;
             shadows = [
-              BoxShadow(color: Colors.black, blurRadius: 4),
+              ...shadows,
               BoxShadow(color: borderColor.withValues(alpha: 0.6), blurRadius: 8, spreadRadius: 0.5),
             ];
           }

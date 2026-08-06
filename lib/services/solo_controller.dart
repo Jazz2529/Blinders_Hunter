@@ -412,42 +412,6 @@ class SoloController extends ChangeNotifier {
     if (state!.players[state!.currentIdx].isBot) await _playBot(state!.current);
   }
 
-  /// Révèle un joueur en respectant le mécanisme de Jason (Caméléon) — à
-  /// utiliser PARTOUT où un joueur peut être révélé de force par un tiers
-  /// (Elaia, etc.), pas seulement lors de sa propre révélation volontaire.
-  /// Sans ça, un Jason forcé à se révéler apparaissait tel quel (sans
-  /// déguisement) puisque cette logique n'existait que dans un seul chemin
-  /// spécifique (le bot choisissant lui-même d'utiliser son pouvoir).
-  void _forceRevealRespectingJason(Player target) {
-    if (target.revealed) return;
-    if (target.character?.abilityEffect == 'chameleon_passive' &&
-        target.disguiseCharIdOverride == null) {
-      final hunters = state!.players
-          .where((p) => p.uid != target.uid && p.character?.faction == Faction.hunter && p.character != null)
-          .map((p) => p.character!).toList();
-      final shadows = state!.players
-          .where((p) => p.uid != target.uid && p.character?.faction == Faction.shadow && p.character != null)
-          .map((p) => p.character!).toList();
-      if (hunters.isNotEmpty && shadows.isNotEmpty) {
-        final pool = [...hunters, ...shadows];
-        final disguise = pool[Random().nextInt(pool.length)];
-        target.revealed = true;
-        target.disguiseNameOverride = disguise.name;
-        target.disguiseIconOverride = disguise.icon;
-        target.disguiseFactionOverride = disguise.faction.name;
-        target.disguiseCharIdOverride = disguise.id;
-        state!.pendingRevealAnimation = target.uid;
-        audio.playReveal();
-        _log('🃏 ${target.name} révèle : ${disguise.name}');
-        return;
-      }
-    }
-    target.revealed = true;
-    state!.pendingRevealAnimation = target.uid;
-    audio.playReveal();
-    _log('🃏 ${target.name} révèle sa carte');
-  }
-
   // ─── Bot ────────────────────────────────
   Future<void> _playBot(Player bot) async {
     state!.botThinking = true; notifyListeners();
@@ -463,7 +427,42 @@ class SoloController extends ChangeNotifier {
           !state!.players.any((x) => x.uid != bot.uid && x.alive && x.revealed &&
               x.character != null &&
               !GameEngine.uncopyableAbilities.contains(x.character!.abilityEffect)))) {
-      if (!bot.revealed) _forceRevealRespectingJason(bot);
+      if (!bot.revealed) {
+        if (bot.character!.abilityEffect == 'chameleon_passive') {
+          // Jason (bot) : se déguise en un Hunter ou Shadow réellement en jeu,
+          // au lieu de se révéler tel quel — sinon son mécanisme unique
+          // (usurper l'identité d'un autre personnage) est complètement ignoré.
+          final hunters = state!.players
+              .where((p) => p.character?.faction == Faction.hunter && p.character != null)
+              .map((p) => p.character!).toList();
+          final shadows = state!.players
+              .where((p) => p.character?.faction == Faction.shadow && p.character != null)
+              .map((p) => p.character!).toList();
+          if (hunters.isNotEmpty && shadows.isNotEmpty) {
+            final pool = [...hunters, ...shadows];
+            final disguise = pool[Random().nextInt(pool.length)];
+            bot.revealed = true;
+            bot.disguiseNameOverride = disguise.name;
+            bot.disguiseIconOverride = disguise.icon;
+            bot.disguiseFactionOverride = disguise.faction.name;
+            bot.disguiseCharIdOverride = disguise.id;
+            state!.pendingRevealAnimation = bot.uid;
+            audio.playReveal();
+            _log('🃏 ${bot.name} révèle : ${disguise.name}');
+          } else {
+            // Cas limite (pas assez de personnages des 2 factions en jeu)
+            bot.revealed = true;
+            state!.pendingRevealAnimation = bot.uid;
+            audio.playReveal();
+            _log('🃏 ${bot.name} révèle sa carte');
+          }
+        } else {
+          bot.revealed = true;
+          state!.pendingRevealAnimation = bot.uid;
+          audio.playReveal();
+          _log('🃏 ${bot.name} révèle sa carte');
+        }
+      }
       final needsTarget = _abilityNeedsTarget(bot.character!.abilityEffect);
       Player? target;
       if (bot.character!.abilityEffect == 'copy_ability') {
@@ -988,8 +987,7 @@ class SoloController extends ChangeNotifier {
       // ── Elaia: force révélation + 1 blessure ──
       case 'force_reveal_damage1':
         if (target == null) { s.pendingTargetAction = 'ability_elaia'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
-        _forceRevealRespectingJason(target);
-        _eg.applyDamage(target, 1);
+        target.revealed = true; _eg.applyDamage(target, 1);
         p.abilityUsed = true;
         _log('🔮 Elaia révèle ${target.name} et lui inflige 1', cls: 'player');
 
@@ -1731,16 +1729,14 @@ class SoloController extends ChangeNotifier {
     // (sinon on pouvait attribuer à tort un kill fait par un bot/autre
     // source à celui qui vient de jouer une carte sans rapport).
     final aliveBeforeUids = state!.players.where((x) => x.alive).map((x) => x.uid).toSet();
-    // BIBBLE: si carte Ténèbres → soigner au lieu de blesser
-    final bEff = p.copiedEffect ?? p.character?.abilityEffect ?? '';
-    if (bEff == 'tenebres_heal_instead' && p.revealed && card.deck == DeckType.tenebres) {
-      // Les cartes qui infligent des blessures à Bibble le soignent à la place
-      final healAmt = 2; // montant standard ténèbres
-      _eg.applyHeal(p, healAmt);
-      _log('🧚 Bibble : "${card.name}" le soigne de $healAmt au lieu de le blesser !', cls: 'player');
-      state!.pendingCard = null; state!.phase = _postCardPhase();
-      notifyListeners(); return;
-    }
+    // NOTE : le passif de Bibble (soigner au lieu de subir des dégâts d'une
+    // carte Ténèbres) est déjà géré correctement DANS applyDamage() via le
+    // drapeau isTenebresCard — posé UNIQUEMENT sur les 4 cartes qui infligent
+    // vraiment des dégâts (Araignée, Dynamite, Poupée Démoniaque,
+    // Vampirisation). Il y avait ICI un second bloc, bien trop large, qui
+    // interceptait N'IMPORTE QUELLE carte du deck Ténèbres (y compris les
+    // équipements et les cartes sans dégâts comme Succube), l'empêchant de
+    // se résoudre normalement. Supprimé.
     final res = _eg.resolveCard(card, p, state!.players, state!.terrainLayout, target: target);
     if (res['needsTarget'] == true) {
       state!.phase = GamePhase.chooseTarget;

@@ -30,6 +30,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Prefs.init();
   DisplaySettings.instance.load();
+  // IMPORTANT : sans cet appel, init() (qui configure le mixage audio sur
+  // mobile, et charge les préférences de volume partout) n'était jamais
+  // exécutée.
+  await audio.init();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,

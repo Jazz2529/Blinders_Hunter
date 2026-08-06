@@ -1930,7 +1930,7 @@ class _WoundsColumnState extends State<_WoundsColumn>
                   border: p.revealed ? Border.all(
                     color: factionColor(p.character!.faction.name), width: 2.5) : null,
                 ),
-                child: Stack(alignment: Alignment.topRight, children: [
+                child: Stack(alignment: Alignment.topRight, clipBehavior: Clip.none, children: [
                   TokenWidget(tokenId: p.token, size: 30, isDead: !p.alive),
                   if (isMe) const Positioned(top: 0, right: 0,
                     child: Text('★', style: TextStyle(fontSize: 8, color: kGold))),
@@ -3186,17 +3186,11 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
   Widget build(BuildContext ctx) {
     final p  = widget.player;
     final c  = p.character;
-    // Affichage : si déguisé (Jason), montrer le personnage IMITÉ partout
-    // (nom, icône, faction, illustration) — pas Jason lui-même. Sans ça, la
-    // révélation montrait toujours "Il est Jason" même une fois déguisé.
-    final displayChar = p.disguiseCharIdOverride != null
-        ? (kAllCharacters.where((ch) => ch.id == p.disguiseCharIdOverride).firstOrNull ?? c)
-        : c;
-    final fc = displayChar != null ? factionColor(displayChar.faction.name) : kGold;
-    final fb = displayChar != null ? factionBg(displayChar.faction.name) : kBg2;
-    final imgPath = displayChar != null ? characterImagePath(displayChar.id) : null;
-    final fLabel  = displayChar?.faction.name == 'hunter' ? '🔵 HUNTER'
-        : displayChar?.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE';
+    final fc = c != null ? factionColor(c.faction.name) : kGold;
+    final fb = c != null ? factionBg(c.faction.name) : kBg2;
+    final imgPath = c != null ? characterImagePath(c.id) : null;
+    final fLabel  = c?.faction.name == 'hunter' ? '🔵 HUNTER'
+        : c?.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE';
 
     return GestureDetector(
       onTap: widget.onDone,
@@ -3239,10 +3233,10 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
                                 ? Image.asset(imgPath, fit: BoxFit.cover,
                                     cacheWidth: 800, cacheHeight: 1200,
                                     errorBuilder: (_, __, ___) => Container(color: fb,
-                                      child: Center(child: Text(displayChar?.icon ?? '?',
+                                      child: Center(child: Text(c?.icon ?? '?',
                                         style: const TextStyle(fontSize: 72)))))
                                 : Container(color: fb,
-                                    child: Center(child: Text(displayChar?.icon ?? '?',
+                                    child: Center(child: Text(c?.icon ?? '?',
                                       style: const TextStyle(fontSize: 72)))))))),
                       // Infos
                       Padding(padding: const EdgeInsets.all(20),
@@ -3258,9 +3252,9 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: fc, width: 1.5)),
                           child: Text(fLabel, style: cinzel(14, c: fc, fw: FontWeight.w700))),
-                        if (displayChar != null) ...[
+                        if (c != null) ...[
                           const SizedBox(height: 8),
-                          Text('Il est ${displayChar.name}',
+                          Text('Il est ${c.name}',
                             style: cinzel(16, c: kGold2, fw: FontWeight.w700)),
                         ],
                         if (widget.isRealReveal && c != null) ...[
