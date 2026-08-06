@@ -3722,7 +3722,7 @@ class _CardWidget extends StatelessWidget {
                   height: 240,
                   child: AspectRatio(
                     aspectRatio: 2 / 3,
-                    child: Image.asset(imgPath, fit: BoxFit.cover,
+                    child: Image.asset(imgPath, fit: BoxFit.contain,
                       cacheWidth: 640, cacheHeight: 960,
                       errorBuilder: (_, __, ___) => Container(
                         height: 80, color: dc.withValues(alpha: 0.1),

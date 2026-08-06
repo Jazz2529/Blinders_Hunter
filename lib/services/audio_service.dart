@@ -51,23 +51,29 @@ class AudioService extends ChangeNotifier {
     bool isMobile = false;
     try { isMobile = Platform.isAndroid || Platform.isIOS; } catch (_) {}
     if (isMobile) {
-      final mixContext = AudioContext(
-        android: AudioContextAndroid(
-          isSpeakerphoneOn: false,
-          stayAwake: false,
-          contentType: AndroidContentType.sonification,
-          usageType: AndroidUsageType.game,
-          audioFocus: AndroidAudioFocus.none,
-        ),
-        iOS: AudioContextIOS(
-          category: AVAudioSessionCategory.ambient,
-          options: {AVAudioSessionOptions.mixWithOthers},
-        ),
-      );
-      try { await AudioPlayer.global.setAudioContext(mixContext); } catch (_) {}
-      for (final p in [_musicPlayer, _sfxPlayer, _sfxPlayer2, _voicePlayer, _ropePlayer]) {
-        try { await p.setAudioContext(mixContext); } catch (_) {}
-      }
+      // Tout ce bloc est protégé : une erreur ici (comme celle qui a fait
+      // planter l'app au démarrage — la combinaison catégorie/option iOS
+      // n'était pas valide) ne doit JAMAIS empêcher l'application de
+      // démarrer. Au pire, le mixage audio ne sera pas configuré.
+      try {
+        final mixContext = AudioContext(
+          android: AudioContextAndroid(
+            isSpeakerphoneOn: false,
+            stayAwake: false,
+            contentType: AndroidContentType.sonification,
+            usageType: AndroidUsageType.game,
+            audioFocus: AndroidAudioFocus.none,
+          ),
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: {AVAudioSessionOptions.mixWithOthers},
+          ),
+        );
+        try { await AudioPlayer.global.setAudioContext(mixContext); } catch (_) {}
+        for (final p in [_musicPlayer, _sfxPlayer, _sfxPlayer2, _voicePlayer, _ropePlayer]) {
+          try { await p.setAudioContext(mixContext); } catch (_) {}
+        }
+      } catch (_) {}
     }
     await _musicPlayer.setVolume(_musicEnabled ? _musicVolume : 0.0);
     await _sfxPlayer.setVolume(_sfxEnabled ? _sfxVolume : 0.0);
