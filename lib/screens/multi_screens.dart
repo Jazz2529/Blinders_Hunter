@@ -2252,7 +2252,7 @@ class _RevealQuoteBannerState extends State<_RevealQuoteBanner> {
     if (p == null || c == null) return const SizedBox.shrink();
     final quoteId = p.disguiseCharIdOverride ?? c.id;
     final shownCharName = p.disguiseNameOverride ?? c.name;
-    final fc = factionColor(c.faction.name);
+    final fc = factionColor(p.disguiseFactionOverride ?? c.faction.name);
     return Positioned(
       top: 90, left: 16, right: 16,
       child: IgnorePointer(

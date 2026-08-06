@@ -412,6 +412,42 @@ class SoloController extends ChangeNotifier {
     if (state!.players[state!.currentIdx].isBot) await _playBot(state!.current);
   }
 
+  /// Révèle un joueur en respectant le mécanisme de Jason (Caméléon) — à
+  /// utiliser PARTOUT où un joueur peut être révélé de force par un tiers
+  /// (Elaia, etc.), pas seulement lors de sa propre révélation volontaire.
+  /// Sans ça, un Jason forcé à se révéler apparaissait tel quel (sans
+  /// déguisement) puisque cette logique n'existait que dans un seul chemin
+  /// spécifique (le bot choisissant lui-même d'utiliser son pouvoir).
+  void _forceRevealRespectingJason(Player target) {
+    if (target.revealed) return;
+    if (target.character?.abilityEffect == 'chameleon_passive' &&
+        target.disguiseCharIdOverride == null) {
+      final hunters = state!.players
+          .where((p) => p.uid != target.uid && p.character?.faction == Faction.hunter && p.character != null)
+          .map((p) => p.character!).toList();
+      final shadows = state!.players
+          .where((p) => p.uid != target.uid && p.character?.faction == Faction.shadow && p.character != null)
+          .map((p) => p.character!).toList();
+      if (hunters.isNotEmpty && shadows.isNotEmpty) {
+        final pool = [...hunters, ...shadows];
+        final disguise = pool[Random().nextInt(pool.length)];
+        target.revealed = true;
+        target.disguiseNameOverride = disguise.name;
+        target.disguiseIconOverride = disguise.icon;
+        target.disguiseFactionOverride = disguise.faction.name;
+        target.disguiseCharIdOverride = disguise.id;
+        state!.pendingRevealAnimation = target.uid;
+        audio.playReveal();
+        _log('🃏 ${target.name} révèle : ${disguise.name}');
+        return;
+      }
+    }
+    target.revealed = true;
+    state!.pendingRevealAnimation = target.uid;
+    audio.playReveal();
+    _log('🃏 ${target.name} révèle sa carte');
+  }
+
   // ─── Bot ────────────────────────────────
   Future<void> _playBot(Player bot) async {
     state!.botThinking = true; notifyListeners();
@@ -427,42 +463,7 @@ class SoloController extends ChangeNotifier {
           !state!.players.any((x) => x.uid != bot.uid && x.alive && x.revealed &&
               x.character != null &&
               !GameEngine.uncopyableAbilities.contains(x.character!.abilityEffect)))) {
-      if (!bot.revealed) {
-        if (bot.character!.abilityEffect == 'chameleon_passive') {
-          // Jason (bot) : se déguise en un Hunter ou Shadow réellement en jeu,
-          // au lieu de se révéler tel quel — sinon son mécanisme unique
-          // (usurper l'identité d'un autre personnage) est complètement ignoré.
-          final hunters = state!.players
-              .where((p) => p.character?.faction == Faction.hunter && p.character != null)
-              .map((p) => p.character!).toList();
-          final shadows = state!.players
-              .where((p) => p.character?.faction == Faction.shadow && p.character != null)
-              .map((p) => p.character!).toList();
-          if (hunters.isNotEmpty && shadows.isNotEmpty) {
-            final pool = [...hunters, ...shadows];
-            final disguise = pool[Random().nextInt(pool.length)];
-            bot.revealed = true;
-            bot.disguiseNameOverride = disguise.name;
-            bot.disguiseIconOverride = disguise.icon;
-            bot.disguiseFactionOverride = disguise.faction.name;
-            bot.disguiseCharIdOverride = disguise.id;
-            state!.pendingRevealAnimation = bot.uid;
-            audio.playReveal();
-            _log('🃏 ${bot.name} révèle : ${disguise.name}');
-          } else {
-            // Cas limite (pas assez de personnages des 2 factions en jeu)
-            bot.revealed = true;
-            state!.pendingRevealAnimation = bot.uid;
-            audio.playReveal();
-            _log('🃏 ${bot.name} révèle sa carte');
-          }
-        } else {
-          bot.revealed = true;
-          state!.pendingRevealAnimation = bot.uid;
-          audio.playReveal();
-          _log('🃏 ${bot.name} révèle sa carte');
-        }
-      }
+      if (!bot.revealed) _forceRevealRespectingJason(bot);
       final needsTarget = _abilityNeedsTarget(bot.character!.abilityEffect);
       Player? target;
       if (bot.character!.abilityEffect == 'copy_ability') {
@@ -987,7 +988,8 @@ class SoloController extends ChangeNotifier {
       // ── Elaia: force révélation + 1 blessure ──
       case 'force_reveal_damage1':
         if (target == null) { s.pendingTargetAction = 'ability_elaia'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
-        target.revealed = true; _eg.applyDamage(target, 1);
+        _forceRevealRespectingJason(target);
+        _eg.applyDamage(target, 1);
         p.abilityUsed = true;
         _log('🔮 Elaia révèle ${target.name} et lui inflige 1', cls: 'player');
 
