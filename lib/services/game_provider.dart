@@ -1005,6 +1005,7 @@ class GameProvider extends ChangeNotifier {
       audio.playInteractionVoice(kMathieuActivateInteraction.key);
     }
     bool scottCountered = false;
+    Map<String, int>? counterDice;
     String log;
     if (attacker.bazooka) {
       final bazTargets = _eg.attackTargets(attacker, all, gameState!.terrainLayout);
@@ -1017,7 +1018,11 @@ class GameProvider extends ChangeNotifier {
     } else {
       final res = _eg.resolveAttack(attacker, target, baseDmg);
       log = res['log'] as String;
-      if (res['scottCountered'] == true) scottCountered = true;
+      if (res['scottCountered'] == true) {
+        scottCountered = true;
+        counterDice = {'d4': res['counterD4'] as int, 'd6': res['counterD6'] as int,
+          'dmg': res['counterDmg'] as int};
+      }
     }
     // Gège le Fantôme : variante Bazooka (AoE, un seul jet) si l'attaquant a
     // le Bazooka, sinon variante normale (cible unique).
@@ -1061,6 +1066,7 @@ class GameProvider extends ChangeNotifier {
         lastDiceResult: d4 > 0 ? {'d4': d4, 'd6': d6, 'sum': baseDmg} : null,
         lastDiceLabel: d4 > 0 ? 'Attaque' : null,
         lastDiceTimestamp: d4 > 0 ? DateTime.now().millisecondsSinceEpoch : null,
+        scottCounterDice: counterDice,
         abilityOverlay: (gegeTriggered || gegeTriggered2) ? 'gege_ghost' : scottCountered ? 'scott_counter' : isMathieuThird ? 'mathieu_bullet' : null);
   }
 

@@ -471,7 +471,7 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
           _RichardSwapOverlay(onDone: () {
             ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
         if (overlay == 'scott_counter')
-          _ScottCounterOverlay(onDone: () {
+          _ScottCounterOverlay(dice: s.scottCounterDice, onDone: () {
             ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
           _MathieuBulletOverlay(onDone: () {
             ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
@@ -4395,7 +4395,8 @@ class _MathieuBulletOverlayState extends State<_MathieuBulletOverlay>
 // ═══════════════════════════════════════════════════════════
 class _ScottCounterOverlay extends StatefulWidget {
   final VoidCallback onDone;
-  const _ScottCounterOverlay({required this.onDone});
+  final Map<String, int>? dice;
+  const _ScottCounterOverlay({required this.onDone, this.dice});
   @override State<_ScottCounterOverlay> createState() => _ScottCounterOverlayState();
 }
 class _ScottCounterOverlayState extends State<_ScottCounterOverlay>
@@ -4438,6 +4439,22 @@ class _ScottCounterOverlayState extends State<_ScottCounterOverlay>
                     fontSize: 22, fontWeight: FontWeight.w900, color: Colors.orange,
                     shadows: [Shadow(color: Colors.black, blurRadius: 8)],
                   )),
+                if (widget.dice != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: kBg1.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.orange.withValues(alpha: 0.6)),
+                    ),
+                    child: Text(
+                      'D4(${widget.dice!['d4']})  D6(${widget.dice!['d6']})  →  ${widget.dice!['dmg']} dégâts',
+                      style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+                    ),
+                  ),
+                ],
               ]),
             ),
           ),

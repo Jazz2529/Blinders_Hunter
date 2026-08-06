@@ -356,6 +356,7 @@ class GameState {
   final bool hasAttacked;
   final String? abilityOverlay;
   final Map<String, int>? abilityDiceResult;
+  final Map<String, int>? scottCounterDice; // dés de la contre-attaque de Scott, pour affichage
   final Map<String, int>? lastDiceResult; // dernier jet de dés (attaque/déplacement/carte) — visible de tous
   final String? lastDiceLabel;            // libellé du jet ('Déplacement', 'Attaque', etc.)
   final int? lastDiceTimestamp;           // ms depuis epoch au moment du jet
@@ -414,6 +415,7 @@ class GameState {
     this.hasAttacked = false,
     this.abilityOverlay,
     this.abilityDiceResult,
+    this.scottCounterDice,
     this.lastDiceResult,
     this.lastDiceLabel,
     this.lastDiceTimestamp,
@@ -465,6 +467,7 @@ class GameState {
     'hasAttacked': hasAttacked,
     'abilityOverlay': abilityOverlay,
     'abilityDiceResult': abilityDiceResult,
+    'scottCounterDice': scottCounterDice,
     'lastDiceResult': lastDiceResult,
     'lastDiceLabel': lastDiceLabel,
     'lastDiceTimestamp': lastDiceTimestamp,
@@ -521,6 +524,10 @@ class GameState {
     abilityOverlay: j['abilityOverlay'] as String?,
     abilityDiceResult: j['abilityDiceResult'] != null
         ? Map<String, int>.from((j['abilityDiceResult'] as Map)
+            .map((k, v) => MapEntry(k as String, (v as num).toInt())))
+        : null,
+    scottCounterDice: j['scottCounterDice'] != null
+        ? Map<String, int>.from((j['scottCounterDice'] as Map)
             .map((k, v) => MapEntry(k as String, (v as num).toInt())))
         : null,
     lastDiceResult: j['lastDiceResult'] != null

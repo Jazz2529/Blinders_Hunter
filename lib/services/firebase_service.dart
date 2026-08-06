@@ -371,6 +371,7 @@ class FirebaseService {
     bool? fifiGoldenTurn,
     int? fifiMoveResult,
     int? fifiAtkResult,
+    Map<String, int>? scottCounterDice,
     Map<String, int>? lastDiceResult,
     String? lastDiceLabel,
     int? lastDiceTimestamp,
@@ -440,6 +441,7 @@ class FirebaseService {
     if (fifiGoldenTurn != null) updates['fifiGoldenTurn'] = fifiGoldenTurn;
     if (fifiMoveResult != null) updates['fifiMoveResult'] = fifiMoveResult;
     if (fifiAtkResult != null)  updates['fifiAtkResult']  = fifiAtkResult;
+    if (scottCounterDice != null) updates['scottCounterDice'] = scottCounterDice;
     if (lastDiceResult != null) updates['lastDiceResult'] = lastDiceResult;
     if (lastDiceLabel != null) updates['lastDiceLabel'] = lastDiceLabel;
     if (lastDiceTimestamp != null) updates['lastDiceTimestamp'] = lastDiceTimestamp;

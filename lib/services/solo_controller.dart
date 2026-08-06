@@ -64,6 +64,7 @@ class SoloState {
   String? jeanneUid;         // uid de Jeanne (pour lui soigner 3 à la mort de la cible)
   int jeanneStep = 0;        // 0=off, 1=choisir cible, 2=choisir récompense
   Map<String,int>? abilityDiceResult; // {d:4, result:3, dmg:3, name:'Vlad'} // uid du joueur dont la carte s'affiche
+  Map<String,int>? scottCounterDice; // {d4:x, d6:y, dmg:z} — pour afficher les dés de la contre-attaque
   // Shadow specials
   String? controlledUid;     // Zombie Raph: uid du joueur contrôlé
   bool fifiGoldenTurn;
@@ -378,7 +379,7 @@ class SoloController extends ChangeNotifier {
         lastLumiereCard: state!.lastLumiereCard);
     // Pirate passif permanent — portée infinie
     final pEff = p.copiedEffect ?? p.character?.abilityEffect ?? '';
-    if (pEff == 'infinite_range') p.infiniteRange = true;
+    if (pEff == 'infinite_range') p.infiniteRange = p.revealed;
     // Fifi Été: marquer le buff si pas attaqué le tour précédent
     if (pEff == 'no_attack_buff' && p.revealed && state!.didNotAttackLastTurn) {
       p.bonusMaxHp = 1; // flag "buff actif"
@@ -680,12 +681,20 @@ class SoloController extends ChangeNotifier {
             && bot.attackCount == 3) {
           audio.playInteractionVoice(kMathieuActivateInteraction.key);
         }
-        if (attackRes['scottCountered'] == true) state!.abilityOverlay = 'scott_counter';
+        if (attackRes['scottCountered'] == true) {
+          state!.abilityOverlay = 'scott_counter';
+          state!.scottCounterDice = {'d4': attackRes['counterD4'] as int,
+            'd6': attackRes['counterD6'] as int, 'dmg': attackRes['counterDmg'] as int};
+        }
         if (!target.alive) { _log('💀 ${target.name} est éliminé !', cls: 'death'); }
-        state!.woundFlashUid = target.uid;
-        Future.delayed(const Duration(milliseconds: 800), () {
-          if (state != null) { state!.woundFlashUid = null; }
-        });
+        // Pas de flash rouge en plus si la bannière "CONTRE-ATTAQUE" de Scott
+        // est déjà affichée — redondant et visuellement trop envahissant.
+        if (attackRes['scottCountered'] != true) {
+          state!.woundFlashUid = target.uid;
+          Future.delayed(const Duration(milliseconds: 800), () {
+            if (state != null) { state!.woundFlashUid = null; }
+          });
+        }
         _checkWin(justDiedId: target.alive ? null : target.uid);
       }
     }
@@ -1948,7 +1957,11 @@ class SoloController extends ChangeNotifier {
       audio.playInteractionVoice(kMathieuActivateInteraction.key);
     }
     // Scott contre-attaque : animation
-    if (res['scottCountered'] == true) state!.abilityOverlay = 'scott_counter';
+    if (res['scottCountered'] == true) {
+      state!.abilityOverlay = 'scott_counter';
+      state!.scottCounterDice = {'d4': res['counterD4'] as int,
+        'd6': res['counterD6'] as int, 'dmg': res['counterDmg'] as int};
+    }
     // Gège le Fantôme : attaque automatiquement la même cible
     final (gegeLog, gegeTriggered) = _eg.applyGegePassiveEx(attacker, target, state!.players);
     if (gegeLog != null) {
@@ -1973,11 +1986,15 @@ class SoloController extends ChangeNotifier {
       state!.raphShadowTotalDmg += (res['actualDmg'] as int? ?? dmg);
     }
     state!.hasAttackedThisTurn = true;
-    state!.woundFlashUid = targetId;
+    // Pas de flash rouge en plus si la bannière "CONTRE-ATTAQUE" de Scott
+    // est déjà affichée — redondant et visuellement trop envahissant.
+    if (res['scottCountered'] != true) {
+      state!.woundFlashUid = targetId;
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (state != null) { state!.woundFlashUid = null; notifyListeners(); }
+      });
+    }
     state!.phase = GamePhase.attack; notifyListeners();
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (state != null) { state!.woundFlashUid = null; notifyListeners(); }
-    });
   }
 
 

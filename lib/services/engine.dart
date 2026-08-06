@@ -52,8 +52,9 @@ class GameEngine with AbilityEngine {
       return all.where((p) => p.alive && p.uid != attacker.uid
           && p.zoneIndex != z && !adj.contains(p.zoneIndex)).toList();
     }
-    // Pirate et Sniper = portée infinie
-    if (attacker.infiniteRange || attacker.sniper || eff == 'infinite_range') {
+    // Pirate et Sniper = portée infinie — Pirate seulement une fois révélé
+    // (son pouvoir est un "passif révélé", pas actif tant qu'il est caché).
+    if (attacker.sniper || (attacker.revealed && (attacker.infiniteRange || eff == 'infinite_range'))) {
       return all.where((p) => p.alive && p.uid != attacker.uid).toList();
     }
     return all.where((p) => p.alive && p.uid != attacker.uid
@@ -765,6 +766,7 @@ class GameEngine with AbilityEngine {
 
     // Scott: contre-attaque (uniquement s'il survit à l'attaque)
     bool scottCountered = false;
+    int? counterD4, counterD6, counterDmg;
     final tEff = target.copiedEffect ?? target.character?.abilityEffect ?? '';
     if (tEff == 'counter_attack_passive' && target.revealed && target.alive) {
       final cd4 = rollD4(); final cd6 = rollD6();
@@ -773,6 +775,7 @@ class GameEngine with AbilityEngine {
       if (!attacker.alive) attacker.killedByUid = target.uid;
       log += ' | 🛡️ ${target.name} contre-attaque — D4($cd4) D6($cd6) → $cActual dégâts';
       scottCountered = true;
+      counterD4 = cd4; counterD6 = cd6; counterDmg = cActual;
     }
     // Orion: vole équipement si 0 dégâts
     if (atkEff == 'zero_wound_steal' && actual == 0 && target.equipment.isNotEmpty) {
@@ -831,7 +834,8 @@ class GameEngine with AbilityEngine {
       applyDamage(target, 1);
     }
 
-    return {'log': log, 'actualDmg': actual, 'scottCountered': scottCountered};
+    return {'log': log, 'actualDmg': actual, 'scottCountered': scottCountered,
+      'counterD4': counterD4, 'counterD6': counterD6, 'counterDmg': counterDmg};
   }
 
   // Compat: legacy string version
@@ -867,6 +871,7 @@ class GameEngine with AbilityEngine {
     String log = '⚔️ ${attacker.name} attaque ${target.name} — $actual dégâts';
     // Scott : contre-attaque (uniquement s'il survit à l'attaque)
     bool scottCountered = false;
+    int? counterD4, counterD6, counterDmg;
     final tEff = target.copiedEffect ?? target.character?.abilityEffect ?? '';
     if (tEff == 'counter_attack_passive' && target.revealed && target.alive) {
       final cd4 = rollD4(); final cd6 = rollD6();
@@ -875,6 +880,7 @@ class GameEngine with AbilityEngine {
       if (!attacker.alive) attacker.killedByUid = target.uid;
       log += ' | 🛡️ ${target.name} contre-attaque — D4($cd4) D6($cd6) → $cActual dégâts';
       scottCountered = true;
+      counterD4 = cd4; counterD6 = cd6; counterDmg = cActual;
     }
     // Rat d'Rouen : soigne de 1 si C'EST son attaque qui inflige
     final atkEffRat = attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '';
@@ -882,7 +888,8 @@ class GameEngine with AbilityEngine {
       applyHeal(attacker, 1);
       log += ' | 🐀 ${attacker.name} se soigne de 1';
     }
-    return {'log': log, 'scottCountered': scottCountered};
+    return {'log': log, 'scottCountered': scottCountered,
+      'counterD4': counterD4, 'counterD6': counterD6, 'counterDmg': counterDmg};
   }
 
   // Hache du Berserker: attaque avec d4 seulement (pas |d4-d6|)
