@@ -368,6 +368,7 @@ class SoloController extends ChangeNotifier {
     if (p.character?.abilityRepeatable == true) p.abilityUsed = false;
     if (p.shield && p.shieldCharges == 99) { p.shield = false; p.shieldCharges = 0; }
     p.damageTakenThisTurn = 0; // remise à zéro pour le tracking de Jason
+    p.emilienRerolledThisTurn = false; // remise à zéro — une relance par tour
     state!.currentIdx = next;
     state!.phase = GamePhase.ability;
     state!.pendingCard = null;
@@ -665,17 +666,11 @@ class SoloController extends ChangeNotifier {
         } else {
           final roll2 = _eg.rollAttack();
           dmg = roll2['damage']!;
-          // 🎲 Emilien : relance le D6 quelques fois si le résultat est
-          // faible, en gardant le même D4 (comportement raisonnable pour
-          // un bot, sans pouvoir demander une décision manuelle à chaque
-          // fois comme pour le joueur humain).
-          if (eff == 'reroll_d6_attack') {
-            var rerolls = 0;
-            while (dmg < 3 && rerolls < 3) {
-              final newD6 = _eg.rollD6();
-              dmg = (roll2['d4']! - newD6).abs();
-              rerolls++;
-            }
+          // 🎲 Emilien : une seule relance du D6 autorisée, si le résultat
+          // est faible (comportement raisonnable pour un bot).
+          if (eff == 'reroll_d6_attack' && dmg < 3) {
+            final newD6 = _eg.rollD6();
+            dmg = (roll2['d4']! - newD6).abs();
           }
         }
         // Ne PAS ajouter lance/lanceLonginus/dague ici : resolveAttack() les

@@ -2271,6 +2271,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         final autoPassives = {'heal2_same_hunter','heal_per_equip_eot',
           'last_hunter_buff','no_attack_buff','heal_on_same_terrain','death_heal_allies',
           'lumiere_copy','heal_hunter_on_attack','scott_passive','gege_passive','baleine_passive',
+          'reroll_d6_attack',
           'fifi_ete_passive','allied_invulnerable','infinite_range','revealed_plus1_dmg',
           'tenebres_heal_instead','attack_discard_equip','rat_passive','reduce_all_by1',
           'zero_wound_steal','slime_passive','heal1_on_own_attack','remi_canada_passive',
@@ -2674,14 +2675,14 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
               ]),
             ),
             BHButton(label: '💥 Confirmer l\'attaque', danger: true, onTap: _confirmAtk),
-            // Emilien : passif — peut relancer le D6 autant de fois que
-            // voulu avant de valider les dégâts. Non disponible lors du
-            // double-lancer de Mango (structure à 2 jets séparés).
-            if (_atkD4b == null &&
+            // Emilien : passif — une SEULE relance du D6 par tour. Non
+            // disponible pour le bazooka ni le double-lancer de Mango
+            // (structures différentes).
+            if (_atkD4b == null && !me.emilienRerolledThisTurn &&
                 (me.copiedEffect ?? me.character?.abilityEffect) == 'reroll_d6_attack') ...[
               const SizedBox(height: 8),
               BHButton(
-                label: '🎲 Relancer le D6',
+                label: '🎲 Relancer le D6 (1 fois par tour)',
                 outlined: true,
                 onTap: () {
                   audio.playDice();
@@ -2689,6 +2690,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                   setState(() {
                     _atkD6 = newD6;
                     _atkDmg = (_atkD4! - newD6).abs();
+                    me.emilienRerolledThisTurn = true;
                   });
                 }),
             ],

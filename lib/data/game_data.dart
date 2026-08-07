@@ -101,7 +101,7 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'emilien', name:'Emilien', faction:Faction.shadow, hp:12, icon:'🎲',
-    ability:'Passif: lors d\'une attaque, vous pouvez relancer le D6 autant de fois que voulu avant de valider les dégâts',
+    ability:'Passif: lors d\'une attaque, vous pouvez relancer le D6 une seule fois par tour avant de valider les dégâts',
     abilityEffect:'reroll_d6_attack', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 

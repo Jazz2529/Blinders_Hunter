@@ -182,6 +182,7 @@ class Player {
   bool jasonWeaponVoicePlayed = false; // Jason : voice line arme spéciale déjà jouée cette partie (une seule fois)
   int storedDamage = 0;      // Nils : blessures stockées en attendant d'être déchargées
   bool nilsStoring = false;  // Nils : mode "stockage" actif (ses attaques stockent au lieu de blesser)
+  bool emilienRerolledThisTurn = false; // Emilien : relance du D6 déjà utilisée ce tour (une seule fois)
   bool marinDagueVoicePlayed = false; // Marin : voice line dague déjà jouée cette partie (une seule fois)
   int damageTakenThisTurn; // remis à 0 au début de CHAQUE tour (Jason: perd son déguisement à 5+)
   List<GameCard> equipment;
@@ -240,6 +241,7 @@ class Player {
     this.jasonWeaponVoicePlayed = false,
     this.storedDamage = 0,
     this.nilsStoring = false,
+    this.emilienRerolledThisTurn = false,
     this.marinDagueVoicePlayed = false,
     List<GameCard>? equipment,
   }) : equipment = equipment ?? [];
@@ -278,6 +280,7 @@ class Player {
     'jasonWeaponVoicePlayed': jasonWeaponVoicePlayed,
     'storedDamage': storedDamage,
     'nilsStoring': nilsStoring,
+    'emilienRerolledThisTurn': emilienRerolledThisTurn,
     'marinDagueVoicePlayed': marinDagueVoicePlayed,
     'equipment': equipment.map((e) => e.toJson()).toList(),
   };
@@ -338,6 +341,7 @@ class Player {
     jasonWeaponVoicePlayed: (j['jasonWeaponVoicePlayed'] as bool?) ?? false,
     storedDamage: (j['storedDamage'] as num?)?.toInt() ?? 0,
     nilsStoring: (j['nilsStoring'] as bool?) ?? false,
+    emilienRerolledThisTurn: (j['emilienRerolledThisTurn'] as bool?) ?? false,
     marinDagueVoicePlayed: (j['marinDagueVoicePlayed'] as bool?) ?? false,
     equipment: ((j['equipment'] as List?) ?? [])
         .map((e) => GameCard.fromJson(Map<String, dynamic>.from(e as Map)))

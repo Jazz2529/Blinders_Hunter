@@ -1010,6 +1010,7 @@ class _ActionPanel extends StatefulWidget {
 
 class _ActionPanelState extends State<_ActionPanel> {
   int? _atkD4,_atkD6,_atkDmg;
+  bool _emilienRerolledThisTurn = false; // suivi local — évite tout souci de sync réseau pour ce simple garde-fou d'interface
   int? _atkD4b,_atkD6b; // Mango Loco : 2ème lancer si cible costaude (13+ PV)
   int? _d4, _d6, _sum;
   int? _d4b, _d6b, _sum2; // Boussole Mystique : 2e lancer optionnel
@@ -1217,7 +1218,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               'death_heal_allies', 'gege_passive', 'tenebres_heal_instead',
               'zero_wound_power', 'third_attack_bonus', 'infinite_range',
               'chameleon_passive', 'heal1_on_own_attack', 'builder_power', 'prophete_mark',
-              'double_attack_if_tanky', 'heal_hunter_on_attack',
+              'double_attack_if_tanky', 'heal_hunter_on_attack', 'reroll_d6_attack',
               'double_move_dice',
             }.contains(me?.copiedEffect ?? me?.character?.abilityEffect))
               BHButton(label:'⚡ Utiliser ma capacité',
@@ -1565,14 +1566,13 @@ class _ActionPanelState extends State<_ActionPanel> {
             ),
             BHButton(label:'💥 Confirmer',danger:true,
               onTap:()=>_act(_confirmAttack)),
-            // Emilien : passif — peut relancer le D6 autant de fois que
-            // voulu avant de valider les dégâts. Non disponible pour le
-            // bazooka ni le double-lancer de Mango (structures différentes).
-            if (_atkD4b == null && !hasBazooka &&
+            // Emilien : passif — une SEULE relance du D6 par tour. Non
+            // disponible pour le bazooka ni le double-lancer de Mango.
+            if (_atkD4b == null && !hasBazooka && !_emilienRerolledThisTurn &&
                 (gp.me?.copiedEffect ?? gp.me?.character?.abilityEffect) == 'reroll_d6_attack') ...[
               const SizedBox(height: 8),
               BHButton(
-                label: '🎲 Relancer le D6',
+                label: '🎲 Relancer le D6 (1 fois par tour)',
                 outlined: true,
                 onTap: () {
                   audio.playDice();
@@ -1580,6 +1580,7 @@ class _ActionPanelState extends State<_ActionPanel> {
                   setState(() {
                     _atkD6 = newD6;
                     _atkDmg = (_atkD4! - newD6).abs();
+                    _emilienRerolledThisTurn = true;
                   });
                 }),
             ],
@@ -1679,7 +1680,7 @@ class _ActionPanelState extends State<_ActionPanel> {
   Future<void> _confirmAttack() async {
     if(_atkTargetId==null||_atkDmg==null) return;
     await gp.attackPlayer(_atkTargetId!, _atkDmg!, d4: _atkD4 ?? 0, d6: _atkD6 ?? 0);
-    setState((){_atkD4=_atkD6=_atkDmg=_atkD4b=_atkD6b=null;_atkTargetId=null;});
+    setState((){_atkD4=_atkD6=_atkDmg=_atkD4b=_atkD6b=null;_atkTargetId=null;_emilienRerolledThisTurn=false;});
   }
 }
 
