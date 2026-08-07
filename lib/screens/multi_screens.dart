@@ -790,8 +790,10 @@ class _PlayerRow extends StatelessWidget {
 
   Future<void> _showCard(BuildContext ctx) {
     final c = p.character;
-    if (!p.revealed || c == null) {
-      // Pas révélé : carte "mystère" (silhouette + réplique cryptique).
+    // Un joueur MORT révèle toujours son vrai rôle en cliquant sur son
+    // jeton — même s'il n'avait jamais été révélé de son vivant.
+    if ((!p.revealed && p.alive) || c == null) {
+      // Pas révélé (et encore en vie) : carte "mystère".
       return showMysteryCardDialog(ctx, p);
     }
     final isMe = p.uid == gp.myUid;
@@ -1197,7 +1199,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               'death_heal_allies', 'gege_passive', 'tenebres_heal_instead',
               'zero_wound_power', 'third_attack_bonus', 'infinite_range',
               'chameleon_passive', 'heal1_on_own_attack', 'builder_power', 'prophete_mark',
-              'double_attack_if_tanky',
+              'double_attack_if_tanky', 'heal_hunter_on_attack',
               'double_move_dice',
             }.contains(me?.copiedEffect ?? me?.character?.abilityEffect))
               BHButton(label:'⚡ Utiliser ma capacité',
@@ -2767,9 +2769,10 @@ class _PlayerChip extends StatelessWidget {
       GestureDetector(
         onTap: () async {
           // Toucher un joueur montre toujours quelque chose : sa vraie carte
-          // si révélé, sinon une carte "mystère" — puis son équipement dans
+          // si révélé OU mort (convention "les cartes se retournent à la
+          // mort"), sinon une carte "mystère" — puis son équipement dans
           // tous les cas (info publique, connue même sans identité).
-          if (p.revealed && c != null) {
+          if ((p.revealed || !p.alive) && c != null) {
             await showFullCardDialog(ctx, disguisedCharChip ?? c);
           } else {
             await showMysteryCardDialog(ctx, p);

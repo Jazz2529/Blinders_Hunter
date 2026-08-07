@@ -540,16 +540,15 @@ class GameProvider extends ChangeNotifier {
     final t = all.firstWhere((p) => p.uid == target.uid);
     final dealt = _eg.applyDamage(t, 8);
     if (!t.alive) t.killedByUid = actor.uid;
-    // Hong Yi meurt
-    actor.wounds = actor.character?.hp ?? 8;
-    actor.alive = false;
+    // Hong Yi finit toujours à exactement 1 blessure (ne meurt plus)
+    actor.wounds = 1;
+    actor.alive = true;
     actor.abilityUsed = true;
     _eg.applyDeathPassives(all);
-    final log = '⚡ ${actor.name} inflige $dealt à ${t.name} — et meurt de sa propre puissance !';
+    final log = '⚡ ${actor.name} inflige $dealt à ${t.name} — et se retrouve à 1 blessure !';
     await _commitAll(all, log);
-    // Vérifier la victoire pour les deux morts potentiels
+    // Vérifier la victoire pour la cible (Hong Yi ne meurt plus lui-même)
     if (!t.alive) await _checkWin(all, justDiedId: t.uid);
-    if (!actor.alive) await _checkWin(all, justDiedId: actor.uid);
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
         abilityOverlay: 'hongyi_dumbbell');
     await endTurn();
@@ -1010,8 +1009,16 @@ class GameProvider extends ChangeNotifier {
     if (attacker.bazooka) {
       final bazTargets = _eg.attackTargets(attacker, all, gameState!.terrainLayout);
       final bazDmg = baseDmg + attacker.equipment.where((e) => e.effect == 'dague_voleur').length; // Dague(s) du Voleur
+      // Carla : si elle porte le bazooka, ses cibles Hunter révélées sont
+      // soignées du même montant que les dégâts qui auraient été infligés
+      // (aucune réduction, ni sur le soin ni sur les dégâts normaux).
+      final isCarlaBaz = (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'heal_hunter_on_attack';
       for (final t in bazTargets) {
-        _eg.applyDamage(t, bazDmg);
+        if (isCarlaBaz && attacker.revealed && t.character?.faction == Faction.hunter && t.revealed) {
+          if (bazDmg > 0) _eg.applyHeal(t, bazDmg);
+        } else {
+          _eg.applyDamage(t, bazDmg);
+        }
         if (!t.alive) t.killedByUid = attacker.uid;
       }
       log = '💥 ${attacker.name} (Bazooka) — $bazDmg dégâts à tous !';

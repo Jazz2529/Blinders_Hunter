@@ -1762,14 +1762,17 @@ class _HpLeaderboard extends StatelessWidget {
 
   void _showOpponentCard(BuildContext ctx, Player p) {
     final c = p.character;
-    if (p.revealed && c != null) {
+    // Un joueur MORT révèle toujours son vrai rôle en cliquant sur son
+    // jeton — même s'il n'avait jamais été révélé de son vivant (convention
+    // "les cartes se retournent à la mort", comme sur un vrai plateau).
+    if ((p.revealed || !p.alive) && c != null) {
       showFullCardDialog(ctx, c).then((_) {
         if (p.equipment.isNotEmpty && ctx.mounted) _showEquipmentForSolo(ctx, p);
       });
     } else {
-      // Pas révélé : carte "mystère" (silhouette + réplique cryptique),
-      // mais l'équipement reste visible — info publique quel que soit le
-      // statut de révélation.
+      // Pas révélé (et encore en vie) : carte "mystère" (silhouette +
+      // réplique cryptique), mais l'équipement reste visible — info
+      // publique quel que soit le statut de révélation.
       showMysteryCardDialog(ctx, p).then((_) {
         if (p.equipment.isNotEmpty && ctx.mounted) _showEquipmentForSolo(ctx, p);
       });
@@ -1889,7 +1892,7 @@ class _WoundsColumnState extends State<_WoundsColumn>
     // Blessures toujours visibles — mais PAS les PV max
 
     return GestureDetector(
-      onTap: (!isMe && p.alive && widget.onTap != null)
+      onTap: (!isMe && widget.onTap != null)
           ? () => widget.onTap!(p) : null,
       child: WoundDelta(
       wounds: p.wounds,
@@ -2248,7 +2251,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         // Passifs auto-activés (pas besoin d'appuyer)
         final autoPassives = {'heal2_same_hunter','heal_per_equip_eot',
           'last_hunter_buff','no_attack_buff','heal_on_same_terrain','death_heal_allies',
-          'lumiere_copy','carla_passive','scott_passive','gege_passive','baleine_passive',
+          'lumiere_copy','heal_hunter_on_attack','scott_passive','gege_passive','baleine_passive',
           'fifi_ete_passive','allied_invulnerable','infinite_range','revealed_plus1_dmg',
           'tenebres_heal_instead','attack_discard_equip','rat_passive','reduce_all_by1',
           'zero_wound_steal','slime_passive','heal1_on_own_attack','remi_canada_passive',

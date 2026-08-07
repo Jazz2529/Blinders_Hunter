@@ -304,12 +304,12 @@ class GameEngine with AbilityEngine {
         final dealt = applyDamage(target, d);
         return '🎲 ${actor.name} lance D6($d) → $dealt blessures à ${target.name}';
 
-      // ── Hong Yi : 8 dégâts à la cible, lui-même meurt ──
+      // ── Hong Yi : 8 dégâts à la cible, lui-même finit à 1 blessure ──
       case 'terrain_max_aoe':
         if (target == null) return 'cible_requise';
         final dealt = applyDamage(target, 8);
-        actor.wounds = actor.character!.hp; actor.alive = false;
-        return '⚡ ${actor.name} inflige $dealt à ${target.name} — et meurt de sa propre puissance !';
+        actor.wounds = 1; actor.alive = true;
+        return '⚡ ${actor.name} inflige $dealt à ${target.name} — et se retrouve à 1 blessure !';
 
       // ── Carapatte : D6 lifesteal, unique ──
       case 'd6_lifesteal':
@@ -715,15 +715,14 @@ class GameEngine with AbilityEngine {
       if (dmg == 0) dmg = 4;
       else dmg += 1;
     }
-    // Carla: si cible est un Hunter révélé → soigne au lieu de blesser (−1 dégât)
+    // Carla: si cible est un Hunter révélé → soigne du même montant que les
+    // dégâts qui auraient été infligés (aucune réduction). Sinon, dégâts
+    // normaux sans modification.
     final isCarla = (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'heal_hunter_on_attack';
     if (isCarla && attacker.revealed && target.character?.faction == Faction.hunter && target.revealed) {
-      final healAmt = max(0, dmg - 1);
-      if (healAmt > 0) applyHeal(target, healAmt);
-      return {'log': '🕊 Carla soigne ${target.name} de $healAmt au lieu de blesser', 'actualDmg': 0};
+      if (dmg > 0) applyHeal(target, dmg);
+      return {'log': '🕊 Carla soigne ${target.name} de $dmg au lieu de blesser', 'actualDmg': 0};
     }
-    // Carla: même contre non-Hunter, inflige 1 de moins
-    if (isCarla && attacker.revealed) dmg = max(0, dmg - 1);
     // Fifi Été: +2 si pas attaqué le tour d'avant
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'no_attack_buff'
         && attacker.revealed && attacker.bonusMaxHp > 0) {
@@ -854,6 +853,13 @@ class GameEngine with AbilityEngine {
     final atkEff = attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '';
     if (atkEff == 'zero_wound_power') {
       if (dmg == 0) dmg = 4; else dmg += 1;
+    }
+    // Carla : si cible est un Hunter révélé → soigne du même montant que les
+    // dégâts qui auraient été infligés (identique à resolveAttackFull).
+    final isCarla = atkEff == 'heal_hunter_on_attack';
+    if (isCarla && attacker.revealed && target.character?.faction == Faction.hunter && target.revealed) {
+      if (dmg > 0) applyHeal(target, dmg);
+      return {'log': '🕊 ${attacker.name} (Carla) soigne ${target.name} de $dmg au lieu de blesser', 'scottCountered': false};
     }
     // NOTE : la réduction de la Sainte Tunique se fait déjà correctement DANS
     // applyDamage() en vérifiant le porteur qui SUBIT les dégâts (la cible),

@@ -1355,22 +1355,21 @@ class SoloController extends ChangeNotifier {
         _log('💥 Glads récupère ${allEquip.length} équipements de la partie !', cls: 'player');
         s.phase = GamePhase.move; notifyListeners(); return;
 
-      // ── Hong Yi: choisit un joueur, inflige 8 ET subit 8 ──
+      // ── Hong Yi: choisit un joueur, inflige 8, finit à 1 blessure ──
       case 'terrain_max_aoe':
         if (target == null) {
           s.pendingTargetAction = 'ability_hong_yi';
           s.phase = GamePhase.chooseTarget; notifyListeners(); return;
         }
         _applyDmgAudio(target, 8);
-        // Hong Yi meurt TOUJOURS après avoir utilisé son pouvoir
-        p.wounds = p.character!.hp; p.alive = false;
+        // Hong Yi finit toujours à exactement 1 blessure (ne meurt plus)
+        p.wounds = 1; p.alive = true;
         p.abilityUsed = true; // unique
         s.pendingTargetAction = null;
         s.abilityOverlay = 'hongyi_dumbbell';
         s.abilityDiceResult = {'d': 8, 'result': 8, 'dmg': 8};
-        _log('⚡ Hong Yi inflige 8 à ${target.name} — et meurt de sa propre puissance !', cls: 'player');
+        _log('⚡ Hong Yi inflige 8 à ${target.name} — et se retrouve à 1 blessure !', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
-        _checkWin(justDiedId: p.uid); // Hong Yi est mort
         if (!s.isOver) { s.phase = GamePhase.move; }
         notifyListeners();
         return;
