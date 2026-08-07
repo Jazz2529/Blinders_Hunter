@@ -731,6 +731,7 @@ class _GameScreenState extends State<GameScreen> {
 /// peu découvrable) par un vrai bouton tapable, important pour le mobile.
 void _showEquipmentFor(BuildContext ctx, Player p) {
   final items = p.equipment;
+  final isNils = (p.copiedEffect ?? p.character?.abilityEffect) == 'store_damage_nils';
   showDialog(context: ctx, builder: (_) => Dialog(
     backgroundColor: kBg2,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -745,6 +746,22 @@ void _showEquipmentFor(BuildContext ctx, Player p) {
             style: cinzel(13, c: kGold2, fw: FontWeight.w900),
             overflow: TextOverflow.ellipsis)),
         ]),
+        if (isNils) ...[
+          const SizedBox(height: 12),
+          // Compteur public — visible de tous, révélé ou non.
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+            decoration: BoxDecoration(
+              color: kRed.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: kRed.withValues(alpha: 0.5)),
+            ),
+            child: Text('📦 Blessures stockées : ${p.storedDamage}',
+              style: cinzel(13, c: kRed, fw: FontWeight.w800),
+              textAlign: TextAlign.center),
+          ),
+        ],
         const SizedBox(height: 14),
         if (items.isEmpty)
           Padding(padding: const EdgeInsets.symmetric(vertical: 24),
@@ -836,7 +853,8 @@ class _PlayerRow extends StatelessWidget {
         // si révélé, sinon une carte "mystère" — puis son équipement dans
         // tous les cas (info publique, connue même sans identité).
         await _showCard(ctx);
-        if (p.equipment.isNotEmpty && ctx.mounted) {
+        final isNilsRow = (p.copiedEffect ?? p.character?.abilityEffect) == 'store_damage_nils';
+        if ((p.equipment.isNotEmpty || isNilsRow) && ctx.mounted) {
           _showEquipmentFor(ctx, p);
         }
       },
@@ -1346,7 +1364,8 @@ class _ActionPanelState extends State<_ActionPanel> {
         if (pta == 'set_wounds5')     title = '📍 Marion — placer à 5 blessures';
         if (pta == 'damage2_then_heal3') title = '🥷 Raph — soigner de 3 (vous subissez 2)';
         if (pta == 'ally_sacrifice_heal') title = '✨ Amélia — soigner de 4 (vous subissez 2)';
-        if (pta == 'terrain_max_aoe') title = '⚡ Hong Yi — 8 blessures (vous mourrez)';
+        if (pta == 'terrain_max_aoe') title = '⚡ Hong Yi — 8 blessures (vous finirez à 1 blessure)';
+        if (pta == 'store_damage_nils') title = '📦 Nils — déverser les blessures stockées';
         if (pta == 'd6_lifesteal')    title = '🐢 Carapatte — D6 lifesteal';
         if (pta == 'd6_global_attack') title = '🎲 Travert — D6 dégâts';
         if (pta == 'd4_bonus_attack') title = '💨 Vlad — D4 dégâts (répétable)';
@@ -1436,6 +1455,8 @@ class _ActionPanelState extends State<_ActionPanel> {
                 await gp.useAbility(target: t);
               } else if (pta == 'terrain_max_aoe') {
                 await gp.hongYiApplyAbility(t);
+              } else if (pta == 'store_damage_nils') {
+                await gp.useAbility(target: t);
               } else if (pta == 'jeanne_mark_target') {
                 await gp.jeanneChooseTarget(t);
               } else if (pta == 'casino_win') {
@@ -1544,6 +1565,24 @@ class _ActionPanelState extends State<_ActionPanel> {
             ),
             BHButton(label:'💥 Confirmer',danger:true,
               onTap:()=>_act(_confirmAttack)),
+            // Emilien : passif — peut relancer le D6 autant de fois que
+            // voulu avant de valider les dégâts. Non disponible pour le
+            // bazooka ni le double-lancer de Mango (structures différentes).
+            if (_atkD4b == null && !hasBazooka &&
+                (gp.me?.copiedEffect ?? gp.me?.character?.abilityEffect) == 'reroll_d6_attack') ...[
+              const SizedBox(height: 8),
+              BHButton(
+                label: '🎲 Relancer le D6',
+                outlined: true,
+                onTap: () {
+                  audio.playDice();
+                  final newD6 = GameEngine.instance.rollD6();
+                  setState(() {
+                    _atkD6 = newD6;
+                    _atkDmg = (_atkD4! - newD6).abs();
+                  });
+                }),
+            ],
           ],
           if (mustAttackNow)
             Container(
@@ -2777,7 +2816,8 @@ class _PlayerChip extends StatelessWidget {
           } else {
             await showMysteryCardDialog(ctx, p);
           }
-          if (p.equipment.isNotEmpty && ctx.mounted) {
+          final isNilsChip = (p.copiedEffect ?? p.character?.abilityEffect) == 'store_damage_nils';
+          if ((p.equipment.isNotEmpty || isNilsChip) && ctx.mounted) {
             _showEquipmentFor(ctx, p);
           }
         },

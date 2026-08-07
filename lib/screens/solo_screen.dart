@@ -1762,19 +1762,20 @@ class _HpLeaderboard extends StatelessWidget {
 
   void _showOpponentCard(BuildContext ctx, Player p) {
     final c = p.character;
+    final isNils = (p.copiedEffect ?? c?.abilityEffect) == 'store_damage_nils';
     // Un joueur MORT révèle toujours son vrai rôle en cliquant sur son
     // jeton — même s'il n'avait jamais été révélé de son vivant (convention
     // "les cartes se retournent à la mort", comme sur un vrai plateau).
     if ((p.revealed || !p.alive) && c != null) {
       showFullCardDialog(ctx, c).then((_) {
-        if (p.equipment.isNotEmpty && ctx.mounted) _showEquipmentForSolo(ctx, p);
+        if ((p.equipment.isNotEmpty || isNils) && ctx.mounted) _showEquipmentForSolo(ctx, p);
       });
     } else {
       // Pas révélé (et encore en vie) : carte "mystère" (silhouette +
       // réplique cryptique), mais l'équipement reste visible — info
       // publique quel que soit le statut de révélation.
       showMysteryCardDialog(ctx, p).then((_) {
-        if (p.equipment.isNotEmpty && ctx.mounted) _showEquipmentForSolo(ctx, p);
+        if ((p.equipment.isNotEmpty || isNils) && ctx.mounted) _showEquipmentForSolo(ctx, p);
       });
     }
   }
@@ -1783,6 +1784,7 @@ class _HpLeaderboard extends StatelessWidget {
   /// révélation du joueur (contrairement à la carte de personnage).
   void _showEquipmentForSolo(BuildContext ctx, Player p) {
     final items = p.equipment;
+    final isNils = (p.copiedEffect ?? p.character?.abilityEffect) == 'store_damage_nils';
     showDialog(context: ctx, builder: (_) => Dialog(
       backgroundColor: kBg2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1797,6 +1799,23 @@ class _HpLeaderboard extends StatelessWidget {
               style: cinzel(13, c: kGold2, fw: FontWeight.w900),
               overflow: TextOverflow.ellipsis)),
           ]),
+          if (isNils) ...[
+            const SizedBox(height: 12),
+            // Compteur public — visible de tous, révélé ou non, comme
+            // demandé : "blessures stockées" par Nils.
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              decoration: BoxDecoration(
+                color: kRed.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: kRed.withValues(alpha: 0.5)),
+              ),
+              child: Text('📦 Blessures stockées : ${p.storedDamage}',
+                style: cinzel(13, c: kRed, fw: FontWeight.w800),
+                textAlign: TextAlign.center),
+            ),
+          ],
           const SizedBox(height: 14),
           if (items.isEmpty)
             Padding(padding: const EdgeInsets.symmetric(vertical: 24),
@@ -2200,7 +2219,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'ability_set5', 'ability_raph_heal', 'ability_tristan', 'ability_marin',
       'ability_damien',
       'ability_tommy',
-      'ability_oceane',
+      'ability_oceane', 'ability_nils',
       'corne_des_woods_victim', 'corne_des_woods', 'creation_marin', 'heal_other_d4',
       'clemence_target', 'jeanne_mark_target', 'equip_choice',
       'swap_zone_pick1', 'swap_zone_pick2', 'jeanne_mark_target',
@@ -2655,6 +2674,24 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
               ]),
             ),
             BHButton(label: '💥 Confirmer l\'attaque', danger: true, onTap: _confirmAtk),
+            // Emilien : passif — peut relancer le D6 autant de fois que
+            // voulu avant de valider les dégâts. Non disponible lors du
+            // double-lancer de Mango (structure à 2 jets séparés).
+            if (_atkD4b == null &&
+                (me.copiedEffect ?? me.character?.abilityEffect) == 'reroll_d6_attack') ...[
+              const SizedBox(height: 8),
+              BHButton(
+                label: '🎲 Relancer le D6',
+                outlined: true,
+                onTap: () {
+                  audio.playDice();
+                  final newD6 = GameEngine.instance.rollD6();
+                  setState(() {
+                    _atkD6 = newD6;
+                    _atkDmg = (_atkD4! - newD6).abs();
+                  });
+                }),
+            ],
           ],
           const SizedBox(height: 4),
           if (mustAttack)
@@ -2775,6 +2812,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'ability_damien')      title = '🍸 Damien — Choisissez qui servir';
     if (context == 'ability_tommy')       title = '🎭 Tommy — Copier le pouvoir de qui ?';
     if (context == 'ability_oceane')      title = '🌊 Océane — Qui exclure du soin ?';
+    if (context == 'ability_nils')        title = '📦 Nils — Déverser ${me.storedDamage} blessures stockées sur qui ?';
     if (context == 'ability_raph_heal')   title = '🥷 Raph (Soleil Levant) — Choisissez qui soigner de 3 (vous subissez 2)';
     if (context == 'ability_tristan')     title = '🔄 Tristan — Choisissez un joueur (échange un équipement au hasard)';
     if (context == 'heal_other_d4')       title = '🍓 Fraise Tagada — Choisissez qui soigner (D4)';
@@ -3038,7 +3076,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'swap_equipment', 'damage3_give_dague', 'd6_global_attack', 'd6_lifesteal',
       'terrain_max_aoe', 'damien_serve', 'copy_ability',
       'self1_trigger_terrain', 'draw_light', 'draw_dark', 'peek_reorder_deck',
-      'casino_bet', 'swap_zones', 'd4_bonus_attack',
+      'casino_bet', 'swap_zones', 'd4_bonus_attack', 'store_damage_nils',
     };
     if (selfManaged.contains(eff)) {
       ctrl.humanUseAbility();

@@ -304,6 +304,27 @@ class GameEngine with AbilityEngine {
         final dealt = applyDamage(target, d);
         return '🎲 ${actor.name} lance D6($d) → $dealt blessures à ${target.name}';
 
+      // ── Nils : stocke les blessures infligées, puis les déverse ──
+      case 'store_damage_nils':
+        if (!actor.nilsStoring) {
+          // Active le mode stockage — pas de cible nécessaire pour CETTE
+          // utilisation, ses prochaines attaques stockeront au lieu de
+          // blesser (voir resolveAttackFull/resolveAttack).
+          actor.nilsStoring = true;
+          return '📦 ${actor.name} active le stockage — ses attaques n\'infligeront plus de blessures, elles seront stockées';
+        }
+        // Déjà en mode stockage : redéclencher déverse tout sur une cible.
+        if (target == null) return 'cible_requise';
+        if (actor.storedDamage <= 0) {
+          actor.nilsStoring = false;
+          return '📦 ${actor.name} n\'a aucune blessure stockée — le stockage se désactive';
+        }
+        final stored = actor.storedDamage;
+        final dealt = applyDamage(target, stored);
+        actor.storedDamage = 0;
+        actor.nilsStoring = false;
+        return '📦 ${actor.name} déverse $stored blessures stockées sur ${target.name} ($dealt reçues) !';
+
       // ── Hong Yi : 8 dégâts à la cible, lui-même finit à 1 blessure ──
       case 'terrain_max_aoe':
         if (target == null) return 'cible_requise';
@@ -751,6 +772,14 @@ class GameEngine with AbilityEngine {
       return {'log': '🪞 ${target.name} renvoie l\'attaque — ${attacker.name} subit $reflected dégâts', 'actualDmg': reflected};
     }
 
+    // Nils : en mode stockage, cette attaque n'inflige rien — les blessures
+    // sont stockées pour être déversées plus tard sur un joueur au choix.
+    if (attacker.nilsStoring &&
+        (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'store_damage_nils') {
+      attacker.storedDamage += dmg;
+      return {'log': '📦 ${attacker.name} stocke $dmg blessures (total: ${attacker.storedDamage})', 'actualDmg': 0};
+    }
+
     final actual = applyDamage(target, dmg);
     if (!target.alive) target.killedByUid = attacker.uid;
     if (actual > 0 && attacker.epeeNinja) applyDamage(target, 2);
@@ -870,6 +899,13 @@ class GameEngine with AbilityEngine {
       final reflected = applyDamage(attacker, dmg);
       if (!attacker.alive) attacker.killedByUid = target.uid;
       return {'log': '🪞 ${target.name} renvoie l\'attaque — ${attacker.name} subit $reflected dégâts', 'scottCountered': false};
+    }
+    // Nils : en mode stockage, cette attaque n'inflige rien — stockée à la
+    // place (identique à resolveAttackFull, utilisée par le joueur humain).
+    if (attacker.nilsStoring &&
+        (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'store_damage_nils') {
+      attacker.storedDamage += dmg;
+      return {'log': '📦 ${attacker.name} stocke $dmg blessures (total: ${attacker.storedDamage})', 'scottCountered': false};
     }
     final actual = applyDamage(target, dmg);
     if (!target.alive) target.killedByUid = attacker.uid;

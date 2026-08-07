@@ -95,6 +95,16 @@ const List<CharacterCard> kAllCharacters = [
 
   // ══════════ SHADOWS (10) ══════════
 
+  CharacterCard(id:'nils', name:'Nils', faction:Faction.shadow, hp:13, icon:'📦',
+    ability:'Répétable: activez le stockage (vos attaques stockent les blessures au lieu d\'en infliger), puis redéclenchez pour tout déverser sur un joueur au choix',
+    abilityEffect:'store_damage_nils', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'emilien', name:'Emilien', faction:Faction.shadow, hp:12, icon:'🎲',
+    ability:'Passif: lors d\'une attaque, vous pouvez relancer le D6 autant de fois que voulu avant de valider les dégâts',
+    abilityEffect:'reroll_d6_attack', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
   CharacterCard(id:'bibble', name:'Bibble', faction:Faction.shadow, hp:13, icon:'🧚',
     ability:'Passif révélé: les cartes Ténèbres vous soignent au lieu de vous blesser',
     abilityEffect:'tenebres_heal_instead', abilityRepeatable:true,

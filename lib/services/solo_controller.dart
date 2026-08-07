@@ -665,6 +665,18 @@ class SoloController extends ChangeNotifier {
         } else {
           final roll2 = _eg.rollAttack();
           dmg = roll2['damage']!;
+          // 🎲 Emilien : relance le D6 quelques fois si le résultat est
+          // faible, en gardant le même D4 (comportement raisonnable pour
+          // un bot, sans pouvoir demander une décision manuelle à chaque
+          // fois comme pour le joueur humain).
+          if (eff == 'reroll_d6_attack') {
+            var rerolls = 0;
+            while (dmg < 3 && rerolls < 3) {
+              final newD6 = _eg.rollD6();
+              dmg = (roll2['d4']! - newD6).abs();
+              rerolls++;
+            }
+          }
         }
         // Ne PAS ajouter lance/lanceLonginus/dague ici : resolveAttack() les
         // applique déjà en interne. Les ajouter aussi ici les comptait EN
@@ -947,6 +959,35 @@ class SoloController extends ChangeNotifier {
     final eff = p.copiedEffect ?? p.character?.abilityEffect ?? '';
 
     switch (eff) {
+      // ── Nils : active le stockage, ou (si déjà actif) demande une cible
+      // pour tout déverser — comportement dynamique selon son état actuel.
+      case 'store_damage_nils':
+        if (!p.nilsStoring) {
+          p.nilsStoring = true;
+          p.abilityUsed = false; // répétable — peut redéclencher ce tour ou plus tard
+          _log('📦 ${p.name} active le stockage — ses attaques n\'infligeront plus de blessures, elles seront stockées', cls: 'player');
+          s.phase = GamePhase.move; notifyListeners(); return;
+        }
+        if (p.storedDamage <= 0) {
+          p.nilsStoring = false;
+          p.abilityUsed = false;
+          _log('📦 ${p.name} n\'a aucune blessure stockée — le stockage se désactive', cls: 'player');
+          s.phase = GamePhase.move; notifyListeners(); return;
+        }
+        if (target == null) {
+          s.pendingTargetAction = 'ability_nils';
+          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+        }
+        final storedN = p.storedDamage;
+        final dealtN = _eg.applyDamage(target, storedN);
+        if (!target.alive) target.killedByUid = p.uid;
+        p.storedDamage = 0;
+        p.nilsStoring = false;
+        p.abilityUsed = false;
+        _log('📦 ${p.name} déverse $storedN blessures stockées sur ${target.name} ($dealtN reçues) !', cls: 'player');
+        _checkWin(justDiedId: target.alive ? null : target.uid);
+        s.phase = GamePhase.move; notifyListeners(); return;
+
       // ── Albane: double dés géré dans la phase move ──
       case 'double_move_dice':
         s.abilityOverlay = 'albane_clock';
