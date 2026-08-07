@@ -1220,8 +1220,12 @@ class _ActionPanelState extends State<_ActionPanel> {
               'chameleon_passive', 'heal1_on_own_attack', 'builder_power', 'prophete_mark',
               'double_attack_if_tanky', 'heal_hunter_on_attack', 'reroll_d6_attack',
               'double_move_dice',
-            }.contains(me?.copiedEffect ?? me?.character?.abilityEffect))
-              BHButton(label:'⚡ Utiliser ma capacité',
+            }.contains(me?.copiedEffect ?? me?.character?.abilityEffect) &&
+              !((me?.copiedEffect ?? me?.character?.abilityEffect) == 'store_damage_nils' && (me?.storedDamage ?? 0) < 1))
+              BHButton(
+                label: (me?.copiedEffect ?? me?.character?.abilityEffect) == 'store_damage_nils'
+                  ? '📦 Déverser ${me?.storedDamage ?? 0} blessures stockées'
+                  : '⚡ Utiliser ma capacité',
                 onTap: (me?.copiedEffect ?? me?.character?.abilityEffect) == 'damage2_or_heal1'
                   ? () => _showJulienChoice(ctx)
                   : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'casino_bet'

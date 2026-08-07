@@ -772,9 +772,10 @@ class GameEngine with AbilityEngine {
       return {'log': '🪞 ${target.name} renvoie l\'attaque — ${attacker.name} subit $reflected dégâts', 'actualDmg': reflected};
     }
 
-    // Nils : en mode stockage, cette attaque n'inflige rien — les blessures
-    // sont stockées pour être déversées plus tard sur un joueur au choix.
-    if (attacker.nilsStoring &&
+    // Nils : passif automatique — tant qu'il est révélé, ses attaques
+    // n'infligent rien, les blessures sont stockées pour être déversées
+    // plus tard (bouton dédié) sur un joueur au choix.
+    if (attacker.revealed &&
         (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'store_damage_nils') {
       attacker.storedDamage += dmg;
       return {'log': '📦 ${attacker.name} stocke $dmg blessures (total: ${attacker.storedDamage})', 'actualDmg': 0};
@@ -900,9 +901,9 @@ class GameEngine with AbilityEngine {
       if (!attacker.alive) attacker.killedByUid = target.uid;
       return {'log': '🪞 ${target.name} renvoie l\'attaque — ${attacker.name} subit $reflected dégâts', 'scottCountered': false};
     }
-    // Nils : en mode stockage, cette attaque n'inflige rien — stockée à la
-    // place (identique à resolveAttackFull, utilisée par le joueur humain).
-    if (attacker.nilsStoring &&
+    // Nils : passif automatique — tant qu'il est révélé (identique à
+    // resolveAttackFull, utilisée par le joueur humain).
+    if (attacker.revealed &&
         (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'store_damage_nils') {
       attacker.storedDamage += dmg;
       return {'log': '📦 ${attacker.name} stocke $dmg blessures (total: ${attacker.storedDamage})', 'scottCountered': false};

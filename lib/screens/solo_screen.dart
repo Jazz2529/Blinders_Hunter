@@ -2346,8 +2346,12 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                 }
                 ctrl.humanReveal(); setState(() {});
               }),
-          if (me.revealed && !me.abilityUsed && !isAutoPassive)
-            BHButton(label: '⚡ Activer ma capacité',
+          if (me.revealed && !me.abilityUsed && !isAutoPassive &&
+              !(effChar.abilityEffect == 'store_damage_nils' && me.storedDamage < 1))
+            BHButton(
+              label: effChar.abilityEffect == 'store_damage_nils'
+                  ? '📦 Déverser ${me.storedDamage} blessures stockées'
+                  : '⚡ Activer ma capacité',
               onTap: () => _handleAbility()),
           if (me.revealed && me.abilityUsed && !effChar.abilityRepeatable)
             Padding(padding: const EdgeInsets.only(bottom: 8),

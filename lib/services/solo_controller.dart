@@ -957,18 +957,9 @@ class SoloController extends ChangeNotifier {
       // ── Nils : active le stockage, ou (si déjà actif) demande une cible
       // pour tout déverser — comportement dynamique selon son état actuel.
       case 'store_damage_nils':
-        if (!p.nilsStoring) {
-          p.nilsStoring = true;
-          p.abilityUsed = false; // répétable — peut redéclencher ce tour ou plus tard
-          _log('📦 ${p.name} active le stockage — ses attaques n\'infligeront plus de blessures, elles seront stockées', cls: 'player');
-          s.phase = GamePhase.move; notifyListeners(); return;
-        }
-        if (p.storedDamage <= 0) {
-          p.nilsStoring = false;
-          p.abilityUsed = false;
-          _log('📦 ${p.name} n\'a aucune blessure stockée — le stockage se désactive', cls: 'player');
-          s.phase = GamePhase.move; notifyListeners(); return;
-        }
+        // Stockage automatique et passif (géré dans resolveAttackFull et
+        // resolveAttack) — ce bouton ne sert qu'à DÉVERSER ce qui est
+        // stocké. Il n'est proposé à l'interface que si storedDamage >= 1.
         if (target == null) {
           s.pendingTargetAction = 'ability_nils';
           s.phase = GamePhase.chooseTarget; notifyListeners(); return;
@@ -977,8 +968,7 @@ class SoloController extends ChangeNotifier {
         final dealtN = _eg.applyDamage(target, storedN);
         if (!target.alive) target.killedByUid = p.uid;
         p.storedDamage = 0;
-        p.nilsStoring = false;
-        p.abilityUsed = false;
+        p.abilityUsed = false; // répétable — se redéclenchera dès que du stock s'accumule à nouveau
         _log('📦 ${p.name} déverse $storedN blessures stockées sur ${target.name} ($dealtN reçues) !', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
         s.phase = GamePhase.move; notifyListeners(); return;
