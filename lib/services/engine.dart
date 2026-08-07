@@ -62,6 +62,11 @@ class GameEngine with AbilityEngine {
   }
 
   // ─── Dégâts / soins ──────────────────────
+  /// PV max réel d'un joueur, en tenant compte du vol de PV max d'Agathe
+  /// (positif si elle en a volé, négatif si elle lui en a volé) — jamais
+  /// sous 1, pour éviter un PV max nul ou négatif qui n'aurait pas de sens.
+  int effectiveMaxHp(Player p) => max(1, (p.character?.hp ?? 1) + p.maxHpModifier);
+
   int applyDamage(Player p, int n, {bool isTenebresCard = false, bool ignoreShield = false, bool isTerrain9Dmg = false}) {
     if (!p.alive) return 0;
     if (isTerrain9Dmg && p.terrainDmgImmune) return 0; // Broche de Chance
@@ -81,7 +86,7 @@ class GameEngine with AbilityEngine {
     }
     if (p.sainteTunique) n = max(0, n - 1);
     p.wounds += n;
-    if (p.wounds >= p.character!.hp) p.alive = false;
+    if (p.wounds >= effectiveMaxHp(p)) p.alive = false;
     if (n > 0) audio.playDamage();
     // Jason (Caméléon) : perd son déguisement s'il subit 5+ blessures en un seul tour
     if (n > 0 && p.disguiseNameOverride != null) {
@@ -215,7 +220,7 @@ class GameEngine with AbilityEngine {
         if (target == null) return 'cible_requise';
         final before = target.wounds;
         target.wounds = 5;
-        if (target.wounds >= target.character!.hp) target.alive = false;
+        if (target.wounds >= effectiveMaxHp(target)) target.alive = false;
         final diff = 5 - before;
         if (diff > 0) return '📍 ${actor.name} place ${target.name} à 5 blessures (subit $diff)';
         if (diff < 0) return '📍 ${actor.name} place ${target.name} à 5 blessures (soigné de ${-diff})';
@@ -306,24 +311,26 @@ class GameEngine with AbilityEngine {
 
       // ── Nils : stocke les blessures infligées, puis les déverse ──
       case 'store_damage_nils':
-        if (!actor.nilsStoring) {
-          // Active le mode stockage — pas de cible nécessaire pour CETTE
-          // utilisation, ses prochaines attaques stockeront au lieu de
-          // blesser (voir resolveAttackFull/resolveAttack).
-          actor.nilsStoring = true;
-          return '📦 ${actor.name} active le stockage — ses attaques n\'infligeront plus de blessures, elles seront stockées';
-        }
-        // Déjà en mode stockage : redéclencher déverse tout sur une cible.
+        // Stockage automatique et passif (géré dans resolveAttackFull et
+        // resolveAttack, basé sur target.revealed) — ce chemin ne sert plus
+        // qu'à DÉVERSER ce qui est stocké.
         if (target == null) return 'cible_requise';
-        if (actor.storedDamage <= 0) {
-          actor.nilsStoring = false;
-          return '📦 ${actor.name} n\'a aucune blessure stockée — le stockage se désactive';
-        }
+        if (actor.storedDamage <= 0) return 'Nils — rien à déverser';
         final stored = actor.storedDamage;
         final dealt = applyDamage(target, stored);
         actor.storedDamage = 0;
-        actor.nilsStoring = false;
         return '📦 ${actor.name} déverse $stored blessures stockées sur ${target.name} ($dealt reçues) !';
+
+      // ── Agathe : vole 1 PV MAX à un joueur, définitivement (max 5x) ──
+      case 'steal_max_hp':
+        if (actor.maxHpModifier >= 5) return 'Agathe — déjà au maximum (+5 PV max)';
+        if (target == null) return 'cible_requise';
+        actor.maxHpModifier += 1;
+        target.maxHpModifier -= 1;
+        // Le vol peut faire mourir la cible si ses blessures actuelles
+        // dépassent désormais son nouveau PV max réduit.
+        if (target.wounds >= effectiveMaxHp(target)) target.alive = false;
+        return '🧛 ${actor.name} vole 1 PV MAX à ${target.name} (elle: ${effectiveMaxHp(actor)} PV max, lui: ${effectiveMaxHp(target)} PV max)';
 
       // ── Hong Yi : 8 dégâts à la cible, lui-même finit à 1 blessure ──
       case 'terrain_max_aoe':
@@ -538,7 +545,7 @@ class GameEngine with AbilityEngine {
         // Le texte de la carte dit "Placez... sur le 7" sans condition —
         // ça doit fonctionner qu'on monte OU qu'on descende le marqueur.
         target.wounds = 7;
-        if (target.wounds >= target.character!.hp) target.alive = false;
+        if (target.wounds >= effectiveMaxHp(target)) target.alive = false;
         return {'log': '📍 ${actor.name} place ${target.name} à 7 blessures', 'needsTarget': false};
       case 'heal_other_d6':
         final d = rollD6(); applyHeal(target, d);

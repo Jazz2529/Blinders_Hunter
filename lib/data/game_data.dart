@@ -105,6 +105,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'reroll_d6_attack', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
+  CharacterCard(id:'agathe', name:'Agathe', faction:Faction.shadow, hp:9, icon:'🧛‍♀️',
+    ability:'Répétable (max 5x): volez 1 PV MAX à un joueur au choix (vous +1 PV max, lui -1 PV max, définitivement)',
+    abilityEffect:'steal_max_hp', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
   CharacterCard(id:'bibble', name:'Bibble', faction:Faction.shadow, hp:13, icon:'🧚',
     ability:'Passif révélé: les cartes Ténèbres vous soignent au lieu de vous blesser',
     abilityEffect:'tenebres_heal_instead', abilityRepeatable:true,

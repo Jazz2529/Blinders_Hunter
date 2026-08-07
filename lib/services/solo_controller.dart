@@ -973,6 +973,29 @@ class SoloController extends ChangeNotifier {
         _checkWin(justDiedId: target.alive ? null : target.uid);
         s.phase = GamePhase.move; notifyListeners(); return;
 
+      // ── Agathe : vole 1 PV MAX à un joueur au choix, définitivement (max 5x) ──
+      case 'steal_max_hp':
+        if (p.maxHpModifier >= 5) {
+          _log('🧛 ${p.name} a déjà volé le maximum de PV (+5) — plus aucun effet.', cls: 'player');
+          p.abilityUsed = true; // consomme le clic sans effet, pour éviter une boucle de bouton inutile
+          s.phase = GamePhase.move; notifyListeners(); return;
+        }
+        if (target == null) {
+          s.pendingTargetAction = 'ability_agathe';
+          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+        }
+        p.maxHpModifier += 1;
+        target.maxHpModifier -= 1;
+        if (target.wounds >= _eg.effectiveMaxHp(target)) {
+          target.alive = false;
+          target.killedByUid = p.uid;
+        }
+        p.abilityUsed = false; // répétable (tant que < 5)
+        s.pendingTargetAction = null;
+        _log('🧛 ${p.name} vole 1 PV MAX à ${target.name} (elle: ${_eg.effectiveMaxHp(p)} PV max, lui: ${_eg.effectiveMaxHp(target)} PV max)', cls: 'player');
+        _checkWin(justDiedId: target.alive ? null : target.uid);
+        s.phase = GamePhase.move; notifyListeners(); return;
+
       // ── Albane: double dés géré dans la phase move ──
       case 'double_move_dice':
         s.abilityOverlay = 'albane_clock';
@@ -1093,7 +1116,7 @@ class SoloController extends ChangeNotifier {
         if (target == null) { s.pendingTargetAction = 'ability_set5'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
         final before = target.wounds;
         target.wounds = 5;
-        if (target.wounds >= target.character!.hp) target.alive = false;
+        if (target.wounds >= _eg.effectiveMaxHp(target)) target.alive = false;
         p.abilityUsed = true;
         s.pendingTargetAction = null;
         s.abilityOverlay = 'marion_plants';

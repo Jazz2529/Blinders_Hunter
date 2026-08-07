@@ -183,6 +183,7 @@ class Player {
   int storedDamage = 0;      // Nils : blessures stockées en attendant d'être déchargées
   bool nilsStoring = false;  // Nils : mode "stockage" actif (ses attaques stockent au lieu de blesser)
   bool emilienRerolledThisTurn = false; // Emilien : relance du D6 déjà utilisée ce tour (une seule fois)
+  int maxHpModifier = 0; // Agathe : PV max volés/perdus, définitivement (+ pour elle, − pour la victime, plafonné à ±5)
   bool marinDagueVoicePlayed = false; // Marin : voice line dague déjà jouée cette partie (une seule fois)
   int damageTakenThisTurn; // remis à 0 au début de CHAQUE tour (Jason: perd son déguisement à 5+)
   List<GameCard> equipment;
@@ -242,6 +243,7 @@ class Player {
     this.storedDamage = 0,
     this.nilsStoring = false,
     this.emilienRerolledThisTurn = false,
+    this.maxHpModifier = 0,
     this.marinDagueVoicePlayed = false,
     List<GameCard>? equipment,
   }) : equipment = equipment ?? [];
@@ -281,6 +283,7 @@ class Player {
     'storedDamage': storedDamage,
     'nilsStoring': nilsStoring,
     'emilienRerolledThisTurn': emilienRerolledThisTurn,
+    'maxHpModifier': maxHpModifier,
     'marinDagueVoicePlayed': marinDagueVoicePlayed,
     'equipment': equipment.map((e) => e.toJson()).toList(),
   };
@@ -342,6 +345,7 @@ class Player {
     storedDamage: (j['storedDamage'] as num?)?.toInt() ?? 0,
     nilsStoring: (j['nilsStoring'] as bool?) ?? false,
     emilienRerolledThisTurn: (j['emilienRerolledThisTurn'] as bool?) ?? false,
+    maxHpModifier: (j['maxHpModifier'] as num?)?.toInt() ?? 0,
     marinDagueVoicePlayed: (j['marinDagueVoicePlayed'] as bool?) ?? false,
     equipment: ((j['equipment'] as List?) ?? [])
         .map((e) => GameCard.fromJson(Map<String, dynamic>.from(e as Map)))

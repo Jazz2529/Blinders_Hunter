@@ -1976,6 +1976,16 @@ class _WoundsColumnState extends State<_WoundsColumn>
                 ),
               ),
             ),
+            // Agathe : bonus/malus de PV max (permanent) — sans ça,
+            // impossible de savoir combien de PV max ont été volés.
+            if (p.maxHpModifier != 0)
+              Text(
+                p.maxHpModifier > 0 ? '❤️+${p.maxHpModifier}' : '❤️${p.maxHpModifier}',
+                style: TextStyle(
+                  fontSize: 8, fontFamily: 'Cinzel', fontWeight: FontWeight.w700,
+                  color: p.maxHpModifier > 0 ? kGreen : kRed,
+                ),
+              ),
             // Équipements — icônes compactes
             if (p.equipment.isNotEmpty)
               Padding(
@@ -2219,7 +2229,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'ability_set5', 'ability_raph_heal', 'ability_tristan', 'ability_marin',
       'ability_damien',
       'ability_tommy',
-      'ability_oceane', 'ability_nils',
+      'ability_oceane', 'ability_nils', 'ability_agathe',
       'corne_des_woods_victim', 'corne_des_woods', 'creation_marin', 'heal_other_d4',
       'clemence_target', 'jeanne_mark_target', 'equip_choice',
       'swap_zone_pick1', 'swap_zone_pick2', 'jeanne_mark_target',
@@ -2819,6 +2829,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'ability_tommy')       title = '🎭 Tommy — Copier le pouvoir de qui ?';
     if (context == 'ability_oceane')      title = '🌊 Océane — Qui exclure du soin ?';
     if (context == 'ability_nils')        title = '📦 Nils — Déverser ${me.storedDamage} blessures stockées sur qui ?';
+    if (context == 'ability_agathe')      title = '🧛 Agathe — Voler 1 PV MAX à qui ?';
     if (context == 'ability_raph_heal')   title = '🥷 Raph (Soleil Levant) — Choisissez qui soigner de 3 (vous subissez 2)';
     if (context == 'ability_tristan')     title = '🔄 Tristan — Choisissez un joueur (échange un équipement au hasard)';
     if (context == 'heal_other_d4')       title = '🍓 Fraise Tagada — Choisissez qui soigner (D4)';
@@ -3082,7 +3093,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'swap_equipment', 'damage3_give_dague', 'd6_global_attack', 'd6_lifesteal',
       'terrain_max_aoe', 'damien_serve', 'copy_ability',
       'self1_trigger_terrain', 'draw_light', 'draw_dark', 'peek_reorder_deck',
-      'casino_bet', 'swap_zones', 'd4_bonus_attack', 'store_damage_nils',
+      'casino_bet', 'swap_zones', 'd4_bonus_attack', 'store_damage_nils', 'steal_max_hp',
     };
     if (selfManaged.contains(eff)) {
       ctrl.humanUseAbility();

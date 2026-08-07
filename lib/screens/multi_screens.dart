@@ -839,7 +839,7 @@ class _PlayerRow extends StatelessWidget {
     final disguisedChar = hasDisguise && p.disguiseCharIdOverride != null
         ? kAllCharacters.where((ch) => ch.id == p.disguiseCharIdOverride).firstOrNull
         : null;
-    final displayMaxHp = disguisedChar?.hp ?? p.character?.hp ?? 0;
+    final displayMaxHp = (disguisedChar?.hp ?? p.character?.hp ?? 0) + p.maxHpModifier;
     final knowMaxHp = (isMe || p.revealed) && p.character != null;
     final fc = p.revealed && p.character != null
         ? (hasDisguise
@@ -939,6 +939,13 @@ class _PlayerRow extends StatelessWidget {
             ])
           else
             Text('🗡 ${p.wounds}', style: cinzel(13, c: woundColor, fw: FontWeight.w700)),
+          // Agathe : bonus/malus de PV max (permanent, info publique) — sans
+          // ça, impossible de savoir combien de PV max ont été volés.
+          if (p.alive && p.maxHpModifier != 0)
+            Text(
+              p.maxHpModifier > 0 ? '❤️+${p.maxHpModifier}' : '❤️${p.maxHpModifier}',
+              style: cinzel(10, c: p.maxHpModifier > 0 ? kGreen : kRed, fw: FontWeight.w700),
+            ),
         ]),
       ),
     ))));
@@ -1371,6 +1378,7 @@ class _ActionPanelState extends State<_ActionPanel> {
         if (pta == 'ally_sacrifice_heal') title = '✨ Amélia — soigner de 4 (vous subissez 2)';
         if (pta == 'terrain_max_aoe') title = '⚡ Hong Yi — 8 blessures (vous finirez à 1 blessure)';
         if (pta == 'store_damage_nils') title = '📦 Nils — déverser les blessures stockées';
+        if (pta == 'steal_max_hp') title = '🧛 Agathe — voler 1 PV MAX à qui ?';
         if (pta == 'd6_lifesteal')    title = '🐢 Carapatte — D6 lifesteal';
         if (pta == 'd6_global_attack') title = '🎲 Travert — D6 dégâts';
         if (pta == 'd4_bonus_attack') title = '💨 Vlad — D4 dégâts (répétable)';
@@ -1461,6 +1469,8 @@ class _ActionPanelState extends State<_ActionPanel> {
               } else if (pta == 'terrain_max_aoe') {
                 await gp.hongYiApplyAbility(t);
               } else if (pta == 'store_damage_nils') {
+                await gp.useAbility(target: t);
+              } else if (pta == 'steal_max_hp') {
                 await gp.useAbility(target: t);
               } else if (pta == 'jeanne_mark_target') {
                 await gp.jeanneChooseTarget(t);
@@ -2807,7 +2817,7 @@ class _PlayerChip extends StatelessWidget {
     final disguisedCharChip = hasDisguiseChip && p.disguiseCharIdOverride != null
         ? kAllCharacters.where((ch) => ch.id == p.disguiseCharIdOverride).firstOrNull
         : null;
-    final displayMaxHp = disguisedCharChip?.hp ?? c?.hp ?? 0;
+    final displayMaxHp = (disguisedCharChip?.hp ?? c?.hp ?? 0) + p.maxHpModifier;
     final knowMaxHp = (isMe || p.revealed) && c != null;
     return Stack(clipBehavior: Clip.none, children: [
       GestureDetector(
@@ -2853,6 +2863,12 @@ class _PlayerChip extends StatelessWidget {
             else
               Text('${p.wounds}🩸',
                 style: body(9, c: p.wounds >= 8 ? kRed : kTextSub)),
+            // Agathe : bonus/malus de PV max (permanent, info publique).
+            if (p.alive && p.maxHpModifier != 0)
+              Text(
+                p.maxHpModifier > 0 ? '❤️+${p.maxHpModifier}' : '❤️${p.maxHpModifier}',
+                style: body(8, c: p.maxHpModifier > 0 ? kGreen : kRed),
+              ),
           ]),
         ),
       ),
