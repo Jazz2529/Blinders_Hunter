@@ -1990,6 +1990,11 @@ class _WoundsColumnState extends State<_WoundsColumn>
             if (p.felipeOnBorrowedTime)
               const Text('⏳ SURSIS', style: TextStyle(
                 fontSize: 7, fontFamily: 'Cinzel', fontWeight: FontWeight.w900, color: kRed)),
+            // Theo / Fifi Été : prochaine attaque +2 dégâts (buff actif)
+            if (p.bonusMaxHp > 0 &&
+                (p.copiedEffect ?? p.character?.abilityEffect) == 'no_attack_buff')
+              const Text('⚡ +2 DÉGÂTS', style: TextStyle(
+                fontSize: 7, fontFamily: 'Cinzel', fontWeight: FontWeight.w900, color: kGold)),
             // Équipements — icônes compactes
             if (p.equipment.isNotEmpty)
               Padding(

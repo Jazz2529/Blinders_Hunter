@@ -949,6 +949,10 @@ class _PlayerRow extends StatelessWidget {
           // Felipe : en sursis — doit éliminer quelqu'un ce tour ou mourir
           if (p.felipeOnBorrowedTime)
             Text('⏳ SURSIS', style: cinzel(9, c: kRed, fw: FontWeight.w900)),
+          // Theo / Fifi Été : prochaine attaque +2 dégâts (buff actif)
+          if (p.bonusMaxHp > 0 &&
+              (p.copiedEffect ?? p.character?.abilityEffect) == 'no_attack_buff')
+            Text('⚡ +2 DÉGÂTS', style: cinzel(9, c: kGold, fw: FontWeight.w900)),
         ]),
       ),
     ))));
@@ -2875,6 +2879,10 @@ class _PlayerChip extends StatelessWidget {
             // Felipe : en sursis — doit éliminer quelqu'un ce tour ou mourir
             if (p.felipeOnBorrowedTime)
               Text('⏳', style: body(9, c: kRed)),
+            // Theo / Fifi Été : prochaine attaque +2 dégâts (buff actif)
+            if (p.bonusMaxHp > 0 &&
+                (p.copiedEffect ?? p.character?.abilityEffect) == 'no_attack_buff')
+              Text('⚡+2', style: body(8, c: kGold)),
           ]),
         ),
       ),
