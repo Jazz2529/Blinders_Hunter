@@ -1121,6 +1121,17 @@ class GameProvider extends ChangeNotifier {
       return;
     }
     final p = _mutableMe();
+    // Felipe : si son tour de sursis se termine SANS qu'il ait éliminé
+    // personne (le sauvetage automatique dans applyDeathPassives l'aurait
+    // déjà géré sinon), il meurt maintenant.
+    if (p.felipeOnBorrowedTime && p.alive) {
+      p.felipeOnBorrowedTime = false;
+      p.alive = false;
+      await _commitPlayer(p, '🩸 ${p.name} (Felipe) n\'a pas pu se sauver à temps — il succombe à ses blessures.');
+      final all0 = _mutableAll();
+      await _checkWin(all0, justDiedId: p.uid);
+      if (gameState?.phase == GamePhase.gameOver) return;
+    }
     if (p.newTurn) {
       p.newTurn = false;
       await _commitPlayer(p, '⏰ ${p.name} joue un tour de plus');

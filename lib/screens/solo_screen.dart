@@ -1986,6 +1986,10 @@ class _WoundsColumnState extends State<_WoundsColumn>
                   color: p.maxHpModifier > 0 ? kGreen : kRed,
                 ),
               ),
+            // Felipe : en sursis — doit éliminer quelqu'un ce tour ou mourir
+            if (p.felipeOnBorrowedTime)
+              const Text('⏳ SURSIS', style: TextStyle(
+                fontSize: 7, fontFamily: 'Cinzel', fontWeight: FontWeight.w900, color: kRed)),
             // Équipements — icônes compactes
             if (p.equipment.isNotEmpty)
               Padding(
@@ -2281,7 +2285,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         final autoPassives = {'heal2_same_hunter','heal_per_equip_eot',
           'last_hunter_buff','no_attack_buff','heal_on_same_terrain','death_heal_allies',
           'lumiere_copy','heal_hunter_on_attack','scott_passive','gege_passive','baleine_passive',
-          'reroll_d6_attack',
+          'reroll_d6_attack', 'felipe_passive',
           'fifi_ete_passive','allied_invulnerable','infinite_range','revealed_plus1_dmg',
           'tenebres_heal_instead','attack_discard_equip','rat_passive','reduce_all_by1',
           'zero_wound_steal','slime_passive','heal1_on_own_attack','remi_canada_passive',

@@ -946,6 +946,9 @@ class _PlayerRow extends StatelessWidget {
               p.maxHpModifier > 0 ? '❤️+${p.maxHpModifier}' : '❤️${p.maxHpModifier}',
               style: cinzel(10, c: p.maxHpModifier > 0 ? kGreen : kRed, fw: FontWeight.w700),
             ),
+          // Felipe : en sursis — doit éliminer quelqu'un ce tour ou mourir
+          if (p.felipeOnBorrowedTime)
+            Text('⏳ SURSIS', style: cinzel(9, c: kRed, fw: FontWeight.w900)),
         ]),
       ),
     ))));
@@ -1225,7 +1228,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               'death_heal_allies', 'gege_passive', 'tenebres_heal_instead',
               'zero_wound_power', 'third_attack_bonus', 'infinite_range',
               'chameleon_passive', 'heal1_on_own_attack', 'builder_power', 'prophete_mark',
-              'double_attack_if_tanky', 'heal_hunter_on_attack', 'reroll_d6_attack',
+              'double_attack_if_tanky', 'heal_hunter_on_attack', 'reroll_d6_attack', 'felipe_passive',
               'double_move_dice',
             }.contains(me?.copiedEffect ?? me?.character?.abilityEffect) &&
               !((me?.copiedEffect ?? me?.character?.abilityEffect) == 'store_damage_nils' && (me?.storedDamage ?? 0) < 1))
@@ -2869,6 +2872,9 @@ class _PlayerChip extends StatelessWidget {
                 p.maxHpModifier > 0 ? '❤️+${p.maxHpModifier}' : '❤️${p.maxHpModifier}',
                 style: body(8, c: p.maxHpModifier > 0 ? kGreen : kRed),
               ),
+            // Felipe : en sursis — doit éliminer quelqu'un ce tour ou mourir
+            if (p.felipeOnBorrowedTime)
+              Text('⏳', style: body(9, c: kRed)),
           ]),
         ),
       ),

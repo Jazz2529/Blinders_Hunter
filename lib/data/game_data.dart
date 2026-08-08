@@ -88,6 +88,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'gege_passive', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
+  CharacterCard(id:'felipe', name:'Felipe', faction:Faction.hunter, hp:11, icon:'🩸',
+    ability:'Passif: si vous subissez des dégâts létaux, vous survivez 1 tour de plus — si vous éliminez un joueur durant ce tour, vous repassez à 2 PV au lieu de mourir',
+    abilityEffect:'felipe_passive', abilityRepeatable:true,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
   CharacterCard(id:'carla', name:'Carla', faction:Faction.hunter, hp:11, icon:'🎗️',
     ability:'Passif révélé: si vous attaquez un Hunter révélé, il est soigné du même montant au lieu d\'être blessé',
     abilityEffect:'heal_hunter_on_attack', abilityRepeatable:true,

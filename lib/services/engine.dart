@@ -86,7 +86,17 @@ class GameEngine with AbilityEngine {
     }
     if (p.sainteTunique) n = max(0, n - 1);
     p.wounds += n;
-    if (p.wounds >= effectiveMaxHp(p)) p.alive = false;
+    // Felipe : passif — la PREMIÈRE fois qu'il subirait des dégâts létaux, il
+    // survit avec 1 PV au lieu de mourir, et dispose d'un tour de sursis
+    // pour éliminer quelqu'un (voir applyDeathPassives pour le sauvetage, et
+    // la fin de tour pour la mort si le sursis n'a pas suffi).
+    final isFelipe = (p.copiedEffect ?? p.character?.abilityEffect ?? '') == 'felipe_passive';
+    if (isFelipe && !p.felipeOnBorrowedTime && p.wounds >= effectiveMaxHp(p)) {
+      p.felipeOnBorrowedTime = true;
+      p.wounds = effectiveMaxHp(p) - 1; // 1 PV restant, toujours en vie
+    } else if (p.wounds >= effectiveMaxHp(p)) {
+      p.alive = false;
+    }
     if (n > 0) audio.playDamage();
     // Jason (Caméléon) : perd son déguisement s'il subit 5+ blessures en un seul tour
     if (n > 0 && p.disguiseNameOverride != null) {
@@ -992,11 +1002,6 @@ class GameEngine with AbilityEngine {
         // Léo perd — ne pas retourner de victoire pour lui, continuer la vérification normale
       }
 
-      // Felipe tué — son tueur doit se révéler
-      if (deadP.character!.id == 'felipe' && killerId != null) {
-        try { players.firstWhere((p) => p.uid == killerId).revealed = true; } catch (_) {}
-      }
-
       // Fanny — vole la carte de la victime
       if (killerId != null) {
         try {
@@ -1034,20 +1039,6 @@ class GameEngine with AbilityEngine {
           }
         } catch (_) {}
       }
-    }
-
-    // Christine — Felipe éliminé
-    if (justDiedId != null) {
-      try {
-        final victim = players.firstWhere((p) => p.uid == justDiedId);
-        if (victim.character!.id == 'felipe') {
-          for (final p in alive) {
-            if (p.character!.winEffect == 'kill_felipe_or_shadows') {
-              return {'winnerIds': [p.uid], 'reason': '⚔️ Christine élimine Felipe — Victoire !'};
-            }
-          }
-        }
-      } catch (_) {}
     }
 
     // Mango Loco — a-t-il éliminé un joueur avec 13 PV ou plus ?
@@ -1090,7 +1081,7 @@ class GameEngine with AbilityEngine {
           // Léo : sa condition de victoire inclut aussi "éliminer tous les
           // Hunters", pas seulement "être le premier mort" — sans ce check,
           // il ne gagnait jamais dans ce cas précis malgré son texte.
-          return we == 'survive' || we == 'kill_felipe_or_shadows' || we == 'die_first_or_kill_hunters';
+          return we == 'survive' || we == 'die_first_or_kill_hunters';
         }).map((p) => p.uid),
       }.toList();
       return {'winnerIds': ids, 'reason': 'Les Shadows éliminent tous les Hunters !'};
@@ -1248,6 +1239,18 @@ class GameEngine with AbilityEngine {
         for (final ally in all.where((a) =>
             a.alive && a.character?.faction == Faction.hunter && a.revealed)) {
           applyHeal(ally, 2);
+        }
+      }
+      // Felipe : s'il est en sursis (a survécu à des dégâts létaux) et que
+      // C'EST LUI qui vient d'éliminer ce joueur, il est sauvé — repasse à
+      // 2 PV au lieu de mourir à la fin de son tour de sursis.
+      if (p.killedByUid != null) {
+        Player? felipeKiller;
+        for (final k in all) { if (k.uid == p.killedByUid) { felipeKiller = k; break; } }
+        if (felipeKiller != null && felipeKiller.felipeOnBorrowedTime) {
+          felipeKiller.felipeOnBorrowedTime = false;
+          felipeKiller.wounds = effectiveMaxHp(felipeKiller) - 2;
+          felipeKiller.alive = true;
         }
       }
       // Crucifix en Argent : récupère TOUS les équipements de la victime

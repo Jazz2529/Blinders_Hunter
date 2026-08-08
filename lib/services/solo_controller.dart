@@ -356,6 +356,16 @@ class SoloController extends ChangeNotifier {
   // ─── Tour suivant ────────────────────────
   Future<void> nextTurn() async {
     if (state == null || state!.isOver || _stopped) return;
+    // Felipe : si son tour de sursis se termine SANS qu'il ait éliminé
+    // personne (applyDeathPassives l'aurait déjà sauvé sinon), il meurt
+    // maintenant — son sursis n'était que pour CE tour.
+    final outgoing = state!.current;
+    if (outgoing.felipeOnBorrowedTime && outgoing.alive) {
+      outgoing.felipeOnBorrowedTime = false;
+      outgoing.alive = false;
+      _log('🩸 ${outgoing.name} (Felipe) n\'a pas pu se sauver à temps — il succombe à ses blessures.', cls: 'death');
+      _checkWin(justDiedId: outgoing.uid);
+    }
     // 🍀 Fifi — le "tour parfait" ne dure qu'UN tour : on le consomme ici,
     // avant de passer au joueur suivant, pour revenir à l'aléatoire ensuite.
     if (state!.fifiGoldenTurn) {
