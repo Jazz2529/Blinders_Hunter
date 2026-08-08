@@ -440,6 +440,7 @@ class SoloController extends ChangeNotifier {
     // Capacité
     await Future.delayed(d);
     if (_stopped) return;
+    String? abilityLog;
     if (_ai.shouldUseAbility(bot, state!.players, state!.terrainLayout, difficulty) &&
         !(bot.character!.abilityEffect == 'copy_ability' &&
           !state!.players.any((x) => x.uid != bot.uid && x.alive && x.revealed &&
@@ -493,6 +494,7 @@ class SoloController extends ChangeNotifier {
         target = _ai.bestTarget(bot, state!.players, difficulty);
       }
       final log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: target);
+      abilityLog = log;
       if (log == 'draw_dark' || log == 'draw_light') {
         // Monkey Raph / Élise : piocher ET résoudre immédiatement pour le bot
         // (humanDrawCard() laisse la partie en attente d'un clic "Appliquer"
@@ -580,22 +582,31 @@ class SoloController extends ChangeNotifier {
     notifyListeners();
     if (state!.isOver) { state!.botThinking = false; notifyListeners(); return; }
 
+    // Christine : déjà déplacée via son pouvoir — ne pas relancer les dés
+    // de déplacement normal, elle a choisi sa zone directement.
+    final skipNormalMove = abilityLog?.startsWith('christine_moved:') ?? false;
+    int zoneIdx = bot.zoneIndex; // déjà à jour si Christine a bougé
+
     // Déplacement
-    await Future.delayed(d);
-    if (_stopped) return;
-    final roll = _eg.rollMove();
-    final sum = roll['sum']!;
-    int zoneIdx;
-    if (sum == 7) {
-      zoneIdx = _ai.bestZone(bot, state!.players, state!.terrainLayout, difficulty);
+    if (!skipNormalMove) {
+      await Future.delayed(d);
+      if (_stopped) return;
+      final roll = _eg.rollMove();
+      final sum = roll['sum']!;
+      if (sum == 7) {
+        zoneIdx = _ai.bestZone(bot, state!.players, state!.terrainLayout, difficulty);
+      } else {
+        final tid = _eg.sumToTerrainId(sum);
+        zoneIdx = tid != null ? _eg.terrainLayoutIdx(state!.terrainLayout, tid) : (bot.zoneIndex + 1) % 6;
+        if (zoneIdx == -1 || zoneIdx == bot.zoneIndex) zoneIdx = (bot.zoneIndex + 1) % 6;
+      }
+      bot.zoneIndex = zoneIdx;
+      _log('🚶 ${bot.name} → ${state!.terrainLayout[zoneIdx].name}');
+      notifyListeners();
     } else {
-      final tid = _eg.sumToTerrainId(sum);
-      zoneIdx = tid != null ? _eg.terrainLayoutIdx(state!.terrainLayout, tid) : (bot.zoneIndex + 1) % 6;
-      if (zoneIdx == -1 || zoneIdx == bot.zoneIndex) zoneIdx = (bot.zoneIndex + 1) % 6;
+      _log('🗺️ ${bot.name} (Christine) se déplace directement vers ${state!.terrainLayout[zoneIdx].name}');
+      notifyListeners();
     }
-    bot.zoneIndex = zoneIdx;
-    _log('🚶 ${bot.name} → ${state!.terrainLayout[zoneIdx].name}');
-    notifyListeners();
 
     // Effet terrain
     await Future.delayed(d);
@@ -1339,6 +1350,14 @@ class SoloController extends ChangeNotifier {
         _log('👑 Richard II choisit une zone avec laquelle échanger…', cls: 'player');
         notifyListeners(); return;
 
+      // ── Christine : choix direct d'une zone adjacente au lieu du
+      // déplacement normal (dés) ──
+      case 'move_adjacent_choice':
+        s.phase = GamePhase.chooseTarget;
+        s.pendingTargetAction = 'christine_zone_pick';
+        _log('🗺️ Christine choisit directement son prochain terrain…', cls: 'player');
+        notifyListeners(); return;
+
       // ── Ninja : tours bonus ──
       case 'bonus_turns':
         final deadCount = state!.players.where((pl) => !pl.alive).length;
@@ -1779,6 +1798,23 @@ class SoloController extends ChangeNotifier {
     final p = state!.current; p.zoneIndex = zoneIdx;
     _log('🚶 → ${state!.terrainLayout[zoneIdx].name}', cls: 'player');
     state!.phase = GamePhase.zoneEffect; notifyListeners();
+  }
+
+  /// Christine : se déplace directement sur la zone ADJACENTE choisie (pas
+  /// de dés), active son effet, puis passe à l'attaque — remplace
+  /// entièrement la phase de déplacement normale pour ce tour.
+  void humanChooseChristineZone(int zoneIdx) {
+    final s = state!;
+    final p = s.current;
+    final adj = kAdjacences[p.zoneIndex];
+    if (!adj.contains(zoneIdx)) {
+      _log('🗺️ Cette zone n\'est pas adjacente !', cls: 'player');
+      notifyListeners(); return;
+    }
+    p.zoneIndex = zoneIdx;
+    s.pendingTargetAction = null;
+    _log('🗺️ Christine se déplace directement vers ${s.terrainLayout[zoneIdx].name}', cls: 'player');
+    humanApplyTerrainEffect(nextPhaseIfDefault: GamePhase.attack, zoneOverride: zoneIdx);
   }
 
   void humanDrawCard(DeckType deck) {

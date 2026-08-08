@@ -88,6 +88,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'gege_passive', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
+  CharacterCard(id:'christine', name:'Christine', faction:Faction.hunter, hp:13, icon:'🗺️',
+    ability:'Répétable: au lieu de vous déplacer normalement, choisissez directement un des 2 terrains adjacents et déplacez-vous-y',
+    abilityEffect:'move_adjacent_choice', abilityRepeatable:true,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
   CharacterCard(id:'remi', name:'Rémi', faction:Faction.hunter, hp:12, icon:'🛠️',
     ability:'Unique: 3 effets sont tirés au hasard parmi 10 (7 communs, 3 légendaires) — choisissez-en 2 pour créer votre équipement personnalisé',
     abilityEffect:'craft_equipment_remi',

@@ -2241,7 +2241,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'ability_oceane', 'ability_nils', 'ability_agathe',
       'corne_des_woods_victim', 'corne_des_woods', 'creation_marin', 'heal_other_d4',
       'clemence_target', 'jeanne_mark_target', 'equip_choice',
-      'swap_zone_pick1', 'swap_zone_pick2', 'jeanne_mark_target',
+      'swap_zone_pick1', 'swap_zone_pick2', 'jeanne_mark_target', 'christine_zone_pick',
     };
     if (abilityTargetActions.contains(s.pendingTargetAction)) {
       return _buildInlineTargetList(ctx);
@@ -2806,6 +2806,32 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       ];
     }
 
+    // Christine : choix direct d'une des 2 zones ADJACENTES (pas de dés)
+    if (context == 'christine_zone_pick') {
+      final myZoneIdx = s.current.zoneIndex;
+      final adj = kAdjacences[myZoneIdx];
+      return [
+        Container(padding: const EdgeInsets.all(10), decoration: surfaceDecor(),
+          child: Text('🗺️ Christine — Choisissez votre prochain terrain',
+            style: cinzel(12, c: kGold2))),
+        const SizedBox(height: 8),
+        ...adj.map((idx) {
+          final terrain = s.terrainLayout[idx];
+          final playersHere = s.players.where((p) => p.alive && p.zoneIndex == idx).map((p) => p.token).join(' ');
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: BHButton(
+              label: 'Zone ${idx + 1} — ${terrain.icon} ${terrain.name}${playersHere.isNotEmpty ? "  ($playersHere)" : ""}',
+              onTap: () {
+                setState(() { _showingTargetList = false; _targetContext = null; });
+                ctrl.humanChooseChristineZone(idx);
+              },
+            ),
+          );
+        }),
+      ];
+    }
+
     // Choix d'équipement (pince_attrape / peau_banane avec plusieurs items)
     if (context == 'equip_choice') {
       final mode = s.equipChoiceMode ?? 'steal';
@@ -3036,11 +3062,11 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     );
   }
 
-  /// Rémi : propose 3 effets tirés au hasard parmi les 10 disponibles, et il
-  /// en choisit exactement 2 parmi CES 3 (pas parmi tous les 10).
+  /// Rémi : propose 3 effets tirés au hasard parmi les 10 disponibles
+  /// (légendaires nettement plus rares), et il en choisit exactement 2
+  /// parmi CES 3 (pas parmi tous les 10).
   void _showRemiCraftDialog() {
-    final pool = List<String>.from(kRemiAllChoices.keys)..shuffle();
-    final offered = pool.take(3).toList();
+    final offered = remiDraw3();
     final selected = <String>{};
     showDialog(
       context: context,
@@ -3179,6 +3205,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'terrain_max_aoe', 'damien_serve', 'copy_ability',
       'self1_trigger_terrain', 'draw_light', 'draw_dark', 'peek_reorder_deck',
       'casino_bet', 'swap_zones', 'd4_bonus_attack', 'store_damage_nils', 'steal_max_hp',
+      'move_adjacent_choice',
     };
     if (selfManaged.contains(eff)) {
       ctrl.humanUseAbility();

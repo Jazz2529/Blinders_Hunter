@@ -28,6 +28,25 @@ const Map<String, String> kRemiLegendaryChoices = {
 };
 const Map<String, String> kRemiAllChoices = {...kRemiCommonChoices, ...kRemiLegendaryChoices};
 
+/// Rémi : tire 3 effets au hasard parmi les 10, en rendant les 3
+/// légendaires nettement plus rares (poids 1) que les 7 communs (poids 4)
+/// — environ 4x moins de chances qu'un légendaire précis sorte qu'un
+/// commun précis.
+List<String> remiDraw3([Random? rng]) {
+  final r = rng ?? Random();
+  final weighted = <String>[];
+  for (final k in kRemiCommonChoices.keys) { weighted.addAll(List.filled(4, k)); }
+  for (final k in kRemiLegendaryChoices.keys) { weighted.addAll(List.filled(1, k)); }
+  final result = <String>[];
+  final pool = List<String>.from(weighted);
+  while (result.length < 3 && pool.isNotEmpty) {
+    final pick = pool[r.nextInt(pool.length)];
+    if (!result.contains(pick)) result.add(pick);
+    pool.removeWhere((k) => k == pick);
+  }
+  return result;
+}
+
 /// Rémi : renvoie les 2 effets actifs pour CE joueur, d'après l'équipement
 /// personnalisé QU'IL PORTE ACTUELLEMENT — pas d'après qui l'a fabriqué.
 /// L'effet suit l'objet : si quelqu'un d'autre le vole, c'est lui qui en
@@ -382,8 +401,9 @@ class GameEngine with AbilityEngine {
         if (actor.equipment.any((e) => e.effect.startsWith('remi_custom:'))) {
           return 'Rémi — équipement déjà fabriqué';
         }
-        final pool = List<String>.from(kRemiAllChoices.keys)..shuffle(_rng);
-        final c1 = pool[0], c2 = pool[1];
+        final offered = remiDraw3(_rng);
+        final picked = List<String>.from(offered)..shuffle(_rng);
+        final c1 = picked[0], c2 = picked[1];
         actor.equipment.add(GameCard(
           id: 'remi_custom_${actor.uid}',
           name: 'Équipement de ${actor.name}',
@@ -393,6 +413,15 @@ class GameEngine with AbilityEngine {
           effect: 'remi_custom:$c1,$c2',
         ));
         return '🛠️ ${actor.name} fabrique son équipement personnalisé';
+
+      // ── Christine (bot) : choisit une zone adjacente au hasard, s'y
+      // déplace directement — le contrôleur (bot) gère l'activation du
+      // terrain et la suite du tour, ce case ne fait QUE le déplacement.
+      case 'move_adjacent_choice':
+        final adjZones = kAdjacences[actor.zoneIndex];
+        final chosen = adjZones[_rng.nextInt(adjZones.length)];
+        actor.zoneIndex = chosen;
+        return 'christine_moved:$chosen';
 
       // ── Hong Yi : 8 dégâts à la cible, lui-même finit à 1 blessure ──
       case 'terrain_max_aoe':
