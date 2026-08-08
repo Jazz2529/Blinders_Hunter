@@ -2,7 +2,7 @@
 // Mapping character id → image illustration
 
 const Map<String, String> kRevealQuotes = {
-  // PLACEHOLDER — remplace chaque réplique par le texte définitif.
+ 
   'albane': "[Your time ends now]",
   'amelia': "[Light ! Guide my hand]",
   'artcade': "[You wish to be struck by lightning ?]",
@@ -43,6 +43,14 @@ const Map<String, String> kRevealQuotes = {
   'carapatte': "[Are you interrupting my Meal ?]",
   'tristan': "[You won't be taking my treasures]",
   'jason': "[Argh, You got me !]",
+  'carla': "[You seem overburdened. Lucky I'm here]",
+  'nils': "[I just love it when a plan comes together]",
+  'emilien': "[Who the King ? I the King]",
+  'agathe': "[My heart is one with the eternal forest]",
+  'felipe': "[Your soul shall be Mine]",
+  'theo': "[Let's show these fine folk some Badlands hospitality]",
+  'remi': "[May have gone slightly overboard on the size]",
+  'christine': "[No one crosses the uncrowned]",
 };
 
 const Map<String, String> kCharacterImages = {

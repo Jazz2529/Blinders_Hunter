@@ -364,12 +364,6 @@ class _GameScreenState extends State<GameScreen> {
               ]),
             ),
             IconButton(
-              icon: const Text('📖', style: TextStyle(fontSize: 18)),
-              tooltip: 'Règles',
-              onPressed: () => Navigator.push(ctx,
-                MaterialPageRoute(builder: (_) => const RulesScreen())),
-            ),
-            IconButton(
               icon: const Icon(Icons.settings, color: kGold),
               onPressed: () => showDialog(context: ctx, builder: (_) => const SettingsDialog()),
             ),

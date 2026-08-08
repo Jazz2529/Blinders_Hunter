@@ -434,10 +434,9 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
             ),
             const SizedBox(width: 4),
             IconButton(
-              icon: const Text('📖', style: TextStyle(fontSize: 16)),
-              tooltip: 'Règles',
-              onPressed: () => Navigator.push(ctx,
-                MaterialPageRoute(builder: (_) => const RulesScreen())),
+              icon: const Text('⚙️', style: TextStyle(fontSize: 16)),
+              tooltip: 'Réglages',
+              onPressed: () => showDialog(context: ctx, builder: (_) => const SettingsDialog()),
             ),
             IconButton(
               icon: const Text('📜', style: TextStyle(fontSize: 18)),
