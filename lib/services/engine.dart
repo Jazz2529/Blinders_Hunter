@@ -9,6 +9,25 @@ import 'audio_service.dart';
 import '../data/game_data.dart';
 import '../data/interactions_data.dart';
 
+/// ─── Rémi : les 10 effets possibles pour son équipement personnalisé ───────
+/// Il en choisit exactement 2 (communs ou légendaires, sans distinction de
+/// tirage — ce sont bien 10 choix FIXES, pas un tirage aléatoire).
+const Map<String, String> kRemiCommonChoices = {
+  'remi_dmg1': '⚔️ Infligez 1 blessure de plus à chaque attaque',
+  'remi_heal1': '💚 Soignez-vous de 1 blessure à chaque attaque',
+  'remi_aoe': '💥 Attaquez tous les joueurs à portée en une fois',
+  'remi_range': '🎯 Tous les joueurs sont à portée, peu importe la zone',
+  'remi_d4only': '🎲 Vos attaques n\'utilisent que le D4 (dégâts = résultat du D4)',
+  'remi_steal': '🦹 Volez un équipement à chaque fois que vous infligez des blessures',
+  'remi_forceattack': '⚡ Le joueur que vous attaquez doit attaquer quelqu\'un à son prochain tour',
+};
+const Map<String, String> kRemiLegendaryChoices = {
+  'remi_heal2': '💚💚 [Légendaire] Soignez-vous de 2 blessures à chaque attaque',
+  'remi_dmg2': '⚔️⚔️ [Légendaire] Infligez 2 blessures de plus à chaque attaque',
+  'remi_d6only': '🎲 [Légendaire] Vos attaques n\'utilisent que le D6 (dégâts = résultat du D6)',
+};
+const Map<String, String> kRemiAllChoices = {...kRemiCommonChoices, ...kRemiLegendaryChoices};
+
 class GameEngine with AbilityEngine {
   static final GameEngine instance = GameEngine._();
   GameEngine._();
@@ -54,7 +73,8 @@ class GameEngine with AbilityEngine {
     }
     // Pirate et Sniper = portée infinie — Pirate seulement une fois révélé
     // (son pouvoir est un "passif révélé", pas actif tant qu'il est caché).
-    if (attacker.sniper || (attacker.revealed && (attacker.infiniteRange || eff == 'infinite_range'))) {
+    if (attacker.sniper || (attacker.revealed && (attacker.infiniteRange || eff == 'infinite_range' ||
+        attacker.remiEquipmentChoices.contains('remi_range')))) {
       return all.where((p) => p.alive && p.uid != attacker.uid).toList();
     }
     return all.where((p) => p.alive && p.uid != attacker.uid
@@ -341,6 +361,24 @@ class GameEngine with AbilityEngine {
         // dépassent désormais son nouveau PV max réduit.
         if (target.wounds >= effectiveMaxHp(target)) target.alive = false;
         return '🧛 ${actor.name} vole 1 PV MAX à ${target.name} (elle: ${effectiveMaxHp(actor)} PV max, lui: ${effectiveMaxHp(target)} PV max)';
+
+      // ── Rémi (bot) : choix automatique raisonnable de 2 effets sur 10 ──
+      // (le joueur humain passe par sa propre boîte de dialogue de choix —
+      // ce chemin n'est utilisé QUE par les bots, qui n'ont pas d'interface).
+      case 'craft_equipment_remi':
+        if (actor.remiEquipmentChoices.isNotEmpty) return 'Rémi — équipement déjà fabriqué';
+        final pool = List<String>.from(kRemiAllChoices.keys)..shuffle(_rng);
+        final c1 = pool[0], c2 = pool[1];
+        actor.remiEquipmentChoices = [c1, c2];
+        actor.equipment.add(GameCard(
+          id: 'remi_custom_${actor.uid}',
+          name: 'Équipement de ${actor.name}',
+          deck: DeckType.lumiere,
+          type: CardType.equipement,
+          text: '${kRemiAllChoices[c1]}\n${kRemiAllChoices[c2]}',
+          effect: 'remi_custom_equipment',
+        ));
+        return '🛠️ ${actor.name} fabrique son équipement personnalisé';
 
       // ── Hong Yi : 8 dégâts à la cible, lui-même finit à 1 blessure ──
       case 'terrain_max_aoe':
@@ -748,6 +786,9 @@ class GameEngine with AbilityEngine {
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus' && mathieuCount >= 2) dmg += 2;
     // Vache: -1 infligé
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'reduce_all_by1') dmg = max(0, dmg - 1);
+    // Rémi : équipement personnalisé — bonus de dégâts choisis
+    if (attacker.remiEquipmentChoices.contains('remi_dmg1') && dmg > 0) dmg += 1;
+    if (attacker.remiEquipmentChoices.contains('remi_dmg2') && dmg > 0) dmg += 2;
     // Louise: si 0 dmg → 4, sinon +1
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'zero_wound_power') {
       if (dmg == 0) dmg = 4;
@@ -802,6 +843,30 @@ class GameEngine with AbilityEngine {
     if (!target.alive) target.killedByUid = attacker.uid;
     if (actual > 0 && attacker.epeeNinja) applyDamage(target, 2);
     String log = '⚔️ ${attacker.name} attaque ${target.name} — $actual dégâts';
+
+    // Rémi : équipement personnalisé — effets choisis qui se déclenchent
+    // à chaque attaque réussie (dégâts > 0).
+    if (actual > 0) {
+      if (attacker.remiEquipmentChoices.contains('remi_heal1')) {
+        applyHeal(attacker, 1);
+        log += ' | 💚 ${attacker.name} se soigne de 1';
+      }
+      if (attacker.remiEquipmentChoices.contains('remi_heal2')) {
+        applyHeal(attacker, 2);
+        log += ' | 💚💚 ${attacker.name} se soigne de 2';
+      }
+      if (attacker.remiEquipmentChoices.contains('remi_steal') && target.equipment.isNotEmpty) {
+        final stolen = target.equipment.removeAt(0);
+        attacker.equipment.add(stolen);
+        equipPassivePublic(attacker, stolen);
+        recalcPassives(target);
+        log += ' | 🦹 ${attacker.name} vole "${stolen.name}"';
+      }
+      if (attacker.remiEquipmentChoices.contains('remi_forceattack') && target.alive) {
+        target.forcedToAttackNextTurn = true;
+        log += ' | ⚡ ${target.name} devra attaquer quelqu\'un à son prochain tour';
+      }
+    }
 
     // NOTE : le Bazooka ne se gère plus ici. humanBazookaAttack() (solo) et
     // la branche dédiée de attackPlayer() (multi) bouclent déjà sur CHAQUE

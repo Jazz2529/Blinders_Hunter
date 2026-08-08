@@ -2370,7 +2370,9 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
             BHButton(
               label: effChar.abilityEffect == 'store_damage_nils'
                   ? '📦 Déverser ${me.storedDamage} blessures stockées'
-                  : '⚡ Activer ma capacité',
+                  : effChar.abilityEffect == 'craft_equipment_remi'
+                    ? '🛠️ Fabriquer mon équipement'
+                    : '⚡ Activer ma capacité',
               onTap: () => _handleAbility()),
           if (me.revealed && me.abilityUsed && !effChar.abilityRepeatable)
             Padding(padding: const EdgeInsets.only(bottom: 8),
@@ -2625,8 +2627,9 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                     style: body(11, c: kRed))),
                 ]),
               ),
-            // Bazooka: affiche les cibles à portée (info) + bouton unique pour tout attaquer
-            if (me.bazooka) ...[
+            // Bazooka OU Rémi (choix "attaque tous à portée") : affiche les
+            // cibles à portée (info) + bouton unique pour tout attaquer
+            if (me.bazooka || me.remiEquipmentChoices.contains('remi_aoe')) ...[
               if (targets.isNotEmpty) ...[
                 Container(
                   margin: const EdgeInsets.only(bottom: 6),
@@ -2639,7 +2642,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                     const Text('💥', style: TextStyle(fontSize: 13)),
                     const SizedBox(width: 6),
                     Expanded(child: Text(
-                      'Bazooka — ${targets.length} joueur${targets.length > 1 ? "s" : ""} à portée : ${targets.map((t) => t.name).join(", ")}',
+                      'Attaque groupée — ${targets.length} joueur${targets.length > 1 ? "s" : ""} à portée : ${targets.map((t) => t.name).join(", ")}',
                       style: body(11, c: kRed))),
                   ]),
                 ),
@@ -2655,8 +2658,8 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                 Padding(padding: const EdgeInsets.only(bottom: 8),
                   child: Text('Aucune cible à portée.', style: body(13, c: kTextSub))),
             ],
-            // Attaque normale (sans bazooka)
-            if (!me.bazooka)
+            // Attaque normale (sans bazooka ni choix Rémi équivalent)
+            if (!me.bazooka && !me.remiEquipmentChoices.contains('remi_aoe'))
               ...targets.map((t) => _TargetBtn(
                 player: t, danger: true,
                 prefix: hasHache ? '🪓 Attaquer ' : 'Attaquer ',
@@ -3022,6 +3025,63 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     );
   }
 
+  /// Rémi : propose 3 effets tirés au hasard parmi les 10 disponibles, et il
+  /// en choisit exactement 2 parmi CES 3 (pas parmi tous les 10).
+  void _showRemiCraftDialog() {
+    final pool = List<String>.from(kRemiAllChoices.keys)..shuffle();
+    final offered = pool.take(3).toList();
+    final selected = <String>{};
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dctx) => StatefulBuilder(
+        builder: (dctx2, setDialogState) => Dialog(
+          backgroundColor: kBg2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 460, maxHeight: 480),
+            padding: const EdgeInsets.all(20),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(children: [
+                const Text('🛠️', style: TextStyle(fontSize: 22)),
+                const SizedBox(width: 8),
+                Expanded(child: Text('CHOISISSEZ 2 EFFETS PARMI CES 3 (${selected.length}/2)',
+                  style: cinzel(13, c: kGold2, fw: FontWeight.w900))),
+              ]),
+              const SizedBox(height: 4),
+              Text('Cet équipement sera permanent — choisissez avec soin.',
+                style: body(11, c: kTextSub)),
+              const SizedBox(height: 12),
+              ...offered.map((key) => _RemiChoiceRow(
+                label: kRemiAllChoices[key]!,
+                legendary: kRemiLegendaryChoices.containsKey(key),
+                selected: selected.contains(key),
+                onTap: () => setDialogState(() {
+                  if (selected.contains(key)) {
+                    selected.remove(key);
+                  } else if (selected.length < 2) {
+                    selected.add(key);
+                  }
+                }),
+              )),
+              const SizedBox(height: 14),
+              BHButton(
+                label: '🛠️ Fabriquer (${selected.length}/2)',
+                danger: true,
+                onTap: selected.length == 2 ? () {
+                  final list = selected.toList();
+                  Navigator.pop(dctx2);
+                  ctrl.remiCraftEquipment(list[0], list[1]);
+                  setState(() {});
+                } : null,
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showJulienChoice() {
     showDialog(context: context, builder: (dctx) => AlertDialog(
       backgroundColor: kBg2,
@@ -3092,6 +3152,11 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     // Julien : choix explicite entre attaquer une cible ou se soigner
     if (eff == 'damage2_or_heal1') {
       _showJulienChoice();
+      return;
+    }
+    // Rémi : ouvre le sélecteur de 2 effets parmi 10
+    if (eff == 'craft_equipment_remi') {
+      _showRemiCraftDialog();
       return;
     }
     // Toutes ces capacités gèrent elles-mêmes leur transition de phase à
@@ -3168,6 +3233,13 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
 
   void _confirmAtk() {
     if (_atkDmg == null) return;
+    // Rémi : équipement personnalisé — si le choix D4/D6 uniquement est
+    // actif, les dégâts sont le résultat BRUT du dé choisi, pas |D4-D6|.
+    if (s.current.remiEquipmentChoices.contains('remi_d4only') && _atkD4 != null) {
+      _atkDmg = _atkD4;
+    } else if (s.current.remiEquipmentChoices.contains('remi_d6only') && _atkD6 != null) {
+      _atkDmg = _atkD6;
+    }
     audio.playDamage();
     if (_atkTarget == '__bazooka__') {
       // Bazooka: une seule méthode qui attaque tous sans rebuild intermédiaire
@@ -3837,6 +3909,38 @@ class _CardWidget extends StatelessWidget {
         ),
       ]),
     ));
+  }
+}
+
+/// Rémi : une ligne sélectionnable dans le sélecteur d'effets.
+class _RemiChoiceRow extends StatelessWidget {
+  final String label;
+  final bool selected, legendary;
+  final VoidCallback onTap;
+  const _RemiChoiceRow({required this.label, required this.selected,
+    required this.onTap, this.legendary = false});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final accent = legendary ? kGold : kGold2;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? accent.withValues(alpha: 0.15) : kBg3,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: selected ? accent : kBord2, width: selected ? 2 : 1),
+        ),
+        child: Row(children: [
+          Icon(selected ? Icons.check_circle : Icons.radio_button_unchecked,
+            size: 18, color: selected ? accent : kTextDim),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label, style: body(12, c: selected ? kText : kTextSub))),
+        ]),
+      ),
+    );
   }
 }
 

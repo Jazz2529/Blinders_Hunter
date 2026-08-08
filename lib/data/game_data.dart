@@ -88,6 +88,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'gege_passive', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
+  CharacterCard(id:'remi', name:'Rémi', faction:Faction.hunter, hp:12, icon:'🛠️',
+    ability:'Unique: 3 effets sont tirés au hasard parmi 10 (7 communs, 3 légendaires) — choisissez-en 2 pour créer votre équipement personnalisé',
+    abilityEffect:'craft_equipment_remi',
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
   CharacterCard(id:'felipe', name:'Felipe', faction:Faction.hunter, hp:11, icon:'🩸',
     ability:'Passif: si vous subissez des dégâts létaux, vous survivez 1 tour de plus — si vous éliminez un joueur durant ce tour, vous repassez à 2 PV au lieu de mourir',
     abilityEffect:'felipe_passive', abilityRepeatable:true,

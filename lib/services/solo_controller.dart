@@ -1706,6 +1706,29 @@ class SoloController extends ChangeNotifier {
     state!.phase = GamePhase.move; notifyListeners();
   }
 
+  /// Rémi : finalise son équipement personnalisé avec les 2 effets choisis.
+  /// Crée aussi une carte d'équipement "vitrine" (visible dans sa liste
+  /// d'objets) résumant les 2 effets, même si la vraie logique se base sur
+  /// remiEquipmentChoices et pas sur cette carte elle-même.
+  void remiCraftEquipment(String choice1, String choice2) {
+    final p = state!.current;
+    p.remiEquipmentChoices = [choice1, choice2];
+    p.abilityUsed = true; // unique — ne peut plus refabriquer après
+    final label1 = kRemiAllChoices[choice1] ?? choice1;
+    final label2 = kRemiAllChoices[choice2] ?? choice2;
+    p.equipment.add(GameCard(
+      id: 'remi_custom_${p.uid}',
+      name: 'Équipement de ${p.name}',
+      deck: DeckType.lumiere,
+      type: CardType.equipement,
+      text: '$label1\n$label2',
+      effect: 'remi_custom_equipment',
+    ));
+    state!.pendingTargetAction = null;
+    _log('🛠️ ${p.name} fabrique son équipement personnalisé : "$label1" + "$label2"', cls: 'player');
+    state!.phase = GamePhase.move; notifyListeners();
+  }
+
   /// Julien : choix explicite "se soigner" — sépare bien du choix "attaquer"
   /// (qui passe par pendingTargetAction='ability_julien'). Sans cette
   /// fonction dédiée, appeler humanUseAbility() sans cible posait à tort
