@@ -185,6 +185,7 @@ class Player {
   bool emilienRerolledThisTurn = false; // Emilien : relance du D6 déjà utilisée ce tour (une seule fois)
   int maxHpModifier = 0; // Agathe : PV max volés/perdus, définitivement (+ pour elle, − pour la victime, plafonné à ±5)
   bool felipeOnBorrowedTime = false; // Felipe : a survécu à des dégâts létaux, en sursis jusqu'à la fin de son prochain tour
+  bool attackedLastOwnTurn = true; // Fifi Été / Theo : a attaqué lors de SON PROPRE tour précédent (true par défaut — pas de malus au tout premier tour)
   bool marinDagueVoicePlayed = false; // Marin : voice line dague déjà jouée cette partie (une seule fois)
   int damageTakenThisTurn; // remis à 0 au début de CHAQUE tour (Jason: perd son déguisement à 5+)
   List<GameCard> equipment;
@@ -246,6 +247,7 @@ class Player {
     this.emilienRerolledThisTurn = false,
     this.maxHpModifier = 0,
     this.felipeOnBorrowedTime = false,
+    this.attackedLastOwnTurn = true,
     this.marinDagueVoicePlayed = false,
     List<GameCard>? equipment,
   }) : equipment = equipment ?? [];
@@ -287,6 +289,7 @@ class Player {
     'emilienRerolledThisTurn': emilienRerolledThisTurn,
     'maxHpModifier': maxHpModifier,
     'felipeOnBorrowedTime': felipeOnBorrowedTime,
+    'attackedLastOwnTurn': attackedLastOwnTurn,
     'marinDagueVoicePlayed': marinDagueVoicePlayed,
     'equipment': equipment.map((e) => e.toJson()).toList(),
   };
@@ -350,6 +353,7 @@ class Player {
     emilienRerolledThisTurn: (j['emilienRerolledThisTurn'] as bool?) ?? false,
     maxHpModifier: (j['maxHpModifier'] as num?)?.toInt() ?? 0,
     felipeOnBorrowedTime: (j['felipeOnBorrowedTime'] as bool?) ?? false,
+    attackedLastOwnTurn: (j['attackedLastOwnTurn'] as bool?) ?? true,
     marinDagueVoicePlayed: (j['marinDagueVoicePlayed'] as bool?) ?? false,
     equipment: ((j['equipment'] as List?) ?? [])
         .map((e) => GameCard.fromJson(Map<String, dynamic>.from(e as Map)))

@@ -1224,7 +1224,7 @@ class _ActionPanelState extends State<_ActionPanel> {
             ),
           if(me?.revealed==true) ...[
             if(me?.abilityUsed==false && !const {
-              'heal_on_same_terrain', 'heal_per_equip_eot', 'counter_attack_passive',
+              'heal_on_same_terrain', 'heal_per_equip_eot', 'counter_attack_passive', 'no_attack_buff',
               'death_heal_allies', 'gege_passive', 'tenebres_heal_instead',
               'zero_wound_power', 'third_attack_bonus', 'infinite_range',
               'chameleon_passive', 'heal1_on_own_attack', 'builder_power', 'prophete_mark',

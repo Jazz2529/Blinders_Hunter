@@ -1139,6 +1139,10 @@ class GameProvider extends ChangeNotifier {
       return;
     }
     if (p.shield && p.shieldCharges == 99) { p.shield = false; p.shieldCharges = 0; }
+    // Fifi Été / Theo : mémorise si CE joueur a attaqué pendant SON PROPRE
+    // tour qui se termine — ce passif n'existait même pas en multijoueur
+    // auparavant.
+    p.attackedLastOwnTurn = gameState?.hasAttacked ?? false;
     await _fb.updatePlayer(roomId!, p);
     await _fb.addLog(roomId!, '⏩ ${p.name} termine son tour');
     // Effacer fifiGoldenTurn
@@ -1155,6 +1159,14 @@ class GameProvider extends ChangeNotifier {
       nextPlayer.shield = false; nextPlayer.shieldCharges = 0;
     }
     nextPlayer.damageTakenThisTurn = 0; // remise à zéro pour le tracking de Jason
+    // Fifi Été / Theo : +2 dégâts sur la prochaine attaque si pas attaqué
+    // lors de SON PROPRE tour précédent.
+    final nEff = nextPlayer.copiedEffect ?? nextPlayer.character?.abilityEffect ?? '';
+    if (nEff == 'no_attack_buff' && nextPlayer.revealed && !nextPlayer.attackedLastOwnTurn) {
+      nextPlayer.bonusMaxHp = 1;
+    } else if (nEff == 'no_attack_buff') {
+      nextPlayer.bonusMaxHp = 0;
+    }
     // Passifs de début de tour (Plat de Tripes, Menus, Fijacked, Scott...)
     final passiveLogs = _eg.applyStartOfTurnPassives(nextPlayer, all, gameState!.terrainLayout);
     _eg.applyDeathPassives(all);

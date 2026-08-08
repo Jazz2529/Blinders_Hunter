@@ -105,6 +105,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'store_damage_nils', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
+  CharacterCard(id:'theo', name:'Theo', faction:Faction.shadow, hp:12, icon:'🗲',
+    ability:'Passif révélé: si vous n\'avez pas attaqué au tour précédent, votre prochaine attaque infligera 2 blessures de plus',
+    abilityEffect:'no_attack_buff', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
   CharacterCard(id:'emilien', name:'Emilien', faction:Faction.shadow, hp:12, icon:'🎲',
     ability:'Passif: lors d\'une attaque, vous pouvez relancer le D6 une seule fois par tour avant de valider les dégâts',
     abilityEffect:'reroll_d6_attack', abilityRepeatable:true,

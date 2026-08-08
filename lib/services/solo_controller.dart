@@ -366,6 +366,10 @@ class SoloController extends ChangeNotifier {
       _log('🩸 ${outgoing.name} (Felipe) n\'a pas pu se sauver à temps — il succombe à ses blessures.', cls: 'death');
       _checkWin(justDiedId: outgoing.uid);
     }
+    // Fifi Été / Theo : mémorise si CE joueur a attaqué pendant SON PROPRE
+    // tour qui se termine — sans ça (l'ancien champ était global et jamais
+    // mis à jour), leur passif ne se déclenchait jamais.
+    outgoing.attackedLastOwnTurn = state!.hasAttackedThisTurn;
     // 🍀 Fifi — le "tour parfait" ne dure qu'UN tour : on le consomme ici,
     // avant de passer au joueur suivant, pour revenir à l'aléatoire ensuite.
     if (state!.fifiGoldenTurn) {
@@ -391,10 +395,12 @@ class SoloController extends ChangeNotifier {
     // Pirate passif permanent — portée infinie
     final pEff = p.copiedEffect ?? p.character?.abilityEffect ?? '';
     if (pEff == 'infinite_range') p.infiniteRange = p.revealed;
-    // Fifi Été: marquer le buff si pas attaqué le tour précédent
-    if (pEff == 'no_attack_buff' && p.revealed && state!.didNotAttackLastTurn) {
+    // Fifi Été / Theo : +2 dégâts sur la prochaine attaque si pas attaqué
+    // lors de SON PROPRE tour précédent (basé sur le joueur lui-même,
+    // désormais correctement suivi — pas un flag global partagé).
+    if (pEff == 'no_attack_buff' && p.revealed && !p.attackedLastOwnTurn) {
       p.bonusMaxHp = 1; // flag "buff actif"
-      _log('🌻 Fifi Été — +2 dégâts ce tour (pas attaqué hier)', cls: 'player');
+      _log('⚡ ${p.name} — +2 dégâts ce tour (pas attaqué au tour précédent)', cls: 'player');
     } else if (pEff == 'no_attack_buff') {
       p.bonusMaxHp = 0;
     }
