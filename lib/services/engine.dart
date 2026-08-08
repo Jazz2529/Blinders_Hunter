@@ -28,6 +28,19 @@ const Map<String, String> kRemiLegendaryChoices = {
 };
 const Map<String, String> kRemiAllChoices = {...kRemiCommonChoices, ...kRemiLegendaryChoices};
 
+/// Rémi : renvoie les 2 effets actifs pour CE joueur, d'après l'équipement
+/// personnalisé QU'IL PORTE ACTUELLEMENT — pas d'après qui l'a fabriqué.
+/// L'effet suit l'objet : si quelqu'un d'autre le vole, c'est lui qui en
+/// bénéficie ensuite, plus Rémi.
+Set<String> remiActiveChoices(Player p) {
+  for (final eq in p.equipment) {
+    if (eq.effect.startsWith('remi_custom:')) {
+      return eq.effect.substring('remi_custom:'.length).split(',').toSet();
+    }
+  }
+  return const {};
+}
+
 class GameEngine with AbilityEngine {
   static final GameEngine instance = GameEngine._();
   GameEngine._();
@@ -74,7 +87,7 @@ class GameEngine with AbilityEngine {
     // Pirate et Sniper = portée infinie — Pirate seulement une fois révélé
     // (son pouvoir est un "passif révélé", pas actif tant qu'il est caché).
     if (attacker.sniper || (attacker.revealed && (attacker.infiniteRange || eff == 'infinite_range' ||
-        attacker.remiEquipmentChoices.contains('remi_range')))) {
+        remiActiveChoices(attacker).contains('remi_range')))) {
       return all.where((p) => p.alive && p.uid != attacker.uid).toList();
     }
     return all.where((p) => p.alive && p.uid != attacker.uid
@@ -366,17 +379,18 @@ class GameEngine with AbilityEngine {
       // (le joueur humain passe par sa propre boîte de dialogue de choix —
       // ce chemin n'est utilisé QUE par les bots, qui n'ont pas d'interface).
       case 'craft_equipment_remi':
-        if (actor.remiEquipmentChoices.isNotEmpty) return 'Rémi — équipement déjà fabriqué';
+        if (actor.equipment.any((e) => e.effect.startsWith('remi_custom:'))) {
+          return 'Rémi — équipement déjà fabriqué';
+        }
         final pool = List<String>.from(kRemiAllChoices.keys)..shuffle(_rng);
         final c1 = pool[0], c2 = pool[1];
-        actor.remiEquipmentChoices = [c1, c2];
         actor.equipment.add(GameCard(
           id: 'remi_custom_${actor.uid}',
           name: 'Équipement de ${actor.name}',
           deck: DeckType.lumiere,
           type: CardType.equipement,
           text: '${kRemiAllChoices[c1]}\n${kRemiAllChoices[c2]}',
-          effect: 'remi_custom_equipment',
+          effect: 'remi_custom:$c1,$c2',
         ));
         return '🛠️ ${actor.name} fabrique son équipement personnalisé';
 
@@ -786,9 +800,11 @@ class GameEngine with AbilityEngine {
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus' && mathieuCount >= 2) dmg += 2;
     // Vache: -1 infligé
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'reduce_all_by1') dmg = max(0, dmg - 1);
-    // Rémi : équipement personnalisé — bonus de dégâts choisis
-    if (attacker.remiEquipmentChoices.contains('remi_dmg1') && dmg > 0) dmg += 1;
-    if (attacker.remiEquipmentChoices.contains('remi_dmg2') && dmg > 0) dmg += 2;
+    // Rémi : équipement personnalisé — bonus de dégâts choisis (suit
+    // l'équipement, pas le personnage — utile s'il est volé).
+    final remiChoices = remiActiveChoices(attacker);
+    if (remiChoices.contains('remi_dmg1') && dmg > 0) dmg += 1;
+    if (remiChoices.contains('remi_dmg2') && dmg > 0) dmg += 2;
     // Louise: si 0 dmg → 4, sinon +1
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'zero_wound_power') {
       if (dmg == 0) dmg = 4;
@@ -845,24 +861,26 @@ class GameEngine with AbilityEngine {
     String log = '⚔️ ${attacker.name} attaque ${target.name} — $actual dégâts';
 
     // Rémi : équipement personnalisé — effets choisis qui se déclenchent
-    // à chaque attaque réussie (dégâts > 0).
+    // à chaque attaque réussie (dégâts > 0). Suit l'équipement, pas le
+    // personnage.
     if (actual > 0) {
-      if (attacker.remiEquipmentChoices.contains('remi_heal1')) {
+      final remiChoicesA = remiActiveChoices(attacker);
+      if (remiChoicesA.contains('remi_heal1')) {
         applyHeal(attacker, 1);
         log += ' | 💚 ${attacker.name} se soigne de 1';
       }
-      if (attacker.remiEquipmentChoices.contains('remi_heal2')) {
+      if (remiChoicesA.contains('remi_heal2')) {
         applyHeal(attacker, 2);
         log += ' | 💚💚 ${attacker.name} se soigne de 2';
       }
-      if (attacker.remiEquipmentChoices.contains('remi_steal') && target.equipment.isNotEmpty) {
+      if (remiChoicesA.contains('remi_steal') && target.equipment.isNotEmpty) {
         final stolen = target.equipment.removeAt(0);
         attacker.equipment.add(stolen);
         equipPassivePublic(attacker, stolen);
         recalcPassives(target);
         log += ' | 🦹 ${attacker.name} vole "${stolen.name}"';
       }
-      if (attacker.remiEquipmentChoices.contains('remi_forceattack') && target.alive) {
+      if (remiChoicesA.contains('remi_forceattack') && target.alive) {
         target.forcedToAttackNextTurn = true;
         log += ' | ⚡ ${target.name} devra attaquer quelqu\'un à son prochain tour';
       }

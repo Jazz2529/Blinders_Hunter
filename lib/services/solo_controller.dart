@@ -1712,17 +1712,20 @@ class SoloController extends ChangeNotifier {
   /// remiEquipmentChoices et pas sur cette carte elle-même.
   void remiCraftEquipment(String choice1, String choice2) {
     final p = state!.current;
-    p.remiEquipmentChoices = [choice1, choice2];
     p.abilityUsed = true; // unique — ne peut plus refabriquer après
     final label1 = kRemiAllChoices[choice1] ?? choice1;
     final label2 = kRemiAllChoices[choice2] ?? choice2;
+    // Les 2 effets sont encodés DANS la carte elle-même (effect:
+    // 'remi_custom:choice1,choice2') plutôt que sur le joueur — l'effet doit
+    // suivre l'ÉQUIPEMENT : si quelqu'un le vole, c'est LUI qui en bénéficie
+    // ensuite, pas Rémi.
     p.equipment.add(GameCard(
       id: 'remi_custom_${p.uid}',
       name: 'Équipement de ${p.name}',
       deck: DeckType.lumiere,
       type: CardType.equipement,
       text: '$label1\n$label2',
-      effect: 'remi_custom_equipment',
+      effect: 'remi_custom:$choice1,$choice2',
     ));
     state!.pendingTargetAction = null;
     _log('🛠️ ${p.name} fabrique son équipement personnalisé : "$label1" + "$label2"', cls: 'player');

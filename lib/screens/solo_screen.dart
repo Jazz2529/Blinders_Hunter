@@ -2629,7 +2629,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
               ),
             // Bazooka OU Rémi (choix "attaque tous à portée") : affiche les
             // cibles à portée (info) + bouton unique pour tout attaquer
-            if (me.bazooka || me.remiEquipmentChoices.contains('remi_aoe')) ...[
+            if (me.bazooka || remiActiveChoices(me).contains('remi_aoe')) ...[
               if (targets.isNotEmpty) ...[
                 Container(
                   margin: const EdgeInsets.only(bottom: 6),
@@ -2651,6 +2651,17 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                   danger: true,
                   onTap: () {
                     audio.playDice();
+                    final remiChoicesMe2 = remiActiveChoices(me);
+                    if (remiChoicesMe2.contains('remi_d4only')) {
+                      final d4 = GameEngine.instance.rollD4();
+                      setState(() { _atkD4 = d4; _atkD6 = null; _atkDmg = d4; _atkTarget = '__bazooka__'; });
+                      return;
+                    }
+                    if (remiChoicesMe2.contains('remi_d6only')) {
+                      final d6 = GameEngine.instance.rollD6();
+                      setState(() { _atkD4 = null; _atkD6 = d6; _atkDmg = d6; _atkTarget = '__bazooka__'; });
+                      return;
+                    }
                     final r = GameEngine.instance.rollAttack();
                     setState(() { _atkD4 = r['d4']; _atkD6 = r['d6']; _atkDmg = r['damage']; _atkTarget = '__bazooka__'; });
                   }),
@@ -2659,7 +2670,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                   child: Text('Aucune cible à portée.', style: body(13, c: kTextSub))),
             ],
             // Attaque normale (sans bazooka ni choix Rémi équivalent)
-            if (!me.bazooka && !me.remiEquipmentChoices.contains('remi_aoe'))
+            if (!me.bazooka && !remiActiveChoices(me).contains('remi_aoe'))
               ...targets.map((t) => _TargetBtn(
                 player: t, danger: true,
                 prefix: hasHache ? '🪓 Attaquer ' : 'Attaquer ',
@@ -2682,7 +2693,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                 textAlign: TextAlign.center),
               const SizedBox(height: 10),
             ] else
-              _DiceWidget(d4: _atkD4!, d6: _atkD6!, sum: _atkDmg!, isAttack: true),
+              _DiceWidget(d4: _atkD4 ?? 0, d6: _atkD6 ?? 0, sum: _atkDmg!, isAttack: true),
             const SizedBox(height: 10),
             // Pas de bouton Annuler — une attaque lancée ne peut pas être annulée
             Container(
@@ -3212,6 +3223,20 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     final me = s.current;
     final eff = me.copiedEffect ?? me.character?.abilityEffect;
     final target = s.players.where((p) => p.uid == targetId).firstOrNull;
+    // Rémi : équipement personnalisé — si le choix D4/D6 uniquement est
+    // actif, on ne lance QUE ce dé (pas les deux), et les dégâts sont son
+    // résultat brut directement.
+    final remiChoicesMe = remiActiveChoices(me);
+    if (remiChoicesMe.contains('remi_d4only')) {
+      final d4 = GameEngine.instance.rollD4();
+      setState(() { _atkD4 = d4; _atkD6 = null; _atkDmg = d4; _atkTarget = targetId; });
+      return;
+    }
+    if (remiChoicesMe.contains('remi_d6only')) {
+      final d6 = GameEngine.instance.rollD6();
+      setState(() { _atkD4 = null; _atkD6 = d6; _atkDmg = d6; _atkTarget = targetId; });
+      return;
+    }
     if (eff == 'double_attack_if_tanky' && target != null && target.revealed && target.character!.hp >= 13) {
       // 🥭 Mango Loco : cible costaude (13+ PV) → double lancer, dégâts additionnés
       final r1 = GameEngine.instance.rollAttack();
@@ -3235,9 +3260,9 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (_atkDmg == null) return;
     // Rémi : équipement personnalisé — si le choix D4/D6 uniquement est
     // actif, les dégâts sont le résultat BRUT du dé choisi, pas |D4-D6|.
-    if (s.current.remiEquipmentChoices.contains('remi_d4only') && _atkD4 != null) {
+    if (remiActiveChoices(s.current).contains('remi_d4only') && _atkD4 != null) {
       _atkDmg = _atkD4;
-    } else if (s.current.remiEquipmentChoices.contains('remi_d6only') && _atkD6 != null) {
+    } else if (remiActiveChoices(s.current).contains('remi_d6only') && _atkD6 != null) {
       _atkDmg = _atkD6;
     }
     audio.playDamage();
