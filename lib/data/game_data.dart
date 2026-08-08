@@ -6,7 +6,7 @@ import '../models/models.dart';
 // ─── 24 personnages sélectionnés ─────────────────────────────────────────────
 const List<CharacterCard> kAllCharacters = [
 
-  // ══════════ HUNTERS (10) ══════════
+  // ══════════ HUNTERS (20) ══════════
 
   CharacterCard(id:'albane', name:'Albane', faction:Faction.hunter, hp:14, icon:'🏃',
     ability:'Passif révélé: lance 2 fois les dés de déplacement et choisit le résultat',
@@ -28,30 +28,55 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'heal_on_same_terrain', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
-  CharacterCard(id:'fijacked', name:'Fijacked', faction:Faction.hunter, hp:11, icon:'🏺',
-    ability:'Passif révélé: au début de votre tour, soignez 1 blessure par équipement possédé',
-    abilityEffect:'heal_per_equip_eot', abilityRepeatable:true,
+  CharacterCard(id:'baleine', name:'Baleine', faction:Faction.hunter, hp:12, icon:'🐋',
+    ability:'Passif: quand Baleine meurt, tous les Hunters révélés sont soignés de 2 blessures',
+    abilityEffect:'death_heal_allies', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
-  CharacterCard(id:'scott', name:'Scott', faction:Faction.hunter, hp:13, icon:'🛡️',
-    ability:'Passif: si un joueur l\'attaque, il contre-attaque automatiquement (lance ses propres dés)',
-    abilityEffect:'counter_attack_passive', abilityRepeatable:true,
+  CharacterCard(id:'carla', name:'Carla', faction:Faction.hunter, hp:11, icon:'🎗️',
+    ability:'Passif révélé: si vous attaquez un Hunter révélé, il est soigné du même montant au lieu d\'être blessé',
+    abilityEffect:'heal_hunter_on_attack', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
-  CharacterCard(id:'louna', name:'Louna', faction:Faction.hunter, hp:14, icon:'🐱',
-    ability:'Unique: devenez insensible aux blessures pendant 1 tour entier',
-    abilityEffect:'shield3',
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
-
-  CharacterCard(id:'richard2', name:'Richard II', faction:Faction.hunter, hp:13, icon:'👑',
-    ability:'Répétable: choisissez 2 zones du plateau — elles échangent de place avec tous les joueurs dessus. Vous activez l\'effet du terrain sur lequel vous atterrissez. Vous ne pouvez pas vous déplacer ce tour.',
-    abilityEffect:'swap_zones', abilityRepeatable:true,
+  CharacterCard(id:'christine', name:'Christine', faction:Faction.hunter, hp:13, icon:'🗺️',
+    ability:'Répétable: au lieu de vous déplacer normalement, choisissez directement un des 2 terrains adjacents et déplacez-vous-y',
+    abilityEffect:'move_adjacent_choice', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
   CharacterCard(id:'clemence', name:'Clémence', faction:Faction.hunter, hp:12, icon:'🎨',
     ability:'Unique: à la révélation, choisissez 2 effets parmi 3 propositions pondérées — les 2 effets se combinent et s\'appliquent sur une cible de votre choix (ou automatiquement pour les effets de zone)',
     abilityEffect:'builder_power', abilityRepeatable:false,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
+  CharacterCard(id:'elaia', name:'Elaia', faction:Faction.hunter, hp:13, icon:'🔮',
+    ability:'Répétable, au début du tour: regardez les 2 premières cartes d\'une pile de votre choix (Ténèbres/Lumière/Vision) et choisissez leur ordre de pioche',
+    abilityEffect:'peek_reorder_deck', abilityRepeatable:true,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
+  CharacterCard(id:'elise', name:'Élise', faction:Faction.hunter, hp:12, icon:'⛪',
+    ability:'Répétable: piochez une carte Lumière',
+    abilityEffect:'draw_light', abilityRepeatable:true,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
+  CharacterCard(id:'felipe', name:'Felipe', faction:Faction.hunter, hp:11, icon:'🩸',
+    ability:'Passif: si vous subissez des dégâts létaux, vous survivez 1 tour de plus — si vous éliminez un joueur durant ce tour, vous repassez à 2 PV au lieu de mourir',
+    abilityEffect:'felipe_passive', abilityRepeatable:true,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'), 
+
+  CharacterCard(id:'fijacked', name:'Fijacked', faction:Faction.hunter, hp:11, icon:'🏺',
+    ability:'Passif révélé: au début de votre tour, soignez 1 blessure par équipement possédé',
+    abilityEffect:'heal_per_equip_eot', abilityRepeatable:true,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
+  CharacterCard(id:'gege', name:'Gège le Fantôme', faction:Faction.hunter, hp:14, icon:'👻',
+    ability:'Passif: ne peut pas attaquer, mais attaque automatiquement chaque fois qu\'un Hunter révélé attaque',
+    abilityEffect:'gege_passive', abilityRepeatable:true,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
+  CharacterCard(id:'louna', name:'Louna', faction:Faction.hunter, hp:14, icon:'🐱',
+    ability:'Unique: devenez insensible aux blessures pendant 1 tour entier',
+    abilityEffect:'shield3',
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
 
   CharacterCard(id:'marion', name:'Marion', faction:Faction.hunter, hp:13, icon:'🧝',
     ability:'Unique: placez un joueur exactement à 5 blessures (soigne ou blesse)',
@@ -63,34 +88,9 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'d4_heal_neighbors',
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
-  CharacterCard(id:'elaia', name:'Elaia', faction:Faction.hunter, hp:13, icon:'🔮',
-    ability:'Répétable, au début du tour: regardez les 2 premières cartes d\'une pile de votre choix (Ténèbres/Lumière/Vision) et choisissez leur ordre de pioche',
-    abilityEffect:'peek_reorder_deck', abilityRepeatable:true,
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
-
   CharacterCard(id:'raph_soleil', name:'Raph du Soleil Levant', faction:Faction.hunter, hp:12, icon:'🥷',
     ability:'Répétable: subissez 2 blessures pour soigner un joueur de votre choix de 3 blessures',
     abilityEffect:'damage2_then_heal3', abilityRepeatable:true,
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
-
-  CharacterCard(id:'elise', name:'Élise', faction:Faction.hunter, hp:12, icon:'⛪',
-    ability:'Répétable: piochez une carte Lumière',
-    abilityEffect:'draw_light', abilityRepeatable:true,
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
-
-  CharacterCard(id:'baleine', name:'Baleine', faction:Faction.hunter, hp:12, icon:'🐋',
-    ability:'Passif: quand Baleine meurt, tous les Hunters révélés sont soignés de 2 blessures',
-    abilityEffect:'death_heal_allies', abilityRepeatable:true,
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
-
-  CharacterCard(id:'gege', name:'Gège le Fantôme', faction:Faction.hunter, hp:14, icon:'👻',
-    ability:'Passif: ne peut pas attaquer, mais attaque automatiquement chaque fois qu\'un Hunter révélé attaque',
-    abilityEffect:'gege_passive', abilityRepeatable:true,
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
-
-  CharacterCard(id:'christine', name:'Christine', faction:Faction.hunter, hp:13, icon:'🗺️',
-    ability:'Répétable: au lieu de vous déplacer normalement, choisissez directement un des 2 terrains adjacents et déplacez-vous-y',
-    abilityEffect:'move_adjacent_choice', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
   CharacterCard(id:'remi', name:'Rémi', faction:Faction.hunter, hp:12, icon:'🛠️',
@@ -98,32 +98,17 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'craft_equipment_remi',
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
-  CharacterCard(id:'felipe', name:'Felipe', faction:Faction.hunter, hp:11, icon:'🩸',
-    ability:'Passif: si vous subissez des dégâts létaux, vous survivez 1 tour de plus — si vous éliminez un joueur durant ce tour, vous repassez à 2 PV au lieu de mourir',
-    abilityEffect:'felipe_passive', abilityRepeatable:true,
+  CharacterCard(id:'richard2', name:'Richard II', faction:Faction.hunter, hp:13, icon:'👑',
+    ability:'Répétable: choisissez 2 zones du plateau — elles échangent de place avec tous les joueurs dessus. Vous activez l\'effet du terrain sur lequel vous atterrissez. Vous ne pouvez pas vous déplacer ce tour.',
+    abilityEffect:'swap_zones', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
-  CharacterCard(id:'carla', name:'Carla', faction:Faction.hunter, hp:11, icon:'🎗️',
-    ability:'Passif révélé: si vous attaquez un Hunter révélé, il est soigné du même montant au lieu d\'être blessé',
-    abilityEffect:'heal_hunter_on_attack', abilityRepeatable:true,
+  CharacterCard(id:'scott', name:'Scott', faction:Faction.hunter, hp:13, icon:'🛡️',
+    ability:'Passif: si un joueur l\'attaque, il contre-attaque automatiquement (lance ses propres dés)',
+    abilityEffect:'counter_attack_passive', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
-  // ══════════ SHADOWS (10) ══════════
-
-  CharacterCard(id:'nils', name:'Nils', faction:Faction.shadow, hp:13, icon:'📦',
-    ability:'Répétable: activez le stockage (vos attaques stockent les blessures au lieu d\'en infliger), puis redéclenchez pour tout déverser sur un joueur au choix',
-    abilityEffect:'store_damage_nils', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'theo', name:'Theo', faction:Faction.shadow, hp:12, icon:'🗲',
-    ability:'Passif révélé: si vous n\'avez pas attaqué au tour précédent, votre prochaine attaque infligera 2 blessures de plus',
-    abilityEffect:'no_attack_buff', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'emilien', name:'Emilien', faction:Faction.shadow, hp:12, icon:'🎲',
-    ability:'Passif: lors d\'une attaque, vous pouvez relancer le D6 une seule fois par tour avant de valider les dégâts',
-    abilityEffect:'reroll_d6_attack', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+    // ══════════ SHADOWS (20) ══════════
 
   CharacterCard(id:'agathe', name:'Agathe', faction:Faction.shadow, hp:9, icon:'🧛‍♀️',
     ability:'Répétable (max 5x): volez 1 PV MAX à un joueur au choix (vous +1 PV max, lui -1 PV max, définitivement)',
@@ -140,54 +125,9 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'damien_serve', abilityRepeatable:false,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
-  CharacterCard(id:'jeanne', name:'Jeanne', faction:Faction.shadow, hp:12, icon:'🔮',
-    ability:'Unique: à la révélation, marque un joueur (visible de tous) et choisit secrètement une récompense — le joueur qui tue la cible marquée reçoit cette récompense, et Jeanne se soigne de 3',
-    abilityEffect:'prophete_mark', abilityRepeatable:false,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'ninja', name:'Ninja', faction:Faction.shadow, hp:12, icon:'🥷',
-    ability:'Unique: rejoue autant de tours supplémentaires consécutifs qu\'il y a de joueurs morts au moment de l\'activation. Si personne n\'est mort, le pouvoir n\'a aucun effet.',
-    abilityEffect:'bonus_turns', abilityRepeatable:false,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'louise', name:'Louise', faction:Faction.shadow, hp:10, icon:'💢',
-    ability:'Passif: si votre attaque inflige 0 blessure → infligez 4. Sinon infligez 1 de plus',
-    abilityEffect:'zero_wound_power', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'mathieu', name:'Mathieu', faction:Faction.shadow, hp:11, icon:'📊',
-    ability:'Passif: à partir de sa 3ème attaque, toutes ses attaques infligent 2 blessures de plus (permanent)',
-    abilityEffect:'third_attack_bonus', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'mr_casino', name:'Mr Casino', faction:Faction.shadow, hp:13, icon:'🎰',
-    ability:'Répétable: pariez pair ou impair — si vous gagnez infligez 3 blessures, sinon subissez 2',
-    abilityEffect:'casino_bet', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'monkey', name:'Monkey Raph', faction:Faction.shadow, hp:11, icon:'🐒',
-    ability:'Répétable: piochez une carte Ténèbres visible de tous',
-    abilityEffect:'draw_dark', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'pirate', name:'Pirate', faction:Faction.shadow, hp:11, icon:'🏴‍☠️',
-    ability:'Passif révélé: portée infinie — vous pouvez attaquer tout joueur sans restriction',
-    abilityEffect:'infinite_range', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'hong_yi', name:'Hong Yi', faction:Faction.shadow, hp:8, icon:'⚡',
-    ability:'Unique: choisissez un joueur — lui infligez 8 blessures ET vous subissez 8 blessures',
-    abilityEffect:'terrain_max_aoe',
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'vlad', name:'Vlad', faction:Faction.shadow, hp:10, icon:'🦇',
-    ability:'Répétable: attaquez avec le D4 un joueur à portée',
-    abilityEffect:'d4_bonus_attack', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'travert', name:'Travert', faction:Faction.shadow, hp:12, icon:'🎲',
-    ability:'Unique: choisissez un joueur et lancez le D6 — lui infligez le résultat en blessures',
-    abilityEffect:'d6_global_attack',
+  CharacterCard(id:'emilien', name:'Emilien', faction:Faction.shadow, hp:12, icon:'🎲',
+    ability:'Passif: lors d\'une attaque, vous pouvez relancer le D6 une seule fois par tour avant de valider les dégâts',
+    abilityEffect:'reroll_d6_attack', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'fifi_shadow', name:'Fifi', faction:Faction.shadow, hp:13, icon:'🍀',
@@ -195,14 +135,14 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'choose_all_dice',
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
-  CharacterCard(id:'marin', name:'Marin', faction:Faction.shadow, hp:10, icon:'🗡️',
-    ability:'Répétable: infligez 3 blessures à un joueur de votre choix et donnez-lui votre dague (+1 dégât pour lui à ses attaques)',
-    abilityEffect:'damage3_give_dague', abilityRepeatable:true,
+  CharacterCard(id:'hong_yi', name:'Hong Yi', faction:Faction.shadow, hp:8, icon:'⚡',
+    ability:'Unique: choisissez un joueur — lui infligez 8 blessures ET vous subissez 8 blessures',
+    abilityEffect:'terrain_max_aoe',
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
-  CharacterCard(id:'peio', name:'Peio', faction:Faction.shadow, hp:14, icon:'🧌',
-    ability:'Répétable: subissez 1 blessure pour réutiliser l\'effet du terrain où vous êtes',
-    abilityEffect:'self1_trigger_terrain', abilityRepeatable:true,
+  CharacterCard(id:'jeanne', name:'Jeanne', faction:Faction.shadow, hp:12, icon:'🔮',
+    ability:'Unique: à la révélation, marque un joueur (visible de tous) et choisit secrètement une récompense — le joueur qui tue la cible marquée reçoit cette récompense, et Jeanne se soigne de 3',
+    abilityEffect:'prophete_mark', abilityRepeatable:false,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'julien', name:'Julien', faction:Faction.shadow, hp:11, icon:'😈',
@@ -210,31 +150,71 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'damage2_or_heal1', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
-  // ══════════ NEUTRES (4) ══════════
+  CharacterCard(id:'louise', name:'Louise', faction:Faction.shadow, hp:10, icon:'💢',
+    ability:'Passif: si votre attaque inflige 0 blessure → infligez 4. Sinon infligez 1 de plus',
+    abilityEffect:'zero_wound_power', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'marin', name:'Marin', faction:Faction.shadow, hp:10, icon:'🗡️',
+    ability:'Répétable: infligez 3 blessures à un joueur de votre choix et donnez-lui votre dague (+1 dégât pour lui à ses attaques)',
+    abilityEffect:'damage3_give_dague', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'mathieu', name:'Mathieu', faction:Faction.shadow, hp:11, icon:'📊',
+    ability:'Passif: à partir de sa 3ème attaque, toutes ses attaques infligent 2 blessures de plus (permanent)',
+    abilityEffect:'third_attack_bonus', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'monkey', name:'Monkey Raph', faction:Faction.shadow, hp:11, icon:'🐒',
+    ability:'Répétable: piochez une carte Ténèbres visible de tous',
+    abilityEffect:'draw_dark', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'mr_casino', name:'Mr Casino', faction:Faction.shadow, hp:13, icon:'🎰',
+    ability:'Répétable: pariez pair ou impair — si vous gagnez infligez 3 blessures, sinon subissez 2',
+    abilityEffect:'casino_bet', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'nils', name:'Nils', faction:Faction.shadow, hp:13, icon:'📦',
+    ability:'Répétable: activez le stockage (vos attaques stockent les blessures au lieu d\'en infliger), puis redéclenchez pour tout déverser sur un joueur au choix',
+    abilityEffect:'store_damage_nils', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'ninja', name:'Ninja', faction:Faction.shadow, hp:12, icon:'🥷',
+    ability:'Unique: rejoue autant de tours supplémentaires consécutifs qu\'il y a de joueurs morts au moment de l\'activation. Si personne n\'est mort, le pouvoir n\'a aucun effet.',
+    abilityEffect:'bonus_turns', abilityRepeatable:false,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'peio', name:'Peio', faction:Faction.shadow, hp:14, icon:'🧌',
+    ability:'Répétable: subissez 1 blessure pour réutiliser l\'effet du terrain où vous êtes',
+    abilityEffect:'self1_trigger_terrain', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'pirate', name:'Pirate', faction:Faction.shadow, hp:11, icon:'🏴‍☠️',
+    ability:'Passif révélé: portée infinie — vous pouvez attaquer tout joueur sans restriction',
+    abilityEffect:'infinite_range', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'theo', name:'Theo', faction:Faction.shadow, hp:12, icon:'🗲',
+    ability:'Passif révélé: si vous n\'avez pas attaqué au tour précédent, votre prochaine attaque infligera 2 blessures de plus',
+    abilityEffect:'no_attack_buff', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'travert', name:'Travert', faction:Faction.shadow, hp:12, icon:'🎲',
+    ability:'Unique: choisissez un joueur et lancez le D6 — lui infligez le résultat en blessures',
+    abilityEffect:'d6_global_attack',
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'vlad', name:'Vlad', faction:Faction.shadow, hp:10, icon:'🦇',
+    ability:'Répétable: attaquez avec le D4 un joueur à portée',
+    abilityEffect:'d4_bonus_attack', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  // ══════════ NEUTRES (8) ══════════
 
   CharacterCard(id:'cambou', name:'Cambou', faction:Faction.neutral, hp:14, icon:'🌙',
     ability:'Unique: passez votre tour pour soigner toutes vos blessures et ne plus subir de blessures jusqu\'au prochain tour',
     abilityEffect:'full_heal_shield_turn', abilityRepeatable:false,
-    winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),
-
-  CharacterCard(id:'tommy', name:'Tommy', faction:Faction.neutral, hp:13, icon:'🎭',
-    ability:'Unique, au début du tour: copiez le pouvoir d\'un joueur révélé de votre choix',
-    abilityEffect:'copy_ability', abilityRepeatable:false,
-    winCondition:'Éliminer la personne dont vous avez copié le pouvoir', winEffect:'kill_copied'),
-
-  CharacterCard(id:'mango', name:'Mango Loco', faction:Faction.neutral, hp:10, icon:'🥭',
-    ability:'Passif : si le joueur attaqué a 13 PV ou plus, vous attaquez 2 fois (lancez les dés 2 fois, dégâts additionnés)',
-    abilityEffect:'double_attack_if_tanky', abilityRepeatable:true,
-    winCondition:'Éliminer un joueur avec 13 PV ou plus', winEffect:'kill_hp13plus'),
-
-  CharacterCard(id:'leo', name:'Léo', faction:Faction.neutral, hp:12, icon:'💀',
-    ability:'Unique: lancez le D4 et infligez ce résultat à tout le monde (vous inclus)',
-    abilityEffect:'d4_all', abilityRepeatable:false,
-    winCondition:'Être le premier à mourir ou éliminer tous les Hunters', winEffect:'die_first_or_kill_hunters'),
-
-  CharacterCard(id:'rat_rouen', name:"Rat d'Rouen", faction:Faction.neutral, hp:10, icon:'🐀',
-    ability:'Passif: vous vous soignez de 1 blessure chaque fois que l\'une de VOS attaques inflige des blessures',
-    abilityEffect:'heal1_on_own_attack', abilityRepeatable:true,
     winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),
 
   CharacterCard(id:'carapatte', name:'Carapatte', faction:Faction.neutral, hp:13, icon:'🐢',
@@ -242,17 +222,38 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'d6_lifesteal',
     winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),
 
+  CharacterCard(id:'jason', name:'Jason', faction:Faction.neutral, hp:12, icon:'🦎',
+    ability:'Passif: insensible aux cartes Vision. À sa révélation, choisit un Hunter et un Shadow en jeu, et affiche le reveal de l\'un des deux au choix.',
+    abilityEffect:'chameleon_passive', abilityRepeatable:true,
+    winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),
+
+  CharacterCard(id:'leo', name:'Léo', faction:Faction.neutral, hp:12, icon:'💀',
+    ability:'Unique: lancez le D4 et infligez ce résultat à tout le monde (vous inclus)',
+    abilityEffect:'d4_all', abilityRepeatable:false,
+    winCondition:'Être le premier à mourir', winEffect:'die_first_or_kill_hunters'),
+
+  CharacterCard(id:'mango', name:'Mango Loco', faction:Faction.neutral, hp:10, icon:'🥭',
+    ability:'Passif : si le joueur attaqué a 13 PV ou plus, vous attaquez 2 fois (lancez les dés 2 fois, dégâts additionnés)',
+    abilityEffect:'double_attack_if_tanky', abilityRepeatable:true,
+    winCondition:'Éliminer un joueur avec 13 PV ou plus', winEffect:'kill_hp13plus'),
+
+  CharacterCard(id:'rat_rouen', name:"Rat d'Rouen", faction:Faction.neutral, hp:10, icon:'🐀',
+    ability:'Passif: vous vous soignez de 1 blessure chaque fois que l\'une de VOS attaques inflige des blessures',
+    abilityEffect:'heal1_on_own_attack', abilityRepeatable:true,
+    winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),
+
+  CharacterCard(id:'tommy', name:'Tommy', faction:Faction.neutral, hp:13, icon:'🎭',
+    ability:'Unique, au début du tour: copiez le pouvoir d\'un joueur révélé de votre choix',
+    abilityEffect:'copy_ability', abilityRepeatable:false,
+    winCondition:'Éliminer la personne dont vous avez copié le pouvoir', winEffect:'kill_copied'),
+
   CharacterCard(id:'tristan', name:'Tristan', faction:Faction.neutral, hp:14, icon:'🔄',
     ability:'Répétable: échangez un de vos équipements avec un équipement d\'un autre joueur',
     abilityEffect:'swap_equipment', abilityRepeatable:true,
     winCondition:'Posséder 3 équipements de la même couleur (Lumière ou Ténèbres)',
     winEffect:'three_same_color_equip'),
 
-  CharacterCard(id:'jason', name:'Jason', faction:Faction.neutral, hp:12, icon:'🦎',
-    ability:'Passif: insensible aux cartes Vision. À sa révélation, choisit un Hunter et un Shadow en jeu, et affiche le reveal de l\'un des deux au choix.',
-    abilityEffect:'chameleon_passive', abilityRepeatable:true,
-    winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),
-
+  
 ];
 
 // ─── Terrains ────────────────────────────────────────────────────────────────

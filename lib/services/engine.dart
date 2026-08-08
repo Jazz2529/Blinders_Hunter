@@ -200,6 +200,7 @@ class GameEngine with AbilityEngine {
   /// Damien : sert un alcool fort — 4 dégâts instantanés.
   String damienServeAlcohol(Player actor, Player target) {
     final dealt = applyDamage(target, 4);
+    if (!target.alive) target.killedByUid = actor.uid;
     return '🥃 ${actor.name} sert un alcool fort à ${target.name} — $dealt blessures instantanées';
   }
 
@@ -260,7 +261,11 @@ class GameEngine with AbilityEngine {
         final idx = terrainLayoutIdx(layout, 2);
         int hit = 0;
         for (final p in all) {
-          if (p.alive && p.uid != actor.uid && p.zoneIndex == idx) { applyDamage(p, 2); hit++; }
+          if (p.alive && p.uid != actor.uid && p.zoneIndex == idx) {
+            applyDamage(p, 2);
+            if (!p.alive) p.killedByUid = actor.uid;
+            hit++;
+          }
         }
         actor.abilityUsed = false; // répétable
         return "🐉 ${actor.name} enflamme la zone 6 — $hit joueur(s) subissent 2 blessures";
@@ -268,6 +273,7 @@ class GameEngine with AbilityEngine {
       case 'damage2_choice':
         if (target == null) return 'cible_requise';
         applyDamage(target, 2);
+        if (!target.alive) target.killedByUid = actor.uid;
         return '⚡ ${actor.name} inflige 2 blessures à ${target.name}';
 
       // ── Raph (Soleil Levant) : subit 2, soigne la cible de 3 ──
@@ -340,6 +346,7 @@ class GameEngine with AbilityEngine {
       case 'damage3_give_dague':
         if (target == null) return 'cible_requise';
         final dealtMarin = applyDamage(target, 3);
+        if (!target.alive) target.killedByUid = actor.uid;
         final dagueCard = deckCards(DeckType.tenebres)
             .firstWhere((c) => c.effect == 'dague_voleur');
         target.equipment.add(dagueCard);
@@ -354,6 +361,7 @@ class GameEngine with AbilityEngine {
           return '😈 ${actor.name} se soigne de 1 blessure';
         }
         final dealtJulien = applyDamage(target, 2);
+        if (!target.alive) target.killedByUid = actor.uid;
         return '😈 ${actor.name} inflige $dealtJulien blessures à ${target.name}';
 
       // ── Vlad (Shadow) : D4 dégâts, répétable — portée adjacente seulement ──
@@ -361,6 +369,7 @@ class GameEngine with AbilityEngine {
         if (target == null) return 'cible_vlad'; // signal : cibles adjacentes seulement
         final d = rollD4();
         final dealt = applyDamage(target, d);
+        if (!target.alive) target.killedByUid = actor.uid;
         actor.abilityUsed = false; // répétable
         return '💨 ${actor.name} lance D4($d) → $dealt blessures à ${target.name}';
 
@@ -369,6 +378,7 @@ class GameEngine with AbilityEngine {
         if (target == null) return 'cible_requise';
         final d = rollD6();
         final dealt = applyDamage(target, d);
+        if (!target.alive) target.killedByUid = actor.uid;
         return '🎲 ${actor.name} lance D6($d) → $dealt blessures à ${target.name}';
 
       // ── Nils : stocke les blessures infligées, puis les déverse ──
@@ -380,6 +390,7 @@ class GameEngine with AbilityEngine {
         if (actor.storedDamage <= 0) return 'Nils — rien à déverser';
         final stored = actor.storedDamage;
         final dealt = applyDamage(target, stored);
+        if (!target.alive) target.killedByUid = actor.uid;
         actor.storedDamage = 0;
         return '📦 ${actor.name} déverse $stored blessures stockées sur ${target.name} ($dealt reçues) !';
 
@@ -427,6 +438,7 @@ class GameEngine with AbilityEngine {
       case 'terrain_max_aoe':
         if (target == null) return 'cible_requise';
         final dealt = applyDamage(target, 8);
+        if (!target.alive) target.killedByUid = actor.uid;
         actor.wounds = 1; actor.alive = true;
         return '⚡ ${actor.name} inflige $dealt à ${target.name} — et se retrouve à 1 blessure !';
 
@@ -435,6 +447,7 @@ class GameEngine with AbilityEngine {
         if (target == null) return 'cible_requise';
         final d = rollD6();
         final dealt = applyDamage(target, d);
+        if (!target.alive) target.killedByUid = actor.uid;
         applyHeal(actor, dealt);
         return '🐢 ${actor.name} lance D6($d) → inflige $dealt à ${target.name}, se soigne de $dealt';
 
@@ -654,6 +667,7 @@ class GameEngine with AbilityEngine {
         target.equipment.add(eMarin); _equipPassive(target, eMarin);
         recalcPassives(actor); // sinon il garde le passif de l'objet qu'il vient de donner
         applyDamage(target, 2);
+        if (!target.alive) target.killedByUid = actor.uid;
         return {'log': '🩸 ${actor.name} donne "${eMarin.name}" à ${target.name} et lui infligez 2 blessures', 'needsTarget': false};
       case 'corne_des_woods':
         // Étape 1 : `target` est le joueur forcé d'attaquer. On retourne un
@@ -665,6 +679,7 @@ class GameEngine with AbilityEngine {
         final d = rollD6();
         if (d <= 4) {
           applyDamage(target, 3, isTenebresCard: true);
+          if (!target.alive) target.killedByUid = actor.uid;
           return {'log': '🍌 d6($d)≤4 — ${target.name} subit 3', 'needsTarget': false,
             'diceResult': {'d4': 0, 'd6': d, 'sum': d, 'label': 'Poupée Démoniaque'}};
         }
@@ -672,7 +687,9 @@ class GameEngine with AbilityEngine {
         return {'log': '🍌 d6($d)≥5 — ${actor.name} subit 3', 'needsTarget': false,
           'diceResult': {'d4': 0, 'd6': d, 'sum': d, 'label': 'Poupée Démoniaque'}};
       case 'vampirisation':
-        applyDamage(target, 2, isTenebresCard: true); applyHeal(actor, 1);
+        applyDamage(target, 2, isTenebresCard: true);
+        if (!target.alive) target.killedByUid = actor.uid;
+        applyHeal(actor, 1);
         return {'log': '🦇 ${actor.name} vampirise ${target.name}', 'needsTarget': false};
       case 'blue_shell':
         if (target.revealed &&
@@ -685,7 +702,9 @@ class GameEngine with AbilityEngine {
         if (target.wounds < 5) target.wounds = 5;
         return {'log': '🐚 ${target.name} passe à 5 blessures', 'needsTarget': false};
       case 'veuve_noire':
-        applyDamage(target, 2, isTenebresCard: true); applyDamage(actor, 2, isTenebresCard: true);
+        applyDamage(target, 2, isTenebresCard: true);
+        if (!target.alive) target.killedByUid = actor.uid;
+        applyDamage(actor, 2, isTenebresCard: true);
         return {'log': '🕷 ${actor.name} inflige 2 à ${target.name} et subit 2', 'needsTarget': false};
       case 'peau_banane':
         if (actor.equipment.isEmpty) { applyDamage(actor, 1, isTenebresCard: true); return {'log': '🍌 ${actor.name} sans équipement — subit 1', 'needsTarget': false}; }
@@ -710,6 +729,7 @@ class GameEngine with AbilityEngine {
         final e = actor.equipment.removeAt(0); target.equipment.add(e); _equipPassive(target, e);
         recalcPassives(actor); // sinon il garde le passif de l'objet qu'il vient de perdre (ex: Sainte Tunique)
         applyDamage(target, 3, isTenebresCard: true);
+        if (!target.alive) target.killedByUid = actor.uid;
         return {'log': '⚙️ ${actor.name} envoie "${e.name}" + 3 dégâts à ${target.name}', 'needsTarget': false};
       case 'vision_shadow_2': return _vision(actor, target, Faction.shadow, 2);
       case 'vision_shadow_1': return _vision(actor, target, Faction.shadow, 1);
@@ -886,7 +906,10 @@ class GameEngine with AbilityEngine {
 
     final actual = applyDamage(target, dmg);
     if (!target.alive) target.killedByUid = attacker.uid;
-    if (actual > 0 && attacker.epeeNinja) applyDamage(target, 2);
+    if (actual > 0 && attacker.epeeNinja) {
+      applyDamage(target, 2);
+      if (!target.alive) target.killedByUid = attacker.uid;
+    }
     String log = '⚔️ ${attacker.name} attaque ${target.name} — $actual dégâts';
 
     // Rémi : équipement personnalisé — effets choisis qui se déclenchent
@@ -990,6 +1013,7 @@ class GameEngine with AbilityEngine {
     // Jason neutre: +1 blessure sur toutes ses attaques
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'lie_vision_plus1' && attacker.revealed) {
       applyDamage(target, 1);
+      if (!target.alive) target.killedByUid = attacker.uid;
     }
 
     return {'log': log, 'actualDmg': actual, 'scottCountered': scottCountered,
@@ -1177,10 +1201,6 @@ class GameEngine with AbilityEngine {
           return we == 'survive' || we == 'kill_christine_or_hunters';
         }).map((p) => p.uid),
       }.toList();
-      // Léo gagne aussi si tous les Hunters en vie (winEffect die_first_or_kill_hunters)
-      for (final p in alive) {
-        if (p.character!.winEffect == 'die_first_or_kill_hunters') ids.add(p.uid);
-      }
       return {'winnerIds': ids, 'reason': 'Les Hunters éliminent tous les Shadows !'};
     }
 
@@ -1190,10 +1210,7 @@ class GameEngine with AbilityEngine {
         ...shadows.map((p) => p.uid),
         ...alive.where((p) {
           final we = p.character!.winEffect;
-          // Léo : sa condition de victoire inclut aussi "éliminer tous les
-          // Hunters", pas seulement "être le premier mort" — sans ce check,
-          // il ne gagnait jamais dans ce cas précis malgré son texte.
-          return we == 'survive' || we == 'die_first_or_kill_hunters';
+          return we == 'survive';
         }).map((p) => p.uid),
       }.toList();
       return {'winnerIds': ids, 'reason': 'Les Shadows éliminent tous les Hunters !'};
