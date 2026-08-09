@@ -419,7 +419,8 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
               onPressed: () {
                 final s = ctrl.state;
                 final me = s?.players.where((p) => !p.isBot).firstOrNull;
-                if (me?.character != null) showFullCardDialog(ctx, me!.character!);
+                if (me?.character != null) showFullCardDialog(ctx, me!.character!,
+                  hpOverride: me.character!.hp + me.maxHpModifier);
               },
               style: TextButton.styleFrom(
                 backgroundColor: kGold.withValues(alpha: 0.15),
@@ -1766,7 +1767,7 @@ class _HpLeaderboard extends StatelessWidget {
     // jeton — même s'il n'avait jamais été révélé de son vivant (convention
     // "les cartes se retournent à la mort", comme sur un vrai plateau).
     if ((p.revealed || !p.alive) && c != null) {
-      showFullCardDialog(ctx, c).then((_) {
+      showFullCardDialog(ctx, c, hpOverride: c.hp + p.maxHpModifier).then((_) {
         if ((p.equipment.isNotEmpty || isNils) && ctx.mounted) _showEquipmentForSolo(ctx, p);
       });
     } else {
@@ -1975,16 +1976,6 @@ class _WoundsColumnState extends State<_WoundsColumn>
                 ),
               ),
             ),
-            // Agathe : bonus/malus de PV max (permanent) — sans ça,
-            // impossible de savoir combien de PV max ont été volés.
-            if (p.maxHpModifier != 0)
-              Text(
-                p.maxHpModifier > 0 ? '❤️+${p.maxHpModifier}' : '❤️${p.maxHpModifier}',
-                style: TextStyle(
-                  fontSize: 8, fontFamily: 'Cinzel', fontWeight: FontWeight.w700,
-                  color: p.maxHpModifier > 0 ? kGreen : kRed,
-                ),
-              ),
             // Felipe : en sursis — doit éliminer quelqu'un ce tour ou mourir
             if (p.felipeOnBorrowedTime)
               const Text('⏳ SURSIS', style: TextStyle(

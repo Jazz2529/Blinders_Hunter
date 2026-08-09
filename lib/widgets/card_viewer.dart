@@ -9,7 +9,7 @@ import '../data/characters_data.dart';
 /// panneau d'infos : nom, faction, PV, capacité et condition de victoire.
 /// Sur écran étroit (téléphone), l'illustration passe au-dessus du texte.
 /// Tap n'importe où pour fermer.
-Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c) {
+Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride}) {
   return showDialog(
     context: ctx,
     barrierColor: Colors.black.withValues(alpha: 0.88),
@@ -21,7 +21,8 @@ Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c) {
         behavior: HitTestBehavior.opaque,
         child: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            narrow ? _NarrowLayout(c: c, size: size) : _WideLayout(c: c, size: size),
+            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride)
+                   : _WideLayout(c: c, size: size, hpOverride: hpOverride),
             const SizedBox(height: 12),
             Text('Touche l\'écran pour fermer', style: body(12, c: kTextDim)),
           ]),
@@ -205,7 +206,8 @@ class _MysteryInfoPanel extends StatelessWidget {
 class _WideLayout extends StatelessWidget {
   final CharacterCard c;
   final Size size;
-  const _WideLayout({required this.c, required this.size});
+  final int? hpOverride;
+  const _WideLayout({required this.c, required this.size, this.hpOverride});
 
   @override
   Widget build(BuildContext ctx) {
@@ -224,7 +226,7 @@ class _WideLayout extends StatelessWidget {
       SizedBox(width: 320,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: imgH),
-          child: _InfoPanel(c: c, fc: fc),
+          child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride),
         )),
     ]);
   }
@@ -234,7 +236,8 @@ class _WideLayout extends StatelessWidget {
 class _NarrowLayout extends StatelessWidget {
   final CharacterCard c;
   final Size size;
-  const _NarrowLayout({required this.c, required this.size});
+  final int? hpOverride;
+  const _NarrowLayout({required this.c, required this.size, this.hpOverride});
 
   @override
   Widget build(BuildContext ctx) {
@@ -251,7 +254,7 @@ class _NarrowLayout extends StatelessWidget {
       child: Column(children: [
         _CardImage(c: c, w: imgW, h: imgH),
         const SizedBox(height: 12),
-        Expanded(child: _InfoPanel(c: c, fc: fc)),
+        Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride)),
       ]),
     );
   }
@@ -299,10 +302,14 @@ class _CardImage extends StatelessWidget {
 class _InfoPanel extends StatelessWidget {
   final CharacterCard c;
   final Color fc;
-  const _InfoPanel({required this.c, required this.fc});
+  final int? hpOverride;
+  const _InfoPanel({required this.c, required this.fc, this.hpOverride});
 
   @override
   Widget build(BuildContext ctx) {
+    // Agathe : si ce joueur a un PV max volé/gagné, hpOverride contient la
+    // valeur RÉELLE actuelle — sinon on retombe sur le PV de base de la carte.
+    final effectiveHp = hpOverride ?? c.hp;
     return GestureDetector(
       onTap: () {}, // absorbe le tap : lire le texte ne ferme pas
       child: Container(
@@ -328,7 +335,10 @@ class _InfoPanel extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: kBg3, borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: kGold.withValues(alpha: 0.5))),
-                child: Text('❤️ ${c.hp} PV',
+                child: Text(
+                    effectiveHp != c.hp
+                        ? '❤️ ${c.hp} → $effectiveHp PV'
+                        : '❤️ $effectiveHp PV',
                     style: cinzel(15, c: kGold, fw: FontWeight.w900)),
               )),
               const SizedBox(height: 16),

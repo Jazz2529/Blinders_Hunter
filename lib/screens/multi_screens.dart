@@ -382,7 +382,8 @@ class _GameScreenState extends State<GameScreen> {
             TextButton(
               onPressed: () {
                 final c = gp.me?.character;
-                if (c != null) showFullCardDialog(ctx, c);
+                if (c != null) showFullCardDialog(ctx, c,
+                  hpOverride: c.hp + (gp.me?.maxHpModifier ?? 0));
               },
               style: TextButton.styleFrom(
                 backgroundColor: kGold.withValues(alpha: 0.15),
@@ -847,7 +848,7 @@ class _PlayerRow extends StatelessWidget {
         ? kAllCharacters.where((ch) => ch.id == disguisedCharId).firstOrNull
         : null;
     final shown = (hasDisguise && disguisedChar != null) ? disguisedChar : c;
-    return showFullCardDialog(ctx, shown);
+    return showFullCardDialog(ctx, shown, hpOverride: shown.hp + p.maxHpModifier);
   }
 
   @override
@@ -965,13 +966,6 @@ class _PlayerRow extends StatelessWidget {
             ])
           else
             Text('🗡 ${p.wounds}', style: cinzel(13, c: woundColor, fw: FontWeight.w700)),
-          // Agathe : bonus/malus de PV max (permanent, info publique) — sans
-          // ça, impossible de savoir combien de PV max ont été volés.
-          if (p.alive && p.maxHpModifier != 0)
-            Text(
-              p.maxHpModifier > 0 ? '❤️+${p.maxHpModifier}' : '❤️${p.maxHpModifier}',
-              style: cinzel(10, c: p.maxHpModifier > 0 ? kGreen : kRed, fw: FontWeight.w700),
-            ),
           // Felipe : en sursis — doit éliminer quelqu'un ce tour ou mourir
           if (p.felipeOnBorrowedTime)
             Text('⏳ SURSIS', style: cinzel(9, c: kRed, fw: FontWeight.w900)),
@@ -1295,7 +1289,8 @@ class _ActionPanelState extends State<_ActionPanel> {
               }
               await gp.revealSelf();
               if (ctx.mounted && gp.me?.character != null) {
-                showFullCardDialog(ctx, gp.me!.character!);
+                showFullCardDialog(ctx, gp.me!.character!,
+                  hpOverride: gp.me!.character!.hp + gp.me!.maxHpModifier);
               }
             }),
           if ((me?.copiedEffect ?? me?.character?.abilityEffect) == 'double_move_dice' && me?.revealed == true)
@@ -2939,7 +2934,7 @@ class _PlayerChip extends StatelessWidget {
           // mort"), sinon une carte "mystère" — puis son équipement dans
           // tous les cas (info publique, connue même sans identité).
           if ((p.revealed || !p.alive) && c != null) {
-            await showFullCardDialog(ctx, disguisedCharChip ?? c);
+            await showFullCardDialog(ctx, disguisedCharChip ?? c, hpOverride: displayMaxHp);
           } else {
             await showMysteryCardDialog(ctx, p);
           }
@@ -2975,12 +2970,6 @@ class _PlayerChip extends StatelessWidget {
             else
               Text('${p.wounds}🩸',
                 style: body(9, c: p.wounds >= 8 ? kRed : kTextSub)),
-            // Agathe : bonus/malus de PV max (permanent, info publique).
-            if (p.alive && p.maxHpModifier != 0)
-              Text(
-                p.maxHpModifier > 0 ? '❤️+${p.maxHpModifier}' : '❤️${p.maxHpModifier}',
-                style: body(8, c: p.maxHpModifier > 0 ? kGreen : kRed),
-              ),
             // Felipe : en sursis — doit éliminer quelqu'un ce tour ou mourir
             if (p.felipeOnBorrowedTime)
               Text('⏳', style: body(9, c: kRed)),
