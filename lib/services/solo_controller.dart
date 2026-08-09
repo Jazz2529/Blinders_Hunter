@@ -433,7 +433,7 @@ class SoloController extends ChangeNotifier {
   // ─── Bot ────────────────────────────────
   Future<void> _playBot(Player bot) async {
     state!.botThinking = true; notifyListeners();
-    const d = Duration(milliseconds: 850);
+    const d = Duration(milliseconds: 1100);
 
     _ai.remember(state!.players);
 
@@ -737,6 +737,8 @@ class SoloController extends ChangeNotifier {
 
     // Tour supp
     if (bot.newTurn) {
+      await Future.delayed(d);
+      if (_stopped) return;
       bot.newTurn = false; _log('⏰ ${bot.name} rejoue !');
       notifyListeners();
       final r2 = _eg.rollMove(); final s2 = r2['sum']!;
@@ -748,7 +750,7 @@ class SoloController extends ChangeNotifier {
 
     _log('⏩ ${bot.name} termine son tour', cls: 'bot');
     state!.botThinking = false; notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 400));
+    await Future.delayed(const Duration(milliseconds: 700));
     if (_stopped) return;
     await nextTurn();
   }

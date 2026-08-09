@@ -6,6 +6,7 @@ import '../data/game_data.dart';
 import '../data/characters_data.dart';
 import '../models/models.dart';
 import '../widgets/theme.dart';
+import '../widgets/card_viewer.dart';
 
 // ═══════════════════════════════════════════════════════════
 // ÉCRAN PRINCIPAL — 2 onglets : Personnages / Cartes
@@ -194,43 +195,64 @@ class _GameCardTile extends StatelessWidget {
   void _showFull(BuildContext ctx) {
     final dc = deckColor(card.deck.name);
     final imgPath = anyCardImagePath(card.effect);
-    showDialog(context: ctx, barrierColor: Colors.black.withValues(alpha: 0.85),
-      builder: (dctx) => GestureDetector(
-        onTap: () => Navigator.pop(dctx),
-        behavior: HitTestBehavior.opaque,
-        child: Center(child: Container(
-          width: 300,
-          padding: const EdgeInsets.all(16),
-          margin: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: kBg2, borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: dc, width: 2),
-            boxShadow: [BoxShadow(color: dc.withValues(alpha: 0.4), blurRadius: 24)],
+    showDialog(context: ctx, barrierColor: Colors.black.withValues(alpha: 0.88),
+      builder: (dctx) {
+        final size = MediaQuery.of(dctx).size;
+        // Plein écran pour l'admirer — l'illustration prend la majorité de
+        // l'espace disponible, comme showFullCardDialog pour les personnages.
+        double imgH = size.height * 0.62;
+        double imgW = imgH * (2 / 3);
+        if (imgW > size.width * 0.85) {
+          imgW = size.width * 0.85;
+          imgH = imgW * (3 / 2);
+        }
+        return GestureDetector(
+          onTap: () => Navigator.pop(dctx),
+          behavior: HitTestBehavior.opaque,
+          child: Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              SizedBox(
+                width: size.width * 0.92,
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                    width: imgW, height: imgH,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(imgW * 0.045),
+                      boxShadow: [BoxShadow(color: dc.withValues(alpha: 0.5), blurRadius: 30, spreadRadius: 2)],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(imgW * 0.045),
+                      child: imgPath != null
+                        ? Image.asset(imgPath, fit: BoxFit.contain,
+                            cacheWidth: (imgW * 2).round(), cacheHeight: (imgH * 2).round(),
+                            errorBuilder: (_, __, ___) => Container(color: dc.withValues(alpha: 0.1),
+                              child: Center(child: Text(deckIcon(card.deck.name), style: const TextStyle(fontSize: 84)))))
+                        : Container(color: dc.withValues(alpha: 0.1),
+                            child: Center(child: Text(deckIcon(card.deck.name), style: const TextStyle(fontSize: 84)))),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: kBg2, borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: dc, width: 2),
+                    ),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Text(card.name, style: cinzel(18, c: kGold2, fw: FontWeight.w900), textAlign: TextAlign.center),
+                      const SizedBox(height: 8),
+                      Text(card.text, style: body(13), textAlign: TextAlign.center),
+                    ]),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 12),
+              Text('Touche l\'écran pour fermer', style: body(12, c: kTextDim)),
+            ]),
           ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            if (imgPath != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: AspectRatio(aspectRatio: 2/3,
-                  child: Image.asset(imgPath, fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: dc.withValues(alpha: 0.1),
-                      child: Center(child: Text(deckIcon(card.deck.name),
-                        style: const TextStyle(fontSize: 48)))))),
-              )
-            else
-              Container(height: 160, decoration: BoxDecoration(
-                  color: dc.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                child: Center(child: Text(deckIcon(card.deck.name),
-                  style: const TextStyle(fontSize: 48)))),
-            const SizedBox(height: 12),
-            Text(card.name, style: cinzel(16, c: kGold2, fw: FontWeight.w900),
-              textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            Text(card.text, style: body(12), textAlign: TextAlign.center),
-          ]),
-        )),
-      ),
+        );
+      },
     );
   }
 
@@ -290,158 +312,72 @@ class GalleryScreen extends StatelessWidget {
 }
 
 // ─── Carte personnage dans la galerie ────────────────────────────────────────
-class _CharacterCard extends StatefulWidget {
+class _CharacterCard extends StatelessWidget {
   final CharacterCard char;
   const _CharacterCard({required this.char});
-  @override State<_CharacterCard> createState() => _CharacterCardState();
-}
-
-class _CharacterCardState extends State<_CharacterCard>
-    with SingleTickerProviderStateMixin {
-  bool _flipped = false;
-  late AnimationController _ac;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ac = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
-    _anim = CurvedAnimation(parent: _ac, curve: Curves.easeInOut);
-  }
-
-  @override void dispose() { _ac.dispose(); super.dispose(); }
-
-  void _flip() {
-    if (_flipped) { _ac.reverse(); } else { _ac.forward(); }
-    setState(() => _flipped = !_flipped);
-  }
 
   @override
   Widget build(BuildContext ctx) {
-    final c = widget.char;
+    final c = char;
     final fc = factionColor(c.faction.name);
     final fbg = factionBg(c.faction.name);
     final imgPath = characterImagePath(c.id);
 
     return GestureDetector(
-      onTap: _flip,
-      child: AnimatedBuilder(
-        animation: _anim,
-        builder: (_, __) {
-          final angle = _anim.value * 3.14159;
-          final showBack = _anim.value > 0.5;
-          return Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.001)
-              ..rotateY(angle),
-            child: showBack
-              ? Transform(
-                  alignment: Alignment.center,
-                  transform: Matrix4.identity()..rotateY(3.14159),
-                  child: _buildBack(c, fc, fbg))
-              : _buildFront(c, fc, fbg, imgPath),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildFront(CharacterCard c, Color fc, Color fbg, String? imgPath) {
-    return Container(
-      decoration: BoxDecoration(
-        color: kBg2,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: fc, width: 2),
-        boxShadow: [
-          BoxShadow(color: fc.withValues(alpha: 0.2), blurRadius: 12),
-          const BoxShadow(color: Colors.black45, blurRadius: 6),
-        ],
-      ),
-      child: Column(children: [
-        // Illustration
-        Expanded(
-          flex: 6,
-          child: ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: imgPath != null
-              ? Image.asset(imgPath, fit: BoxFit.contain, width: double.infinity,
-                  // Limite la résolution de décodage — une grille peut
-                  // afficher jusqu'à 40 personnages en même temps, décoder
-                  // chacun à sa pleine résolution source épuiserait vite la
-                  // RAM sur un appareil limité (émulateur notamment).
-                  cacheWidth: 320,
-                  errorBuilder: (_, __, ___) => _fallback(fc, fbg, c.icon))
-              : _fallback(fc, fbg, c.icon),
-          ),
+      // Affiche la carte en plein écran pour l'admirer — un nouveau clic
+      // sur l'image (ou n'importe où) referme et revient au catalogue,
+      // via showFullCardDialog (même écran que celui utilisé en partie).
+      onTap: () => showFullCardDialog(ctx, c),
+      child: Container(
+        decoration: BoxDecoration(
+          color: kBg2,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: fc, width: 2),
+          boxShadow: [
+            BoxShadow(color: fc.withValues(alpha: 0.2), blurRadius: 12),
+            const BoxShadow(color: Colors.black45, blurRadius: 6),
+          ],
         ),
-        // Infos
-        Expanded(
-          flex: 3,
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text(c.name,
-                  style: cinzel(14, c: kGold2, fw: FontWeight.w900),
-                  maxLines: 1, overflow: TextOverflow.ellipsis)),
-                _HpBadge(hp: c.hp, faction: c.faction.name),
+        child: Column(children: [
+          // Illustration
+          Expanded(
+            flex: 6,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: imgPath != null
+                ? Image.asset(imgPath, fit: BoxFit.contain, width: double.infinity,
+                    // Limite la résolution de décodage — une grille peut
+                    // afficher jusqu'à 40 personnages en même temps, décoder
+                    // chacun à sa pleine résolution source épuiserait vite la
+                    // RAM sur un appareil limité (émulateur notamment).
+                    cacheWidth: 320,
+                    errorBuilder: (_, __, ___) => _fallback(fc, fbg, c.icon))
+                : _fallback(fc, fbg, c.icon),
+            ),
+          ),
+          // Infos
+          Expanded(
+            flex: 3,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(c.name,
+                    style: cinzel(14, c: kGold2, fw: FontWeight.w900),
+                    maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  _HpBadge(hp: c.hp, faction: c.faction.name),
+                ]),
+                const SizedBox(height: 3),
+                FactionBadge(c.faction.name),
+                const SizedBox(height: 4),
+                Text('Appuie pour voir en grand →',
+                  style: body(9, c: kTextDim),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
               ]),
-              const SizedBox(height: 3),
-              FactionBadge(c.faction.name),
-              const SizedBox(height: 4),
-              Text('Appuie pour voir les détails →',
-                style: body(9, c: kTextDim),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            ]),
+            ),
           ),
-        ),
-      ]),
-    );
-  }
-
-  Widget _buildBack(CharacterCard c, Color fc, Color fbg) {
-    final freq = c.abilityRepeatable ? '🔄 Chaque tour' : '🔒 1 fois/partie';
-    return Container(
-      decoration: BoxDecoration(
-        color: kBg2,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: fc, width: 2),
-        boxShadow: [BoxShadow(color: fc.withValues(alpha: 0.2), blurRadius: 12)],
+        ]),
       ),
-      padding: const EdgeInsets.all(12),
-      child: Column(children: [
-        // Header
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: fbg.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(children: [
-            Text(c.icon, style: const TextStyle(fontSize: 28)),
-            const SizedBox(height: 4),
-            Text(c.name, style: cinzel(14, c: kGold2, fw: FontWeight.w900),
-              textAlign: TextAlign.center),
-            const SizedBox(height: 3),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              FactionBadge(c.faction.name, small: true),
-              const SizedBox(width: 6),
-              _HpBadge(hp: c.hp, faction: c.faction.name),
-            ]),
-          ]),
-        ),
-        const SizedBox(height: 8),
-        // Capacité
-        _InfoRow('⚡', 'CAPACITÉ', c.ability, suffix: freq),
-        const SizedBox(height: 6),
-        // Condition victoire
-        _InfoRow('🏆', 'OBJECTIF', c.winCondition),
-        const Spacer(),
-        Text('Appuie pour revenir',
-          style: body(9, c: kTextDim), textAlign: TextAlign.center),
-      ]),
     );
   }
 
