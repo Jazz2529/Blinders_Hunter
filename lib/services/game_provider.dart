@@ -189,7 +189,9 @@ class GameProvider extends ChangeNotifier {
     // Un passif de début de tour (poison de Damien, etc.) peut tuer un
     // joueur — sans ce check, ni la victoire ni la récompense de Jeanne ne
     // se déclenchaient jamais pour une mort survenue de cette façon.
-    if (!nextPlayer.alive) { await _checkWin(all, justDiedId: nextPlayer.uid); }
+    bool gameEndedTurn = false;
+    if (!nextPlayer.alive) { gameEndedTurn = await _checkWin(all, justDiedId: nextPlayer.uid); }
+    if (gameEndedTurn) return;
     await _fb.setPhase(roomId!, GamePhase.ability,
         currentPlayerId: order[next], hasAttacked: false, clearPending: true);
   }
@@ -356,7 +358,8 @@ class GameProvider extends ChangeNotifier {
     final log = _eg.damienServeAlcohol(actor, target);
     _eg.applyDeathPassives(all);
     await _commitAll(all, log);
-    await _checkWin(all, justDiedId: target.alive ? null : target.uid);
+    final endedDamien = await _checkWin(all, justDiedId: target.alive ? null : target.uid);
+    if (endedDamien) return;
     await _fb.setPhase(roomId!, GamePhase.ability, clearPending: true);
   }
 
@@ -435,7 +438,8 @@ class GameProvider extends ChangeNotifier {
     if (!t.alive) t.killedByUid = myUid;
     _eg.applyDeathPassives(all);
     await _commitAll(all, '🎰 Mr Casino inflige 3 blessures à ${t.name} !');
-    await _checkWin(all, justDiedId: t.alive ? null : t.uid);
+    final endedCasino = await _checkWin(all, justDiedId: t.alive ? null : t.uid);
+    if (endedCasino) return;
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
   }
 
@@ -455,7 +459,8 @@ class GameProvider extends ChangeNotifier {
     final log = _eg.resolveEquipChoice(mode, actor, target, idx);
     _eg.applyDeathPassives(all);
     await _commitAll(all, log);
-    await _checkWin(all);
+    final endedEquip = await _checkWin(all);
+    if (endedEquip) return;
     await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true, peioReturnToMove: false);
   }
 
@@ -481,7 +486,8 @@ class GameProvider extends ChangeNotifier {
     actor.abilityUsed = true;
     _eg.applyDeathPassives(all);
     await _commitAll(all, [log1, log2].where((l) => l.isNotEmpty).join(' | '));
-    await _checkWin(all, justDiedId: tgt != null && !tgt.alive ? tgt.uid : null);
+    final endedBuilder = await _checkWin(all, justDiedId: tgt != null && !tgt.alive ? tgt.uid : null);
+    if (endedBuilder) return;
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
         builderStep: 0, builderOffered: const []);
   }
@@ -545,10 +551,12 @@ class GameProvider extends ChangeNotifier {
     actor.alive = true;
     actor.abilityUsed = true;
     _eg.applyDeathPassives(all);
-    final log = '⚡ ${actor.name} inflige $dealt à ${t.name} — et se retrouve à 1 blessure !';
+    final log = '⚡ ${actor.name} inflige $dealt à ${t.name} — et se retrouve à 7 blessures !';
     await _commitAll(all, log);
     // Vérifier la victoire pour la cible (Hong Yi ne meurt plus lui-même)
-    if (!t.alive) await _checkWin(all, justDiedId: t.uid);
+    bool endedHongYi = false;
+    if (!t.alive) endedHongYi = await _checkWin(all, justDiedId: t.uid);
+    if (endedHongYi) return;
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
         abilityOverlay: 'hongyi_dumbbell');
     await endTurn();
@@ -831,7 +839,8 @@ class GameProvider extends ChangeNotifier {
         await _commitAll(all, '🗼 ${t.name} n\'a aucun équipement à voler');
       }
     }
-    await _checkWin(all, justDiedId: t.alive ? null : t.uid);
+    final endedSteal = await _checkWin(all, justDiedId: t.alive ? null : t.uid);
+    if (endedSteal) return;
     await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true, peioReturnToMove: false);
   }
 
@@ -894,7 +903,8 @@ class GameProvider extends ChangeNotifier {
     if (res['privateRevealUid'] != null) {
       _eg.applyDeathPassives(all);
       await _commitAll(all, res['log'] as String);
-      await _checkWin(all);
+      final endedPrivate = await _checkWin(all);
+      if (endedPrivate) return;
       await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true,
           peioReturnToMove: false,
           privateRevealTargetUid: res['privateRevealUid'] as String,
@@ -930,11 +940,18 @@ class GameProvider extends ChangeNotifier {
     // sinon un joueur déjà mort d'une autre cause se voyait re-proposé en
     // butin à chaque nouvelle carte jouée par n'importe qui.
     final justDied = all.where((x) => !x.alive && aliveBeforeUids.contains(x.uid)).toList();
+    bool gameEndedCard = false;
     if (justDied.isEmpty) {
-      await _checkWin(all);
+      gameEndedCard = await _checkWin(all);
     } else {
-      for (final d in justDied) { await _checkWin(all, justDiedId: d.uid); }
+      for (final d in justDied) {
+        if (await _checkWin(all, justDiedId: d.uid)) { gameEndedCard = true; break; }
+      }
     }
+    // Ne JAMAIS écraser l'état "gameOver" fraîchement écrit avec une autre
+    // phase — même bug que pour le bazooka, ici pour les cartes à dégâts de
+    // zone (Dynamite, Poupée Démoniaque...).
+    if (gameEndedCard) return;
     // Diffuser le résultat des dés si la carte en a produit un (Dynamite,
     // Poupée Démoniaque, etc.) — certaines cartes (Poupée Démoniaque) ne
     // lancent qu'un D6 avec d4=0 par design ; il ne faut PAS se baser sur
@@ -964,7 +981,8 @@ class GameProvider extends ChangeNotifier {
     final log = _eg.resolvePunishChoice(actor, target, giveEquipment, equipmentIndex: equipmentIndex);
     _eg.applyDeathPassives(all);
     await _commitAll(all, log);
-    await _checkWin(all, justDiedId: target.alive ? null : target.uid);
+    final endedPunish = await _checkWin(all, justDiedId: target.alive ? null : target.uid);
+    if (endedPunish) return;
     await _fb.setPhase(roomId!, GamePhase.attack, clearPending: true);
   }
 
@@ -982,7 +1000,8 @@ class GameProvider extends ChangeNotifier {
     final res = _eg.resolveCorneDesWoods(attacker, v);
     _eg.applyDeathPassives(all);
     await _commitAll(all, res['log'] as String);
-    await _checkWin(all, justDiedId: v.alive ? null : v.uid);
+    final endedCorne = await _checkWin(all, justDiedId: v.alive ? null : v.uid);
+    if (endedCorne) return;
     final dr = res['diceResult'] as Map<String, dynamic>;
     await _fb.setPhase(roomId!, GamePhase.attack, clearPending: true,
         lastDiceResult: {'d4': dr['d4'] as int, 'd6': dr['d6'] as int, 'sum': dr['sum'] as int},
@@ -1072,16 +1091,22 @@ class GameProvider extends ChangeNotifier {
     // Le bazooka peut tuer PLUSIEURS joueurs en même temps — vérifier la
     // victoire/butin/récompense de Jeanne pour CHAQUE mort, pas seulement la
     // cible cliquée (sinon un 2e joueur tué par la même volée était ignoré).
+    bool gameEnded = false;
     if (attacker.bazooka) {
       final justDied = all.where((x) => !x.alive && aliveBeforeUids.contains(x.uid)).toList();
       if (justDied.isEmpty) {
-        await _checkWin(all);
+        gameEnded = await _checkWin(all);
       } else {
         final lootAcc = <MapEntry<String,String>>[];
-        for (final d in justDied) { await _checkWin(all, justDiedId: d.uid, lootAccumulator: lootAcc); }
+        for (final d in justDied) {
+          if (await _checkWin(all, justDiedId: d.uid, lootAccumulator: lootAcc)) {
+            gameEnded = true;
+            break; // la partie est terminée — inutile de vérifier les morts suivantes
+          }
+        }
         // Une seule écriture combinée pour TOUTES les opportunités de butin
         // détectées (au lieu d'une écriture par mort qui s'écraseraient).
-        if (lootAcc.isNotEmpty) {
+        if (!gameEnded && lootAcc.isNotEmpty) {
           final killerUid = lootAcc.first.key; // même tueur pour tous (même volée)
           final deadQueue = lootAcc.map((e) => e.value).toList();
           await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
@@ -1089,8 +1114,13 @@ class GameProvider extends ChangeNotifier {
         }
       }
     } else {
-      await _checkWin(all, justDiedId: target.alive ? null : target.uid);
+      gameEnded = await _checkWin(all, justDiedId: target.alive ? null : target.uid);
     }
+    // Si la partie vient de se terminer (victoire détectée ci-dessus), ne
+    // JAMAIS écraser l'état "gameOver" fraîchement écrit avec une phase
+    // "attack" — c'est exactement ce qui empêchait l'écran de victoire de
+    // s'afficher après un kill au bazooka.
+    if (gameEnded) return;
     await _fb.setPhase(roomId!, GamePhase.attack, hasAttacked: true,
         lastDiceResult: d4 > 0 ? {'d4': d4, 'd6': d6, 'sum': baseDmg} : null,
         lastDiceLabel: d4 > 0 ? 'Attaque' : null,
@@ -1193,7 +1223,9 @@ class GameProvider extends ChangeNotifier {
     final passiveLogs = _eg.applyStartOfTurnPassives(nextPlayer, all, gameState!.terrainLayout);
     _eg.applyDeathPassives(all);
     await _commitAll(all, passiveLogs.join(' | '));
-    if (!nextPlayer.alive) { await _checkWin(all, justDiedId: nextPlayer.uid); }
+    bool gameEndedTurn2 = false;
+    if (!nextPlayer.alive) { gameEndedTurn2 = await _checkWin(all, justDiedId: nextPlayer.uid); }
+    if (gameEndedTurn2) return;
     await _fb.setPhase(roomId!, GamePhase.ability, currentPlayerId: order[next], hasAttacked: false, clearPending: true);
   }
 
@@ -1211,7 +1243,7 @@ class GameProvider extends ChangeNotifier {
     await _fb.addLog(roomId!, log);
   }
 
-  Future<void> _checkWin(List<Player> all, {String? justDiedId,
+  Future<bool> _checkWin(List<Player> all, {String? justDiedId,
       List<MapEntry<String,String>>? lootAccumulator}) async {
     // Jeanne : vérifie si le mort était la cible marquée
     if (justDiedId != null && gameState?.markedPlayerUid == justDiedId) {
@@ -1246,7 +1278,7 @@ class GameProvider extends ChangeNotifier {
     final res = _eg.checkWin(all, justDiedId: justDiedId);
     if (res != null) {
       await _fb.setGameOver(roomId!, List<String>.from(res['winnerIds']!), res['reason'] as String);
-      return;
+      return true;
     }
     // Butin : le tueur peut choisir de récupérer un équipement de sa victime.
     // Si un accumulateur est fourni (kills multiples dans une même boucle
@@ -1276,5 +1308,6 @@ class GameProvider extends ChangeNotifier {
           publicRevealUid: unmasked.uid,
           publicRevealTimestamp: DateTime.now().millisecondsSinceEpoch);
     }
+    return false;
   }
 }

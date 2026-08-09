@@ -2165,7 +2165,7 @@ class SoloController extends ChangeNotifier {
 
     // Check wins after all attacks
     for (final uid in killed) _checkWin(justDiedId: uid);
-    if (!state!.isOver) notifyListeners();
+    notifyListeners();
   }
 
   void humanGladsFinish() {
