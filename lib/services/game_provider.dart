@@ -541,7 +541,7 @@ class GameProvider extends ChangeNotifier {
     final dealt = _eg.applyDamage(t, 8);
     if (!t.alive) t.killedByUid = actor.uid;
     // Hong Yi finit toujours à exactement 1 blessure (ne meurt plus)
-    actor.wounds = 1;
+    actor.wounds = 7;
     actor.alive = true;
     actor.abilityUsed = true;
     _eg.applyDeathPassives(all);
@@ -572,6 +572,28 @@ class GameProvider extends ChangeNotifier {
     me.abilityUsed = true;
     await _fb.updatePlayer(roomId!, me);
     await _fb.addLog(roomId!, '⏱ ${me.name} utilise son pouvoir — meilleur lancer choisi !');
+  }
+
+  /// Rémi : finalise son équipement personnalisé avec les 2 effets choisis
+  /// dans la boîte de dialogue (multi_screens.dart) — contrairement au
+  /// chemin générique useAbility(), qui n'est utilisé QUE par les bots pour
+  /// cette capacité (choix automatique, pas de vraie interface pour eux).
+  Future<void> remiCraftEquipment(String choice1, String choice2) async {
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    actor.abilityUsed = true; // unique
+    final label1 = kRemiAllChoices[choice1] ?? choice1;
+    final label2 = kRemiAllChoices[choice2] ?? choice2;
+    actor.equipment.add(GameCard(
+      id: 'remi_custom_${actor.uid}',
+      name: 'Invention de Rémi',
+      deck: DeckType.lumiere,
+      type: CardType.equipement,
+      text: '$label1\n$label2',
+      effect: 'remi_custom:$choice1,$choice2',
+    ));
+    await _commitAll(all, '🛠️ ${actor.name} fabrique son équipement personnalisé : "$label1" + "$label2"');
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
   }
 
   Future<void> useAbility({Player? target}) async {

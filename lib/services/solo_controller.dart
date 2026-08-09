@@ -1447,7 +1447,7 @@ class SoloController extends ChangeNotifier {
         }
         _applyDmgAudio(target, 8);
         // Hong Yi finit toujours à exactement 1 blessure (ne meurt plus)
-        p.wounds = 1; p.alive = true;
+        p.wounds = 7; p.alive = true;
         p.abilityUsed = true; // unique
         s.pendingTargetAction = null;
         s.abilityOverlay = 'hongyi_dumbbell';
@@ -1568,6 +1568,7 @@ class SoloController extends ChangeNotifier {
 
       case 'full_heal_shield_turn':
         p.wounds = 0; p.shield = true; p.shieldCharges = 99;
+        p.abilityUsed = true; // Unique — ne doit plus jamais pouvoir être réutilisé de toute la partie
         s.abilityOverlay = 'cambou_sheep';
         _log('🌙 Cambou passe son tour — soigné et protégé !', cls: 'player');
         humanEndTurn(); return;
@@ -1740,7 +1741,7 @@ class SoloController extends ChangeNotifier {
     // ensuite, pas Rémi.
     p.equipment.add(GameCard(
       id: 'remi_custom_${p.uid}',
-      name: 'Équipement de ${p.name}',
+      name: 'Invention de Rémi',
       deck: DeckType.lumiere,
       type: CardType.equipement,
       text: '$label1\n$label2',

@@ -136,7 +136,7 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'hong_yi', name:'Hong Yi', faction:Faction.shadow, hp:8, icon:'⚡',
-    ability:'Unique: choisissez un joueur — lui infligez 8 blessures ET vous subissez 8 blessures',
+    ability:'Unique: choisissez un joueur — lui infligez 8 blessures, vous finissez toujours à 7 blessures',
     abilityEffect:'terrain_max_aoe',
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 

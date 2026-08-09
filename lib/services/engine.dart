@@ -417,7 +417,7 @@ class GameEngine with AbilityEngine {
         final c1 = picked[0], c2 = picked[1];
         actor.equipment.add(GameCard(
           id: 'remi_custom_${actor.uid}',
-          name: 'Équipement de ${actor.name}',
+          name: 'Invention de Rémi',
           deck: DeckType.lumiere,
           type: CardType.equipement,
           text: '${kRemiAllChoices[c1]}\n${kRemiAllChoices[c2]}',
@@ -439,7 +439,7 @@ class GameEngine with AbilityEngine {
         if (target == null) return 'cible_requise';
         final dealt = applyDamage(target, 8);
         if (!target.alive) target.killedByUid = actor.uid;
-        actor.wounds = 1; actor.alive = true;
+        actor.wounds = 7; actor.alive = true;
         return '⚡ ${actor.name} inflige $dealt à ${target.name} — et se retrouve à 1 blessure !';
 
       // ── Carapatte : D6 lifesteal, unique ──
@@ -454,6 +454,7 @@ class GameEngine with AbilityEngine {
       // ── Cambou : full heal + bouclier ──
       case 'full_heal_shield_turn':
         actor.wounds = 0; actor.shield = true; actor.shieldCharges = 99;
+        actor.abilityUsed = true; // Unique — ne doit plus jamais pouvoir être réutilisé de toute la partie
         return '🌙 ${actor.name} se soigne et se protège';
 
       // ── Océane : D4 soigne tout le monde SAUF 1 joueur au choix ──

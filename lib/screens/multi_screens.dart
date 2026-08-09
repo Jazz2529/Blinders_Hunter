@@ -236,6 +236,38 @@ class _RoleRevealState extends State<RoleRevealScreen> {
   );
 }
 
+/// Rémi : une ligne sélectionnable dans le sélecteur d'effets (multi).
+class _RemiChoiceRowMulti extends StatelessWidget {
+  final String label;
+  final bool selected, legendary;
+  final VoidCallback onTap;
+  const _RemiChoiceRowMulti({required this.label, required this.selected,
+    required this.onTap, this.legendary = false});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final accent = legendary ? kGold : kGold2;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? accent.withValues(alpha: 0.15) : kBg3,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: selected ? accent : kBord2, width: selected ? 2 : 1),
+        ),
+        child: Row(children: [
+          Icon(selected ? Icons.check_circle : Icons.radio_button_unchecked,
+            size: 18, color: selected ? accent : kTextDim),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label, style: body(12, c: selected ? kText : kTextSub))),
+        ]),
+      ),
+    );
+  }
+}
+
 class _InfoBox extends StatelessWidget {
   final String icon,label,text;
   const _InfoBox({required this.icon,required this.label,required this.text});
@@ -1071,6 +1103,62 @@ class _ActionPanelState extends State<_ActionPanel> {
     ));
   }
 
+  /// Rémi : propose 3 effets tirés au hasard parmi les 10 disponibles
+  /// (légendaires nettement plus rares), et il en choisit exactement 2
+  /// parmi CES 3 (pas parmi tous les 10). Identique au sélecteur solo.
+  void _showRemiCraftDialog(BuildContext ctx) {
+    final offered = remiDraw3();
+    final selected = <String>{};
+    showDialog(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (dctx) => StatefulBuilder(
+        builder: (dctx2, setDialogState) => Dialog(
+          backgroundColor: kBg2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 460, maxHeight: 480),
+            padding: const EdgeInsets.all(20),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(children: [
+                const Text('🛠️', style: TextStyle(fontSize: 22)),
+                const SizedBox(width: 8),
+                Expanded(child: Text('CHOISISSEZ 2 EFFETS PARMI CES 3 (${selected.length}/2)',
+                  style: cinzel(13, c: kGold2, fw: FontWeight.w900))),
+              ]),
+              const SizedBox(height: 4),
+              Text('Cet équipement sera permanent — choisissez avec soin.',
+                style: body(11, c: kTextSub)),
+              const SizedBox(height: 12),
+              ...offered.map((key) => _RemiChoiceRowMulti(
+                label: kRemiAllChoices[key]!,
+                legendary: kRemiLegendaryChoices.containsKey(key),
+                selected: selected.contains(key),
+                onTap: () => setDialogState(() {
+                  if (selected.contains(key)) {
+                    selected.remove(key);
+                  } else if (selected.length < 2) {
+                    selected.add(key);
+                  }
+                }),
+              )),
+              const SizedBox(height: 14),
+              BHButton(
+                label: '🛠️ Fabriquer (${selected.length}/2)',
+                danger: true,
+                onTap: selected.length == 2 ? () {
+                  final list = selected.toList();
+                  Navigator.pop(dctx2);
+                  gp.remiCraftEquipment(list[0], list[1]);
+                } : null,
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showJulienChoice(BuildContext ctx) {
     showDialog(context: ctx, builder: (dctx) => AlertDialog(
       backgroundColor: kBg2,
@@ -1233,12 +1321,16 @@ class _ActionPanelState extends State<_ActionPanel> {
               BHButton(
                 label: (me?.copiedEffect ?? me?.character?.abilityEffect) == 'store_damage_nils'
                   ? '📦 Déverser ${me?.storedDamage ?? 0} blessures stockées'
-                  : '⚡ Utiliser ma capacité',
+                  : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'craft_equipment_remi'
+                    ? '🛠️ Fabriquer mon équipement'
+                    : '⚡ Utiliser ma capacité',
                 onTap: (me?.copiedEffect ?? me?.character?.abilityEffect) == 'damage2_or_heal1'
                   ? () => _showJulienChoice(ctx)
-                  : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'casino_bet'
-                    ? () { setState(() => _casinoActive = true); gp.useAbility(); }
-                    : () => _act(gp.useAbility)),
+                  : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'craft_equipment_remi'
+                    ? () => _showRemiCraftDialog(ctx)
+                    : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'casino_bet'
+                      ? () { setState(() => _casinoActive = true); gp.useAbility(); }
+                      : () => _act(gp.useAbility)),
           ],
           BHButton(label:'Passer → Déplacement',onTap:()=>_act(gp.skipAbility),outlined:true),
         ];
@@ -1505,7 +1597,8 @@ class _ActionPanelState extends State<_ActionPanel> {
         final alreadyAttacked = gp.gameState?.hasAttacked == true;
         final hasHache = gp.me?.hache == true && gp.me?.equipment.any((e) => e.effect == 'hache_berserker') == true;
         final mustAttackNow = hasHache && !alreadyAttacked && targets.isNotEmpty;
-        final hasBazooka = gp.me?.bazooka == true;
+        final hasBazooka = gp.me?.bazooka == true ||
+            (gp.me != null && remiActiveChoices(gp.me!).contains('remi_aoe'));
         // Mathieu : afficher le compteur d'attaques
         final isMathieu = (gp.me?.copiedEffect ?? gp.me?.character?.abilityEffect) == 'third_attack_bonus';
         final mathieuCount = gp.me?.attackCount ?? 0;
@@ -1661,6 +1754,20 @@ class _ActionPanelState extends State<_ActionPanel> {
         (gp.me?.equipment.any((e) => e.effect == 'hache_berserker') ?? false);
     final eff = gp.me?.copiedEffect ?? gp.me?.character?.abilityEffect;
     final target = gp.players[targetId];
+    // Rémi : équipement personnalisé — si le choix D4/D6 uniquement est
+    // actif, on ne lance QUE ce dé (pas les deux), et les dégâts sont son
+    // résultat brut directement.
+    final remiChoicesMe = gp.me != null ? remiActiveChoices(gp.me!) : const <String>{};
+    if (remiChoicesMe.contains('remi_d4only')) {
+      final d4 = GameEngine.instance.rollD4();
+      setState(() { _atkD4 = d4; _atkD6 = null; _atkDmg = d4; _atkTargetId = targetId; });
+      return;
+    }
+    if (remiChoicesMe.contains('remi_d6only')) {
+      final d6 = GameEngine.instance.rollD6();
+      setState(() { _atkD4 = null; _atkD6 = d6; _atkDmg = d6; _atkTargetId = targetId; });
+      return;
+    }
     if (gp.gameState?.fifiGoldenTurn == true) {
       final atk = gp.gameState?.fifiAtkResult ?? 5;
       final d4 = (atk / 2).ceil().clamp(0, 4).toInt();
