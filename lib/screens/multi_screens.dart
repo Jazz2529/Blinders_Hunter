@@ -1376,14 +1376,18 @@ class _ActionPanelState extends State<_ActionPanel> {
               BHButton(label: '🎲 Lancer les dés (d4 + d6)', onTap: _rollDice, gold: true),
           ];
         }
-        // Albane/Boussole : afficher les deux résultats pour choisir
+        // Albane/Boussole : afficher les deux résultats pour choisir —
+        // empilés verticalement (pas côte à côte) pour éviter tout
+        // débordement sur écran étroit.
         if (hasDoubleRoll && _sum2 != null && !_boussoleDecided) {
           return [
-            Row(children: [
-              Expanded(child: _DiceWidget(d4: _d4!, d6: _d6!, sum: _sum!, isAttack: false)),
-              const SizedBox(width: 8),
-              Expanded(child: _DiceWidget(d4: _d4b!, d6: _d6b!, sum: _sum2!, isAttack: false)),
-            ]),
+            Text('LANCER 1', style: cinzel(11, c: kTextDim, ls: 2)),
+            const SizedBox(height: 4),
+            _DiceWidget(d4: _d4!, d6: _d6!, sum: _sum!, isAttack: false),
+            const SizedBox(height: 10),
+            Text('LANCER 2', style: cinzel(11, c: kTextDim, ls: 2)),
+            const SizedBox(height: 4),
+            _DiceWidget(d4: _d4b!, d6: _d6b!, sum: _sum2!, isAttack: false),
             const SizedBox(height: 8),
             BHButton(label: '✅ Choisir lancer 1 ($_sum)', gold: true,
               onTap: () {

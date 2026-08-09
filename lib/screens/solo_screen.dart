@@ -2422,12 +2422,17 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
             else
               BHButton(label: '🎲 Lancer les dés (d4 + d6)', onTap: _rollDice)
           else if (_sum2 != null) ...[
-            // Albane / Boussole : choisir entre les 2 résultats
-            Row(children: [
-              Expanded(child: _DiceWidget(d4: _d4!, d6: _d6!, sum: _sum!, isAttack: false)),
-              const SizedBox(width: 8),
-              Expanded(child: _DiceWidget(d4: _d4b!, d6: _d6b!, sum: _sum2!, isAttack: false)),
-            ]),
+            // Albane / Boussole : choisir entre les 2 résultats — empilés
+            // verticalement (pas côte à côte) pour éviter tout débordement
+            // sur écran étroit, chaque widget de dés ayant besoin de plus
+            // de place que ce qu'une moitié d'écran peut offrir.
+            Text('LANCER 1', style: cinzel(11, c: kTextDim, ls: 2)),
+            const SizedBox(height: 4),
+            _DiceWidget(d4: _d4!, d6: _d6!, sum: _sum!, isAttack: false),
+            const SizedBox(height: 10),
+            Text('LANCER 2', style: cinzel(11, c: kTextDim, ls: 2)),
+            const SizedBox(height: 4),
+            _DiceWidget(d4: _d4b!, d6: _d6b!, sum: _sum2!, isAttack: false),
             const SizedBox(height: 8),
             BHButton(label: '✅ Choisir lancer 1 ($_sum)', gold: true,
               onTap: () {
