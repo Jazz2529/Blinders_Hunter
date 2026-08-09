@@ -4273,8 +4273,13 @@ class _SoloGameOverScreenState extends State<SoloGameOverScreen>
           child: SafeArea(
             child: FadeTransition(
               opacity: CurvedAnimation(parent: _contentAc, curve: Curves.easeIn),
-              child: Column(children: [
-                const Spacer(),
+              child: LayoutBuilder(builder: (bctx, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: IntrinsicHeight(
+                      child: Column(children: [
+                        const SizedBox(height: 24),
 
                 // ── Titre victoire ───────────────────────────────
                 Column(children: [
@@ -4370,7 +4375,7 @@ class _SoloGameOverScreenState extends State<SoloGameOverScreen>
                     ]),
                   ),
 
-                const Spacer(),
+                const SizedBox(height: 24),
 
                 // ── Bouton rejouer ───────────────────────────────
                 Padding(
@@ -4401,7 +4406,11 @@ class _SoloGameOverScreenState extends State<SoloGameOverScreen>
                     ),
                   ]),
                 ),
-              ]),
+                      ]),
+                    ),
+                  ),
+                );
+              }),
             ),
           ),
         ),
