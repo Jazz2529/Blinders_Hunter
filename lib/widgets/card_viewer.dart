@@ -1,0 +1,359 @@
+import 'dart:math';
+import 'package:flutter/material.dart';
+import 'theme.dart';
+import '../models/models.dart';
+import '../data/characters_data.dart';
+
+/// ─── Visionneuse de carte ────────────────────────────────────────────────────
+/// Illustration ENTIÈRE (1024×1536, ratio 2:3) à gauche, et à droite le
+/// panneau d'infos : nom, faction, PV, capacité et condition de victoire.
+/// Sur écran étroit (téléphone), l'illustration passe au-dessus du texte.
+/// Tap n'importe où pour fermer.
+Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c) {
+  return showDialog(
+    context: ctx,
+    barrierColor: Colors.black.withValues(alpha: 0.88),
+    builder: (dctx) {
+      final size = MediaQuery.of(dctx).size;
+      final narrow = size.width < 640;
+      return GestureDetector(
+        onTap: () => Navigator.pop(dctx),
+        behavior: HitTestBehavior.opaque,
+        child: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            narrow ? _NarrowLayout(c: c, size: size) : _WideLayout(c: c, size: size),
+            const SizedBox(height: 12),
+            Text('Touche l\'écran pour fermer', style: body(12, c: kTextDim)),
+          ]),
+        ),
+      );
+    },
+  );
+}
+
+/// ─── Carte "mystère" — joueur non révélé ────────────────────────────────────
+/// Affichée à la place de la vraie carte tant que le joueur n'est pas
+/// révélé : silhouette énigmatique + réplique cryptique tirée au hasard.
+/// Bascule automatiquement vers showFullCardDialog une fois révélé (c'est
+/// à l'appelant de vérifier p.revealed et choisir la bonne fonction).
+const List<String> kMysteryLines = [
+  '« Les ombres ne révèlent leurs secrets qu\'à ceux qui savent attendre... »',
+  '« Un masque de plus dans cette danse macabre. »',
+  '« Ami ou ennemi ? Le voile reste épais. »',
+  '« Quelque chose rôde derrière ce regard fermé. »',
+  '« Son vrai visage se cache encore dans les ténèbres. »',
+  '« Ni Hunter, ni Shadow — pour l\'instant, juste une silhouette. »',
+  '« Le silence de cette carte en dit plus qu\'il n\'y paraît. »',
+  '« Patience, chasseur. Tout se révèle en son temps. »',
+];
+
+Future<void> showMysteryCardDialog(BuildContext ctx, Player p) {
+  final line = kMysteryLines[Random().nextInt(kMysteryLines.length)];
+  return showDialog(
+    context: ctx,
+    barrierColor: Colors.black.withValues(alpha: 0.88),
+    builder: (dctx) {
+      final size = MediaQuery.of(dctx).size;
+      final narrow = size.width < 640;
+      return GestureDetector(
+        onTap: () => Navigator.pop(dctx),
+        behavior: HitTestBehavior.opaque,
+        child: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            narrow ? _MysteryNarrowLayout(name: p.name, line: line, size: size)
+                   : _MysteryWideLayout(name: p.name, line: line, size: size),
+            const SizedBox(height: 12),
+            Text('Touche l\'écran pour fermer', style: body(12, c: kTextDim)),
+          ]),
+        ),
+      );
+    },
+  );
+}
+
+class _MysteryWideLayout extends StatelessWidget {
+  final String name, line;
+  final Size size;
+  const _MysteryWideLayout({required this.name, required this.line, required this.size});
+
+  @override
+  Widget build(BuildContext ctx) {
+    double imgH = size.height * 0.75;
+    double imgW = imgH * (2 / 3);
+    if (imgW + 340 > size.width * 0.94) {
+      imgW = size.width * 0.94 - 340;
+      imgH = imgW * (3 / 2);
+    }
+    return Row(mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center, children: [
+      _MysteryImage(w: imgW, h: imgH),
+      const SizedBox(width: 20),
+      SizedBox(width: 320,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: imgH),
+          child: _MysteryInfoPanel(name: name, line: line),
+        )),
+    ]);
+  }
+}
+
+class _MysteryNarrowLayout extends StatelessWidget {
+  final String name, line;
+  final Size size;
+  const _MysteryNarrowLayout({required this.name, required this.line, required this.size});
+
+  @override
+  Widget build(BuildContext ctx) {
+    double imgH = size.height * 0.42;
+    double imgW = imgH * (2 / 3);
+    if (imgW > size.width * 0.85) {
+      imgW = size.width * 0.85;
+      imgH = imgW * (3 / 2);
+    }
+    return SizedBox(
+      width: size.width * 0.92,
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        _MysteryImage(w: imgW, h: imgH),
+        const SizedBox(height: 12),
+        _MysteryInfoPanel(name: name, line: line),
+      ]),
+    );
+  }
+}
+
+// ─── Silhouette énigmatique — pas de vraie illustration ─────────────────────
+class _MysteryImage extends StatelessWidget {
+  final double w, h;
+  const _MysteryImage({required this.w, required this.h});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Container(
+      width: w, height: h,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(w * 0.045),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+          colors: [const Color(0xFF1A1420), const Color(0xFF0A0710)]),
+        boxShadow: [BoxShadow(
+            color: kTextDim.withValues(alpha: 0.35), blurRadius: 30, spreadRadius: 2)],
+        border: Border.all(color: kTextDim.withValues(alpha: 0.4), width: 1.5),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(w * 0.045),
+        child: Stack(alignment: Alignment.center, children: [
+          Icon(Icons.help_outline, size: w * 0.5, color: Colors.white.withValues(alpha: 0.08)),
+          Text('❓', style: TextStyle(fontSize: w * 0.28)),
+        ]),
+      ),
+    );
+  }
+}
+
+class _MysteryInfoPanel extends StatelessWidget {
+  final String name, line;
+  const _MysteryInfoPanel({required this.name, required this.line});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return GestureDetector(
+      onTap: () {},
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: kBg2,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: kTextDim.withValues(alpha: 0.5), width: 2),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(child: Text(name,
+                style: cinzel(20, c: kTextSub, fw: FontWeight.w900),
+                textAlign: TextAlign.center)),
+            const SizedBox(height: 8),
+            Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: kBg3, borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: kTextDim.withValues(alpha: 0.5))),
+              child: Text('❓ IDENTITÉ INCONNUE',
+                  style: cinzel(12, c: kTextDim, fw: FontWeight.w900, ls: 1)),
+            )),
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: kBg3,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: kTextDim.withValues(alpha: 0.3)),
+              ),
+              child: Text(line,
+                style: body(13, c: kTextSub).copyWith(fontStyle: FontStyle.italic),
+                textAlign: TextAlign.center),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+class _WideLayout extends StatelessWidget {
+  final CharacterCard c;
+  final Size size;
+  const _WideLayout({required this.c, required this.size});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final fc = factionColor(c.faction.name);
+    double imgH = size.height * 0.75;
+    double imgW = imgH * (2 / 3);
+    // Largeur totale max : image + panneau 320 + marges
+    if (imgW + 340 > size.width * 0.94) {
+      imgW = size.width * 0.94 - 340;
+      imgH = imgW * (3 / 2);
+    }
+    return Row(mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center, children: [
+      _CardImage(c: c, w: imgW, h: imgH),
+      const SizedBox(width: 20),
+      SizedBox(width: 320,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: imgH),
+          child: _InfoPanel(c: c, fc: fc),
+        )),
+    ]);
+  }
+}
+
+// ─── Layout étroit (téléphone) : image au-dessus, infos dessous ─────────────
+class _NarrowLayout extends StatelessWidget {
+  final CharacterCard c;
+  final Size size;
+  const _NarrowLayout({required this.c, required this.size});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final fc = factionColor(c.faction.name);
+    double imgH = size.height * 0.48;
+    double imgW = imgH * (2 / 3);
+    if (imgW > size.width * 0.85) {
+      imgW = size.width * 0.85;
+      imgH = imgW * (3 / 2);
+    }
+    return SizedBox(
+      width: size.width * 0.92,
+      height: size.height * 0.86,
+      child: Column(children: [
+        _CardImage(c: c, w: imgW, h: imgH),
+        const SizedBox(height: 12),
+        Expanded(child: _InfoPanel(c: c, fc: fc)),
+      ]),
+    );
+  }
+}
+
+// ─── Illustration pleine, ratio 2:3, halo faction ────────────────────────────
+class _CardImage extends StatelessWidget {
+  final CharacterCard c;
+  final double w, h;
+  const _CardImage({required this.c, required this.w, required this.h});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final fc = factionColor(c.faction.name);
+    final fbg = factionBg(c.faction.name);
+    final imgPath = characterImagePath(c.id);
+    return Container(
+      width: w, height: h,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(w * 0.045),
+        boxShadow: [BoxShadow(
+            color: fc.withValues(alpha: 0.5), blurRadius: 30, spreadRadius: 2)],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(w * 0.045),
+        child: imgPath != null
+            ? Image.asset(imgPath, fit: BoxFit.contain,
+                // Limite la résolution de décodage à ~2x la taille affichée
+                // — sans ça, une image source haute résolution peut faire
+                // échouer le chargement sur un appareil à RAM limitée.
+                cacheWidth: (w * 2).round(),
+                cacheHeight: (h * 2).round(),
+                errorBuilder: (_, __, ___) => Container(color: fbg,
+                    child: Center(child: Text(c.icon,
+                        style: const TextStyle(fontSize: 84)))))
+            : Container(color: fbg,
+                child: Center(child: Text(c.icon,
+                    style: const TextStyle(fontSize: 84)))),
+      ),
+    );
+  }
+}
+
+// ─── Panneau d'infos : nom, faction, PV, capacité, victoire ─────────────────
+class _InfoPanel extends StatelessWidget {
+  final CharacterCard c;
+  final Color fc;
+  const _InfoPanel({required this.c, required this.fc});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return GestureDetector(
+      onTap: () {}, // absorbe le tap : lire le texte ne ferme pas
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: kBg2,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: fc, width: 2),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Text(c.name,
+                  style: cinzel(20, c: kGold2, fw: FontWeight.w900),
+                  textAlign: TextAlign.center)),
+              const SizedBox(height: 8),
+              Center(child: FactionBadge(c.faction.name)),
+              const SizedBox(height: 10),
+              Center(child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: kBg3, borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: kGold.withValues(alpha: 0.5))),
+                child: Text('❤️ ${c.hp} PV',
+                    style: cinzel(15, c: kGold, fw: FontWeight.w900)),
+              )),
+              const SizedBox(height: 16),
+              _infoBlock('⚡ CAPACITÉ', c.ability, fc),
+              const SizedBox(height: 12),
+              _infoBlock('🏆 CONDITION DE VICTOIRE', c.winCondition, kGold),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _infoBlock(String label, String text, Color accent) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: kBg3,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: accent.withValues(alpha: 0.35)),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: cinzel(10, c: accent, ls: 1.5)),
+      const SizedBox(height: 6),
+      Text(text, style: body(13, c: kText)),
+    ]),
+  );
+}

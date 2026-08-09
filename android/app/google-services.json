@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "816570173156",
+    "firebase_url": "https://blinders-hunter-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "blinders-hunter",
+    "storage_bucket": "blinders-hunter.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:816570173156:android:2e6d3acd3e8efe4732cef1",
+        "android_client_info": {
+          "package_name": "com.blindershunter.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAc7Z0wpaK5mPRUJZGksCrbEkcURSK7rpg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

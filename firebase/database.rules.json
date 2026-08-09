@@ -1,0 +1,19 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        ".read": "auth != null && data.child('players').child(auth.uid).exists()",
+        ".write": "auth != null && (!data.exists() || data.child('hostId').val() === auth.uid || data.child('players').child(auth.uid).exists())",
+        "players": {
+          "$playerId": { ".write": "auth != null && auth.uid === $playerId" }
+        }
+      }
+    },
+    "fcm_tokens": {
+      "$uid": {
+        ".read":  "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}
