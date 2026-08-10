@@ -3242,7 +3242,12 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'vision_shadow_2', 'vision_shadow_1', 'vision_hunter_1', 'vision_hunter_2',
     ].contains(card.effect);
     if (needsTarget) {
-      setState(() { _showingTargetList = true; _targetContext = 'card'; });
+      // IMPORTANT : on utilise l'effet RÉEL de la carte (pas la chaîne
+      // générique 'card') — sinon les overrides spécifiques par effet plus
+      // bas (ex: set_marker7_choice qui autorise l'auto-ciblage) ne
+      // correspondaient jamais, empêchant le joueur de se cibler lui-même
+      // alors même que le texte de la carte le permet explicitement.
+      setState(() { _showingTargetList = true; _targetContext = card.effect; });
     } else {
       ctrl.humanApplyCard(); setState(() {});
     }
