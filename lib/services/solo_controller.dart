@@ -156,7 +156,7 @@ class SoloState {
 // ─────────────────────────────────────────────
 // CERVEAU IA
 // ─────────────────────────────────────────────
-class _AiBrain {
+class AiBrain {
   final Random _rng = Random();
   final GameEngine _eg = GameEngine.instance;
   final Map<String, Faction> _memory = {};
@@ -276,7 +276,7 @@ class _AiBrain {
 // ─────────────────────────────────────────────
 class SoloController extends ChangeNotifier {
   final GameEngine _eg = GameEngine.instance;
-  final _AiBrain   _ai = _AiBrain();
+  final AiBrain   _ai = AiBrain();
   final Random     _rng = Random();
   Map<String, Map<String, dynamic>> _currentSnapshot = {};
 

@@ -146,6 +146,36 @@ class FirebaseService {
     await _put('rooms/$roomId/players/$uid', player.toJson());
   }
 
+  /// Ajoute un bot à la salle (lobby uniquement) — pas de vraie connexion
+  /// Firebase Auth, juste un joueur synthétique avec un uid préfixé "bot_"
+  /// (convention déjà utilisée par Player.isBot). Prêt automatiquement,
+  /// puisqu'un bot n'a personne pour cliquer "prêt" à sa place.
+  Future<void> addBot(String roomId) async {
+    final data = await _get('rooms/$roomId');
+    if (data == null) throw Exception('Room introuvable : $roomId');
+    final room = Map<String, dynamic>.from(data as Map);
+    if (room['status'] != 'lobby') throw Exception('Partie déjà commencée');
+
+    final playersMap = Map<String, dynamic>.from(room['players'] ?? {});
+    if (playersMap.length >= 7) throw Exception('Room pleine (max 7 joueurs)');
+
+    final usedTokens = playersMap.values
+        .map((p) => (p as Map)['token'] as String? ?? '')
+        .toSet();
+    final tok = kAllTokens.firstWhere((t) => !usedTokens.contains(t.id),
+        orElse: () => kAllTokens.first).id;
+
+    final botNum = playersMap.keys.where((k) => k.startsWith('bot_')).length + 1;
+    final botUid = 'bot_$botNum${DateTime.now().millisecondsSinceEpoch}';
+    final bot = Player(uid: botUid, name: 'Bot $botNum', token: tok, isReady: true);
+    await _put('rooms/$roomId/players/$botUid', bot.toJson());
+  }
+
+  /// Retire un bot de la salle (lobby uniquement, hôte).
+  Future<void> removeBot(String roomId, String botUid) async {
+    await _delete('rooms/$roomId/players/$botUid');
+  }
+
   /// Quitte la room
   /// Statut actuel d'une salle ('lobby' | 'playing' | 'finished') ou null.
   Future<String?> fetchRoomStatus(String roomId) async {

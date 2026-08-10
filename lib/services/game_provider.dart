@@ -2,6 +2,7 @@
 // Provider multijoueur — pont Firebase ↔ UI
 
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import '../data/game_data.dart';
@@ -10,11 +11,14 @@ import 'engine.dart';
 import 'audio_service.dart';
 import 'firebase_service.dart';
 import 'persistence.dart';
+import 'solo_controller.dart' show AiBrain;
 
 class GameProvider extends ChangeNotifier {
   final FirebaseService _fb = FirebaseService.instance;
   FirebaseService get fb => _fb; // accès lecture (reconnexion, etc.)
   final GameEngine      _eg = GameEngine.instance;
+  final AiBrain         _ai = AiBrain(); // pilotage des bots en multijoueur
+  static const AiDifficulty _botDifficulty = AiDifficulty.normal;
   final bool firebaseEnabled;
   GameProvider({this.firebaseEnabled = false});
 
@@ -107,6 +111,18 @@ class GameProvider extends ChangeNotifier {
     _subscribe(); notifyListeners();
   }
 
+  /// Ajoute un bot à la salle — hôte uniquement, lobby uniquement.
+  Future<void> addBot() async {
+    if (roomId == null || !isHost) return;
+    await _fb.addBot(roomId!);
+  }
+
+  /// Retire un bot de la salle — hôte uniquement, lobby uniquement.
+  Future<void> removeBot(String botUid) async {
+    if (roomId == null || !isHost) return;
+    await _fb.removeBot(roomId!, botUid);
+  }
+
   /// Reprend une partie en cours après fermeture de l'appli.
   /// Retourne false si la salle n'existe plus ou est terminée.
   Future<bool> resumeRoom(String rid, String uid) async {
@@ -133,6 +149,34 @@ class GameProvider extends ChangeNotifier {
 
   bool _resultRecorded = false;
   bool _forcingTurn = false;
+  bool _botDriving = false; // évite 2 pilotages simultanés du même bot
+
+  // Mêmes listes que solo_controller.dart (dupliquées : petites listes
+  // statiques, peu de risque de divergence, évite un couplage supplémentaire
+  // entre les deux contrôleurs).
+  bool _abilityNeedsTarget(String eff) => [
+    'damage2_choice','damage2_then_heal3','set_wounds5','steal_equip_choice',
+    'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
+    'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors',
+  ].contains(eff);
+
+  bool _cardNeedsTarget(String eff) => [
+    'heal_other_d6','heal_other_d4','set_marker7_choice','banane_demonique',
+    'vampirisation','blue_shell','veuve_noire','peau_banane','pince_attrape',
+    'trebuchet','vision_shadow_2','vision_shadow_1','vision_hunter_1','vision_hunter_2',
+    'vision_shadow_heal_or_dmg','vision_hunter_heal_or_dmg','vision_neutral_heal_or_dmg',
+    'vision_show_card','vision_punish_neutral_shadow','vision_punish_neutral_hunter',
+    'vision_punish_shadow_hunter','vision_hp_12plus','vision_hp_11minus',
+  ].contains(eff);
+
+  // Pouvoirs nécessitant un enchaînement d'écrans dédiés (pari, échange de
+  // zones, sélecteur de dés, tours bonus, prescience, capacité copiée…) —
+  // un bot les ignore prudemment pour l'instant plutôt que de risquer de
+  // rester bloqué au milieu d'un flux conçu pour une vraie interface.
+  bool _isComplexBotUnsafeAbility(String eff) => const {
+    'casino_bet', 'swap_zones', 'choose_all_dice', 'bonus_turns',
+    'elaia_peek', 'copy_ability',
+  }.contains(eff);
 
   void _recordMultiResult(Map<String, dynamic>? result) {
     if (result == null || _resultRecorded) return;
@@ -196,10 +240,286 @@ class GameProvider extends ChangeNotifier {
         currentPlayerId: order[next], hasAttacked: false, clearPending: true);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // PILOTAGE DES BOTS EN MULTIJOUEUR
+  // Réutilise la même IA de décision que le mode solo (AiBrain, classe
+  // publique partagée avec solo_controller.dart) — seule la façon d'ENREGISTRER
+  // les résultats change (Firebase au lieu de l'état local). Piloté uniquement
+  // par le client de l'hôte, pour éviter que 2 clients ne pilotent le même
+  // bot en même temps.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  void _maybeDriveBot() {
+    if (_botDriving) return;
+    if (myUid == null || hostId != myUid) return; // hôte seulement
+    if (roomStatus != 'playing' || gameResult != null) return;
+    final gs = gameState;
+    if (gs == null) return;
+    final cur = players[gs.currentPlayerId];
+    if (cur == null || !cur.isBot || !cur.alive) return;
+    // Ne pas interférer si une résolution est déjà en attente (carte tirée
+    // par un joueur humain juste avant, butin en attente, etc.)
+    if (gs.pendingAction != null) return;
+    if (gs.lootKillerUid != null) return;
+    if (gs.pendingPunishActorUid != null) return;
+    if (gs.pendingTargetAction != null) return;
+    _botDriving = true;
+    _botTakeTurn(cur.uid).catchError((e, st) {
+      debugPrint('Erreur pilotage bot : $e\n$st');
+    }).whenComplete(() => _botDriving = false);
+  }
+
+  Future<void> _botTakeTurn(String botUid) async {
+    await Future.delayed(const Duration(milliseconds: 900));
+    if (gameState?.currentPlayerId != botUid) return; // état changé entretemps
+
+    var all = _mutableAll();
+    var bot = all.where((p) => p.uid == botUid).firstOrNull;
+    if (bot == null || !bot.alive) return;
+    final layout = gameState!.terrainLayout;
+    _ai.remember(all);
+
+    // ── Capacité ──────────────────────────────────────────────────────
+    final eff = bot.copiedEffect ?? bot.character!.abilityEffect;
+    final canUseCopy = !(eff == 'copy_ability' &&
+        !all.any((x) => x.uid != bot!.uid && x.alive && x.revealed &&
+            x.character != null &&
+            !GameEngine.uncopyableAbilities.contains(x.character!.abilityEffect)));
+    if (_ai.shouldUseAbility(bot, all, layout, _botDifficulty) && canUseCopy &&
+        !_isComplexBotUnsafeAbility(eff)) {
+      if (!bot.revealed) {
+        if (eff == 'chameleon_passive') {
+          final hunters = all.where((p) => p.character?.faction == Faction.hunter && p.character != null).map((p) => p.character!).toList();
+          final shadows = all.where((p) => p.character?.faction == Faction.shadow && p.character != null).map((p) => p.character!).toList();
+          if (hunters.isNotEmpty && shadows.isNotEmpty) {
+            final pool = [...hunters, ...shadows];
+            final disguise = pool[Random().nextInt(pool.length)];
+            bot.revealed = true;
+            bot.disguiseNameOverride = disguise.name;
+            bot.disguiseIconOverride = disguise.icon;
+            bot.disguiseFactionOverride = disguise.faction.name;
+            bot.disguiseCharIdOverride = disguise.id;
+            await _commitAll(all, '🃏 ${bot.name} révèle : ${disguise.name}');
+          } else {
+            bot.revealed = true;
+            await _commitAll(all, '🃏 ${bot.name} révèle sa carte');
+          }
+        } else {
+          bot.revealed = true;
+          await _commitAll(all, '🃏 ${bot.name} révèle sa carte');
+        }
+        await Future.delayed(const Duration(milliseconds: 700));
+        all = _mutableAll();
+        bot = all.where((p) => p.uid == botUid).firstOrNull;
+        if (bot == null || !bot.alive) return;
+      }
+      final needsTarget = _abilityNeedsTarget(eff);
+      Player? target;
+      if (needsTarget) target = _ai.bestTarget(bot, all, _botDifficulty, context: eff);
+      if (target != null || !needsTarget) {
+        final abLog = _eg.applyAbility(bot, all, layout, target: target);
+        if (abLog == 'draw_dark' || abLog == 'draw_light') {
+          _eg.applyDeathPassives(all);
+          await _commitAll(all, '');
+          await _botDrawAndResolveCard(botUid, abLog == 'draw_dark' ? DeckType.tenebres : DeckType.lumiere);
+          all = _mutableAll();
+          bot = all.where((p) => p.uid == botUid).firstOrNull;
+          if (bot == null || !bot.alive) return;
+        } else if (abLog == 'terrain_max_aoe') {
+          final t2 = _ai.bestTarget(bot, all, _botDifficulty);
+          if (t2 != null) {
+            final abLog2 = _eg.applyAbility(bot, all, layout, target: t2);
+            _eg.applyDeathPassives(all);
+            await _commitAll(all, abLog2 ?? '');
+            final t2now = all.where((p) => p.uid == t2.uid).firstOrNull;
+            if (t2now != null && !t2now.alive) {
+              if (await _checkWin(all, justDiedId: t2now.uid)) return;
+            }
+          }
+        } else if (abLog == 'trigger_terrain') {
+          _eg.applyDeathPassives(all);
+          await _commitAll(all, "🧌 ${bot.name} subit 1 blessure → réactive l'effet du terrain");
+          await _botApplyTerrainEffect(botUid);
+          all = _mutableAll();
+          bot = all.where((p) => p.uid == botUid).firstOrNull;
+          if (bot == null || !bot.alive) return;
+        } else if (abLog != null && abLog != 'cible_requise' && abLog != 'cible_vlad') {
+          _eg.applyDeathPassives(all);
+          await _commitAll(all, abLog);
+          if (target != null) {
+            final tNow = all.where((p) => p.uid == target!.uid).firstOrNull;
+            if (tNow != null && !tNow.alive) {
+              if (await _checkWin(all, justDiedId: tNow.uid)) return;
+            }
+          }
+        }
+      }
+    }
+
+    await Future.delayed(const Duration(milliseconds: 700));
+    all = _mutableAll();
+    bot = all.where((p) => p.uid == botUid).firstOrNull;
+    if (bot == null || !bot.alive) return;
+    if (gameState?.phase == GamePhase.gameOver) return;
+
+    // ── Déplacement (sauf si son pouvoir l'a déjà déplacé, ex: Christine) ──
+    final skipMove = gameState?.phase == GamePhase.zoneEffect ||
+        gameState?.phase == GamePhase.attack;
+    if (!skipMove) {
+      final roll = _eg.rollMove();
+      final sum = roll['sum']!;
+      int zoneIdx;
+      if (sum == 7) {
+        zoneIdx = _ai.bestZone(bot, all, layout, _botDifficulty);
+      } else {
+        final tid = _eg.sumToTerrainId(sum);
+        zoneIdx = tid != null ? _eg.terrainLayoutIdx(layout, tid) : (bot.zoneIndex + 1) % 6;
+        if (zoneIdx == -1 || zoneIdx == bot.zoneIndex) zoneIdx = (bot.zoneIndex + 1) % 6;
+      }
+      bot.zoneIndex = zoneIdx;
+      await _commitAll(all, '🚶 ${bot.name} → ${layout[zoneIdx].name}');
+      await Future.delayed(const Duration(milliseconds: 700));
+
+      // ── Effet de terrain ──
+      await _botApplyTerrainEffect(botUid);
+      all = _mutableAll();
+      bot = all.where((p) => p.uid == botUid).firstOrNull;
+      if (bot == null || !bot.alive) return;
+      if (gameState?.phase == GamePhase.gameOver) return;
+
+      // ── Carte en attente (piochée par l'effet de terrain) ──
+      if (gameState?.pendingAction != null) {
+        await Future.delayed(const Duration(milliseconds: 700));
+        final card = findCardById(gameState!.pendingAction!);
+        if (card != null) {
+          Player? cardTarget;
+          if (_cardNeedsTarget(card.effect)) {
+            cardTarget = _ai.bestTarget(bot, all, _botDifficulty, context: card.effect);
+          }
+          if (cardTarget != null || !_cardNeedsTarget(card.effect)) {
+            final res = _eg.resolveCard(card, bot, all, layout, target: cardTarget);
+            if (res['needsTarget'] != true && res['needsTargetChoice'] != true &&
+                res['needsSecondTarget'] != true && res['needsEquipChoice'] != true) {
+              _eg.applyDeathPassives(all);
+              await _commitAll(all, res['log'] as String? ?? '');
+              if (await _checkWin(all)) return;
+            }
+          }
+        }
+        await _fb.setPhase(roomId!, GamePhase.attack, clearPending: true);
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
+
+    all = _mutableAll();
+    bot = all.where((p) => p.uid == botUid).firstOrNull;
+    if (bot == null || !bot.alive) return;
+    if (gameState?.phase == GamePhase.gameOver) return;
+
+    // ── Attaque ──────────────────────────────────────────────────────
+    if (_ai.shouldAttack(bot, all, layout, _botDifficulty)) {
+      final targets = _eg.attackTargets(bot, all, layout);
+      final target = _ai.bestTarget(bot, targets, _botDifficulty, context: 'attack');
+      if (target != null) {
+        final roll2 = _eg.rollAttack();
+        final dmg = roll2['damage']!;
+        if (bot.revealed) bot.attackCount++;
+        final attackRes = _eg.resolveAttack(bot, target, dmg);
+        _eg.applyDeathPassives(all);
+        await _commitAll(all, attackRes['log'] as String);
+        final tgtNow = all.where((p) => p.uid == target.uid).firstOrNull;
+        if (tgtNow != null) {
+          if (await _checkWin(all, justDiedId: tgtNow.alive ? null : tgtNow.uid)) return;
+        }
+      }
+    }
+
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (gameState?.phase == GamePhase.gameOver) return;
+    await endTurn(actingUid: botUid);
+  }
+
+  /// Pioche une carte pour un bot ET la résout immédiatement (choix de cible
+  /// simple via l'IA si besoin) — version autonome de drawCard()+applyCard(),
+  /// nécessaire car ces deux fonctions humaines sont liées à myUid.
+  Future<void> _botDrawAndResolveCard(String botUid, DeckType deck) async {
+    final queue = Map<String, List<String>>.from(
+        (gameState?.forcedDeckQueue ?? const {}).map(
+            (k, v) => MapEntry(k, List<String>.from(v))));
+    final card = _eg.drawCard(deck, forcedQueue: queue);
+    await _fb.setPhase(roomId!, gameState!.phase, forcedDeckQueue: queue);
+    var all = _mutableAll();
+    var bot = all.where((p) => p.uid == botUid).firstOrNull;
+    if (bot == null || !bot.alive) return;
+    await _fb.addLog(roomId!,
+        deck == DeckType.vision ? '🔮 ${bot.name} pioche une carte Vision (secrète)'
+                                 : '🃏 ${bot.name} pioche : ${card.name}');
+    Player? cardTarget;
+    if (_cardNeedsTarget(card.effect)) {
+      cardTarget = _ai.bestTarget(bot, all, _botDifficulty, context: card.effect);
+    }
+    if (cardTarget != null || !_cardNeedsTarget(card.effect)) {
+      final res = _eg.resolveCard(card, bot, all, gameState!.terrainLayout, target: cardTarget);
+      if (res['needsTarget'] != true && res['needsTargetChoice'] != true &&
+          res['needsSecondTarget'] != true && res['needsEquipChoice'] != true) {
+        _eg.applyDeathPassives(all);
+        await _commitAll(all, res['log'] as String? ?? '');
+        await _checkWin(all);
+      }
+    }
+  }
+
+  /// Applique l'effet du terrain courant pour un bot — version autonome de
+  /// applyTerrainEffect(), nécessaire car celle-ci lit `me!` (donc myUid).
+  Future<void> _botApplyTerrainEffect(String botUid) async {
+    final bot = players[botUid];
+    if (bot == null) return;
+    final t = gameState!.terrainLayout[bot.zoneIndex];
+    switch (t.effect) {
+      case 'vision':   await _botDrawAndResolveCard(botUid, DeckType.vision); break;
+      case 'lumiere':  await _botDrawAndResolveCard(botUid, DeckType.lumiere); break;
+      case 'tenebres': await _botDrawAndResolveCard(botUid, DeckType.tenebres); break;
+      case 'choice':
+        final deck = _ai.bestDeck(bot, _botDifficulty);
+        await _botDrawAndResolveCard(botUid, deck);
+        break;
+      case 'damage9': {
+        final all = _mutableAll();
+        final b = all.where((p) => p.uid == botUid).firstOrNull;
+        if (b != null) {
+          final t2 = _ai.bestTarget(b, all, _botDifficulty);
+          if (t2 != null) {
+            _eg.applyDamage(t2, 2, isTerrain9Dmg: true);
+            if (!t2.alive) t2.killedByUid = b.uid;
+            _eg.applyDeathPassives(all);
+            await _commitAll(all, '🏹 ${b.name} inflige 2 blessures à ${t2.name}');
+            await _checkWin(all, justDiedId: t2.alive ? null : t2.uid);
+          }
+        }
+        break;
+      }
+      case 'steal': {
+        final all = _mutableAll();
+        final b = all.where((p) => p.uid == botUid).firstOrNull;
+        if (b != null) {
+          final t2 = _ai.bestTarget(b, all, _botDifficulty, context: 'steal');
+          if (t2 != null && t2.equipment.isNotEmpty) {
+            final e = t2.equipment.removeAt(Random().nextInt(t2.equipment.length));
+            b.equipment.add(e);
+            _eg.equipPassivePublic(b, e);
+            _eg.recalcPassives(t2);
+            await _commitAll(all, '🗼 ${b.name} vole "${e.name}" à ${t2.name}');
+          }
+        }
+        break;
+      }
+    }
+  }
+
   void _subscribe() {
     _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel();
     _pSub  = _fb.watchPlayers(roomId!).listen((d) { players = d; notifyListeners(); });
-    _gsSub = _fb.watchGameState(roomId!).listen((d) { gameState = d; _maybeForceTurn(); notifyListeners(); });
+    _gsSub = _fb.watchGameState(roomId!).listen((d) { gameState = d; _maybeForceTurn(); _maybeDriveBot(); notifyListeners(); });
     _stSub = _fb.watchStatus(roomId!).listen((d) {
       final wasPlaying = roomStatus == 'playing';
       roomStatus = d;
@@ -1163,7 +1483,8 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> endTurn() async {
+  Future<void> endTurn({String? actingUid}) async {
+    final uid = actingUid ?? myUid!;
     // Ninja : tours bonus restants
     final bonusLeft = gameState?.bonusTurnsRemaining ?? 0;
     if (bonusLeft > 0) {
@@ -1172,7 +1493,7 @@ class GameProvider extends ChangeNotifier {
       await _fb.addLog(roomId!, '🥷 Ninja rejoue ! (${bonusLeft - 1} tour(s) restant(s))');
       return;
     }
-    final p = _mutableMe();
+    final p = players[uid]!.copy();
     // Felipe : si son tour de sursis se termine SANS qu'il ait éliminé
     // personne (le sauvetage automatique dans applyDeathPassives l'aurait
     // déjà géré sinon), il meurt maintenant.
@@ -1187,7 +1508,7 @@ class GameProvider extends ChangeNotifier {
     if (p.newTurn) {
       p.newTurn = false;
       await _commitPlayer(p, '⏰ ${p.name} joue un tour de plus');
-      await _fb.setPhase(roomId!, GamePhase.move, currentPlayerId: myUid, hasAttacked: false);
+      await _fb.setPhase(roomId!, GamePhase.move, currentPlayerId: uid, hasAttacked: false);
       return;
     }
     if (p.shield && p.shieldCharges == 99) { p.shield = false; p.shieldCharges = 0; }
@@ -1202,7 +1523,7 @@ class GameProvider extends ChangeNotifier {
       await _fb.setPhase(roomId!, gameState!.phase, fifiGoldenTurn: false);
     }
     final order = gameState!.playerOrder;
-    int next = (order.indexOf(myUid!) + 1) % order.length;
+    int next = (order.indexOf(uid) + 1) % order.length;
     while (!players[order[next]]!.alive) { next = (next + 1) % order.length; }
     final all = _mutableAll();
     final nextPlayer = all.firstWhere((x) => x.uid == order[next]);

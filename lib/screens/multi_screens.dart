@@ -77,7 +77,8 @@ class LobbyScreen extends StatelessWidget {
         body:Column(children:[
           Expanded(child:ListView(padding:const EdgeInsets.all(14),children:[
             const SectionLabel('JOUEURS'),
-            ...gp.players.values.map((p)=>_PlayerTile(p:p,isMe:p.uid==gp.myUid)),
+            ...gp.players.values.map((p)=>_PlayerTile(p:p,isMe:p.uid==gp.myUid,
+              canRemove: gp.isHost, onRemove: () => gp.removeBot(p.uid))),
             const SizedBox(height:16),
             const SectionLabel('TON JETON'),
             const SizedBox(height:10),
@@ -114,6 +115,14 @@ class LobbyScreen extends StatelessWidget {
                 onTap: canStart ? gp.startGame : null,
                 gold: canStart,
               ),
+            if (gp.isHost && n < 7) ...[
+              const SizedBox(height: 8),
+              BHButton(
+                label: '🤖 Ajouter un bot',
+                outlined: true,
+                onTap: () => gp.addBot(),
+              ),
+            ],
             const SizedBox(height:8),
             BHButton(
               label:gp.me?.isReady==true?'✓ Prêt — annuler ?':'Se marquer prêt',
@@ -128,8 +137,9 @@ class LobbyScreen extends StatelessWidget {
 }
 
 class _PlayerTile extends StatelessWidget {
-  final Player p; final bool isMe;
-  const _PlayerTile({required this.p,required this.isMe});
+  final Player p; final bool isMe; final bool canRemove; final VoidCallback? onRemove;
+  const _PlayerTile({required this.p, required this.isMe,
+    this.canRemove = false, this.onRemove});
 
   @override
   Widget build(BuildContext ctx) => Container(
@@ -139,13 +149,29 @@ class _PlayerTile extends StatelessWidget {
     child:Row(children:[
       TokenWidget(tokenId: p.token, size: 36),
       const SizedBox(width:12),
-      Expanded(child:Text(p.name,style:body(15,fw:FontWeight.w600))),
+      Expanded(child:Row(children:[
+        if (p.isBot) const Padding(
+          padding: EdgeInsets.only(right: 4),
+          child: Text('🤖', style: TextStyle(fontSize: 14))),
+        Flexible(child: Text(p.name,style:body(15,fw:FontWeight.w600))),
+      ])),
       if(p.isReady) Container(
         padding:const EdgeInsets.symmetric(horizontal:10,vertical:4),
         decoration:BoxDecoration(color:kGreen.withOpacity(0.15),
           borderRadius:BorderRadius.circular(20),border:Border.all(color:kGreen)),
         child:Text('Prêt',style:cinzel(11,c:kGreen)),
       ),
+      if (canRemove && p.isBot) ...[
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: onRemove,
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(color: kRed.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.close, color: kRed, size: 16)),
+        ),
+      ],
     ]),
   );
 }
