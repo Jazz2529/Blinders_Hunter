@@ -215,6 +215,25 @@ class FirebaseService {
     final uid = currentUid;
     if (uid == null) return;
     await _delete('rooms/$roomId/players/$uid');
+
+    // Si le joueur qui part était l'hôte, transférer le rôle à un autre
+    // joueur — sinon plus personne ne peut lancer la partie ni piloter les
+    // bots, et la salle reste bloquée définitivement.
+    final currentHost = await _get('rooms/$roomId/hostId');
+    if (currentHost == uid) {
+      final playersData = await _get('rooms/$roomId/players');
+      if (playersData != null) {
+        final remaining = Map<String, dynamic>.from(playersData as Map).keys.toList();
+        if (remaining.isNotEmpty) {
+          // Préfère un humain (un bot ne peut pas cliquer "lancer la
+          // partie" ni piloter les autres bots) — ne prend un bot que s'il
+          // ne reste vraiment que ça.
+          final newHost = remaining.firstWhere((k) => !k.startsWith('bot_'),
+              orElse: () => remaining.first);
+          await _put('rooms/$roomId/hostId', newHost);
+        }
+      }
+    }
   }
 
   /// Récupère l'uid de l'hôte de la room
@@ -568,6 +587,14 @@ class FirebaseService {
   /// Écoute le statut de la room (lobby/playing/finished)
   Stream<String> watchStatus(String roomId) {
     return _poll('rooms/$roomId/status', (data) => data as String? ?? 'lobby');
+  }
+
+  /// Surveille l'hôte en continu — nécessaire pour que TOUS les clients
+  /// soient prévenus si l'hôte quitte et que le rôle est transféré (sinon
+  /// leur `hostId` local reste périmé et personne ne peut plus lancer la
+  /// partie ni piloter les bots).
+  Stream<String?> watchHostId(String roomId) {
+    return _poll('rooms/$roomId/hostId', (data) => data as String?);
   }
 
   Stream<Map<String, dynamic>?> watchResult(String roomId) {

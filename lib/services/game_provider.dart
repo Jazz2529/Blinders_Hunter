@@ -33,7 +33,7 @@ class GameProvider extends ChangeNotifier {
   List<String> log = [];
   List<String> privateLog = []; // logs visibles seulement par ce joueur
 
-  StreamSubscription? _gsSub, _pSub, _stSub, _rSub, _rcSub, _logSub, _privLogSub;
+  StreamSubscription? _gsSub, _pSub, _stSub, _rSub, _rcSub, _logSub, _privLogSub, _hostSub;
 
   // ─── Getters ────────────────────────────
   Player? get me => myUid != null ? players[myUid] : null;
@@ -517,7 +517,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   void _subscribe() {
-    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel();
+    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel();
     _pSub  = _fb.watchPlayers(roomId!).listen((d) { players = d; notifyListeners(); });
     _gsSub = _fb.watchGameState(roomId!).listen((d) { gameState = d; _maybeForceTurn(); _maybeDriveBot(); notifyListeners(); });
     _stSub = _fb.watchStatus(roomId!).listen((d) {
@@ -532,6 +532,11 @@ class GameProvider extends ChangeNotifier {
     _rSub  = _fb.watchResult(roomId!).listen((d) { gameResult = d; _recordMultiResult(d); notifyListeners(); });
     _rcSub = _fb.watchRoleConfirms(roomId!).listen((d) { roleConfirms = d; notifyListeners(); });
     _logSub = _fb.watchLog(roomId!).listen((d) { log = d; notifyListeners(); });
+    // Suivi en continu de l'hôte — si l'hôte quitte la salle, ce champ
+    // change côté Firebase (transfert automatique) ; sans cette écoute, les
+    // autres clients gardaient un hostId périmé et personne ne pouvait plus
+    // lancer la partie ni piloter les bots.
+    _hostSub = _fb.watchHostId(roomId!).listen((d) { if (d != null) hostId = d; notifyListeners(); });
     if (myUid != null) {
       _privLogSub = _fb.watchPrivateLog(roomId!, myUid!).listen((d) { privateLog = d; notifyListeners(); });
     }
@@ -539,7 +544,7 @@ class GameProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel();
+    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel();
     super.dispose();
   }
 
@@ -549,8 +554,8 @@ class GameProvider extends ChangeNotifier {
   Future<void> leaveRoomAndReset() async {
     Prefs.clearRoom();
     _resultRecorded = false;
-    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel();
-    _pSub = _gsSub = _stSub = _rSub = _rcSub = _logSub = _privLogSub = null;
+    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel();
+    _pSub = _gsSub = _stSub = _rSub = _rcSub = _logSub = _privLogSub = _hostSub = null;
     if (roomId != null) {
       try { await _fb.leaveRoom(roomId!); } catch (_) {}
     }
