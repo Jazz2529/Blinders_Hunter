@@ -3374,11 +3374,17 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
   Widget build(BuildContext ctx) {
     final p  = widget.player;
     final c  = p.character;
-    final fc = c != null ? factionColor(c.faction.name) : kGold;
-    final fb = c != null ? factionBg(c.faction.name) : kBg2;
-    final imgPath = c != null ? characterImagePath(c.id) : null;
-    final fLabel  = c?.faction.name == 'hunter' ? '🔵 HUNTER'
-        : c?.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE';
+    // Jason (Caméléon) : affiche le déguisement (Hunter/Shadow imité), pas sa
+    // vraie identité — sinon son mécanisme unique est visuellement ignoré
+    // lors de l'écran de révélation plein écran.
+    final displayChar = p.disguiseCharIdOverride != null
+        ? kAllCharacters.where((ch) => ch.id == p.disguiseCharIdOverride).firstOrNull ?? c
+        : c;
+    final fc = displayChar != null ? factionColor(displayChar.faction.name) : kGold;
+    final fb = displayChar != null ? factionBg(displayChar.faction.name) : kBg2;
+    final imgPath = displayChar != null ? characterImagePath(displayChar.id) : null;
+    final fLabel  = displayChar?.faction.name == 'hunter' ? '🔵 HUNTER'
+        : displayChar?.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE';
 
     return GestureDetector(
       onTap: widget.onDone,
@@ -3421,10 +3427,10 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
                                 ? Image.asset(imgPath, fit: BoxFit.cover,
                                     cacheWidth: 800, cacheHeight: 1200,
                                     errorBuilder: (_, __, ___) => Container(color: fb,
-                                      child: Center(child: Text(c?.icon ?? '?',
+                                      child: Center(child: Text(displayChar?.icon ?? '?',
                                         style: const TextStyle(fontSize: 72)))))
                                 : Container(color: fb,
-                                    child: Center(child: Text(c?.icon ?? '?',
+                                    child: Center(child: Text(displayChar?.icon ?? '?',
                                       style: const TextStyle(fontSize: 72)))))))),
                       // Infos
                       Padding(padding: const EdgeInsets.all(20),
@@ -3440,9 +3446,9 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: fc, width: 1.5)),
                           child: Text(fLabel, style: cinzel(14, c: fc, fw: FontWeight.w700))),
-                        if (c != null) ...[
+                        if (displayChar != null) ...[
                           const SizedBox(height: 8),
-                          Text('Il est ${c.name}',
+                          Text('Il est ${displayChar.name}',
                             style: cinzel(16, c: kGold2, fw: FontWeight.w700)),
                         ],
                         if (widget.isRealReveal && c != null) ...[
