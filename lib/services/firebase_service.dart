@@ -236,7 +236,11 @@ class FirebaseService {
   }
 
   /// Marque que le joueur courant a vu son rôle. Quand TOUS les joueurs
-  /// ont confirmé, passe la phase globale à `ability` (début de partie).
+  /// HUMAINS ont confirmé, passe la phase globale à `ability` (début de
+  /// partie) — les bots sont exclus de cette exigence : ils n'ont personne
+  /// pour cliquer "j'ai compris" à leur place, donc ce compte n'atteignait
+  /// jamais son total et la partie restait bloquée sur cet écran dès qu'un
+  /// bot était présent.
   Future<void> confirmRoleSeen(String roomId) async {
     final uid = currentUid!;
     await _put('rooms/$roomId/roleConfirms/$uid', true);
@@ -244,7 +248,8 @@ class FirebaseService {
     final playersData = await _get('rooms/$roomId/players');
     final confirmsData = await _get('rooms/$roomId/roleConfirms');
     final playerIds = playersData != null
-        ? Map<String, dynamic>.from(playersData as Map).keys.toSet()
+        ? Map<String, dynamic>.from(playersData as Map).keys
+            .where((k) => !k.startsWith('bot_')).toSet()
         : <String>{};
     final confirmedIds = confirmsData != null
         ? Map<String, dynamic>.from(confirmsData as Map).keys.toSet()
