@@ -542,7 +542,7 @@ class _GameScreenState extends State<GameScreen> {
       final revealQuoteUid = gs?.publicRevealUid;
       final revealTs = gs?.publicRevealTimestamp ?? 0;
       final revealFresh = revealQuoteUid != null &&
-          (DateTime.now().millisecondsSinceEpoch - revealTs) < 4000;
+          (DateTime.now().millisecondsSinceEpoch - revealTs) < 4500;
       final revealQuoteBanner = revealFresh
           ? _RevealQuoteBanner(
               key: ValueKey('reveal_${revealQuoteUid}_$revealTs'),
@@ -2439,35 +2439,94 @@ class _RevealQuoteBannerState extends State<_RevealQuoteBanner> {
     final p = widget.player;
     final c = p?.character;
     if (p == null || c == null) return const SizedBox.shrink();
+    // Jason (Caméléon) : affiche le déguisement (Hunter/Shadow imité), pas
+    // sa vraie identité, tant qu'il n'a pas été démasqué — même logique que
+    // le solo, sans quoi son mécanisme unique serait visuellement ignoré.
+    final displayChar = p.disguiseCharIdOverride != null
+        ? kAllCharacters.where((ch) => ch.id == p.disguiseCharIdOverride).firstOrNull ?? c
+        : c;
     final quoteId = p.disguiseCharIdOverride ?? c.id;
-    final shownCharName = p.disguiseNameOverride ?? c.name;
-    final fc = factionColor(p.disguiseFactionOverride ?? c.faction.name);
-    return Positioned(
-      top: 90, left: 16, right: 16,
+    final fc = factionColor(displayChar.faction.name);
+    final fb = factionBg(displayChar.faction.name);
+    final imgPath = characterImagePath(displayChar.id);
+    final fLabel = displayChar.faction.name == 'hunter' ? '🔵 HUNTER'
+        : displayChar.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE';
+
+    return Positioned.fill(
       child: IgnorePointer(
-        child: Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: kBg2.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: fc, width: 1.5),
-              boxShadow: [BoxShadow(color: fc.withValues(alpha: 0.4), blurRadius: 14)],
+        child: Container(
+          color: Colors.black87,
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 420),
+              margin: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: kBg2,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: fc, width: 3),
+                boxShadow: [
+                  BoxShadow(color: fc.withValues(alpha: 0.7), blurRadius: 50),
+                  BoxShadow(color: fc.withValues(alpha: 0.3), blurRadius: 100),
+                ],
+              ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: SizedBox(height: 260,
+                      child: AspectRatio(aspectRatio: 2 / 3,
+                        child: imgPath != null
+                          ? Image.asset(imgPath, fit: BoxFit.cover,
+                              cacheWidth: 700, cacheHeight: 1050,
+                              errorBuilder: (_, __, ___) => Container(color: fb,
+                                child: Center(child: Text(displayChar.icon,
+                                  style: const TextStyle(fontSize: 64)))))
+                          : Container(color: fb,
+                              child: Center(child: Text(displayChar.icon,
+                                style: const TextStyle(fontSize: 64)))))))),
+                Padding(padding: const EdgeInsets.all(20),
+                  child: Column(children: [
+                    Text('${p.name} s\'est révélé !',
+                      style: cinzel(20, c: fc, fw: FontWeight.w900),
+                      textAlign: TextAlign.center),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: fc.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: fc, width: 1.5)),
+                      child: Text(fLabel, style: cinzel(13, c: fc, fw: FontWeight.w700))),
+                    const SizedBox(height: 8),
+                    Text('Il est ${displayChar.name}',
+                      style: cinzel(15, c: kGold2, fw: FontWeight.w700)),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: kBg3, borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: fc.withValues(alpha: 0.4))),
+                      child: Text('« ${revealQuoteFor(quoteId)} »',
+                        style: body(12, c: kTextSub, fw: FontWeight.w600),
+                        textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ),
+                    if (_interaction != null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: kGold.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: kGold.withValues(alpha: 0.5))),
+                        child: Text('💬 ${_interaction!.text}',
+                          style: body(12, c: kGold2, fw: FontWeight.w600),
+                          textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  ]),
+                ),
+              ]),
             ),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Text('🃏 ${p.name} se révèle : $shownCharName',
-                style: cinzel(12, c: fc, fw: FontWeight.w900), textAlign: TextAlign.center),
-              const SizedBox(height: 4),
-              Text('« ${revealQuoteFor(quoteId)} »',
-                style: body(11, c: kTextSub, fw: FontWeight.w600),
-                textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
-              if (_interaction != null) ...[
-                const SizedBox(height: 6),
-                Text('💬 ${_interaction!.text}',
-                  style: body(11, c: kGold, fw: FontWeight.w600),
-                  textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
-              ],
-            ]),
           ),
         ),
       ),
