@@ -743,7 +743,13 @@ class GameEngine with AbilityEngine {
       case 'vision_neutral_heal_or_dmg':
         return _visionHealOrDmg(actor, target, target.character!.faction == Faction.neutral);
       case 'vision_show_card':
-        // L'UI affiche la carte de `target` UNIQUEMENT à `actor` via cette clé.
+        // L'UI affiche la carte de `target` UNIQUEMENT à `actor` via cette clé
+        // (popup temporaire), ET on mémorise la connaissance de façon
+        // PERMANENTE — sans ça, l'acteur ne pouvait plus jamais reconsulter
+        // la fiche complète de la cible en cliquant sur son jeton plus tard.
+        if (!target.privatelyKnownBy.contains(actor.uid)) {
+          target.privatelyKnownBy.add(actor.uid);
+        }
         return {'log': '🔮 ${actor.name} découvre secrètement l\'identité de ${target.name}',
           'needsTarget': false, 'privateRevealUid': target.uid};
       case 'vision_punish_neutral_shadow':
@@ -1185,6 +1191,20 @@ class GameEngine with AbilityEngine {
         if (victim.character!.hp >= 13 && victim.killedByUid != null) {
           final killer = players.firstWhere((p) => p.uid == victim.killedByUid);
           if (killer.character!.winEffect == 'kill_hp13plus' && killer.alive) {
+            // Si ce kill élimine AUSSI le dernier membre d'une faction, la
+            // faction gagnante partage la victoire avec Mango (même coup) —
+            // même logique que Tommy juste au-dessus.
+            final ids = <String>{killer.uid};
+            if (victim.character!.faction == Faction.hunter && hunters.isEmpty) {
+              ids.addAll(shadows.map((s2) => s2.uid));
+              return {'winnerIds': ids.toList(),
+                'reason': '🥭 ${killer.name} élimine ${victim.name} (13+ PV) — les Shadows gagnent aussi !'};
+            }
+            if (victim.character!.faction == Faction.shadow && shadows.isEmpty) {
+              ids.addAll(hunters.map((h2) => h2.uid));
+              return {'winnerIds': ids.toList(),
+                'reason': '🥭 ${killer.name} élimine ${victim.name} (13+ PV) — les Hunters gagnent aussi !'};
+            }
             return {'winnerIds': [killer.uid], 'reason': '🥭 ${killer.name} élimine ${victim.name} (13+ PV) — Victoire !'};
           }
         }

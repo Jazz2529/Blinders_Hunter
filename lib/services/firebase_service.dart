@@ -37,7 +37,7 @@ class FirebaseService {
     final prefs = await SharedPreferences.getInstance();
     var uid = prefs.getString('bh_local_uid');
     if (uid == null) {
-      uid = 'u${_rng.nextInt(1 << 32)}_${DateTime.now().millisecondsSinceEpoch}';
+      uid = 'u${_rng.nextInt(0x7FFFFFFF)}_${DateTime.now().millisecondsSinceEpoch}';
       await prefs.setString('bh_local_uid', uid);
     }
     _uid = uid;
@@ -48,7 +48,7 @@ class FirebaseService {
   /// depuis le même PC en lançant plusieurs fenêtres de l'app).
   Future<String> newIdentity() async {
     final prefs = await SharedPreferences.getInstance();
-    final uid = 'u${_rng.nextInt(1 << 32)}_${DateTime.now().millisecondsSinceEpoch}';
+    final uid = 'u${_rng.nextInt(0x7FFFFFFF)}_${DateTime.now().millisecondsSinceEpoch}';
     await prefs.setString('bh_local_uid', uid);
     _uid = uid;
     return uid;

@@ -188,6 +188,7 @@ class Player {
   bool attackedLastOwnTurn = true; // Fifi Été / Theo : a attaqué lors de SON PROPRE tour précédent (true par défaut — pas de malus au tout premier tour)
   List<String> remiEquipmentChoices; // Rémi : les 2 effets choisis pour son équipement personnalisé
   bool forcedToAttackNextTurn = false; // Rémi (effet "oblige à attaquer") : doit attaquer quelqu'un à son prochain tour
+  List<String> privatelyKnownBy; // uids des joueurs qui connaissent secrètement l'identité de CE joueur (Vision Suprême) — reveal permanent, mais visible seulement d'eux
   bool marinDagueVoicePlayed = false; // Marin : voice line dague déjà jouée cette partie (une seule fois)
   int damageTakenThisTurn; // remis à 0 au début de CHAQUE tour (Jason: perd son déguisement à 5+)
   List<GameCard> equipment;
@@ -251,11 +252,13 @@ class Player {
     this.felipeOnBorrowedTime = false,
     this.attackedLastOwnTurn = true,
     List<String>? remiEquipmentChoices,
+    List<String>? privatelyKnownBy,
     this.marinDagueVoicePlayed = false,
     this.forcedToAttackNextTurn = false,
     List<GameCard>? equipment,
   }) : equipment = equipment ?? [],
-       remiEquipmentChoices = remiEquipmentChoices ?? [];
+       remiEquipmentChoices = remiEquipmentChoices ?? [],
+       privatelyKnownBy = privatelyKnownBy ?? [];
 
   bool get isBot => uid.startsWith('bot_');
 
@@ -296,6 +299,7 @@ class Player {
     'felipeOnBorrowedTime': felipeOnBorrowedTime,
     'attackedLastOwnTurn': attackedLastOwnTurn,
     'remiEquipmentChoices': remiEquipmentChoices,
+    'privatelyKnownBy': privatelyKnownBy,
     'forcedToAttackNextTurn': forcedToAttackNextTurn,
     'marinDagueVoicePlayed': marinDagueVoicePlayed,
     'equipment': equipment.map((e) => e.toJson()).toList(),
@@ -362,6 +366,7 @@ class Player {
     felipeOnBorrowedTime: (j['felipeOnBorrowedTime'] as bool?) ?? false,
     attackedLastOwnTurn: (j['attackedLastOwnTurn'] as bool?) ?? true,
     remiEquipmentChoices: (j['remiEquipmentChoices'] as List?)?.map((e) => e as String).toList() ?? [],
+    privatelyKnownBy: (j['privatelyKnownBy'] as List?)?.map((e) => e as String).toList() ?? [],
     forcedToAttackNextTurn: (j['forcedToAttackNextTurn'] as bool?) ?? false,
     marinDagueVoicePlayed: (j['marinDagueVoicePlayed'] as bool?) ?? false,
     equipment: ((j['equipment'] as List?) ?? [])

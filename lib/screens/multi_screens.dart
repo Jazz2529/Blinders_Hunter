@@ -339,12 +339,25 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext ctx) => PopScope(
-    canPop: true,
-    onPopInvoked: (didPop) {
-      if (didPop) {
-        audio.stopAllSfx();
-        audio.stopMusic();
-      }
+    canPop: false,
+    onPopInvoked: (didPop) async {
+      if (didPop) return;
+      final confirmed = await showDialog<bool>(
+        context: ctx,
+        builder: (dctx) => AlertDialog(
+          backgroundColor: kBg2,
+          title: Text('Quitter la partie ?', style: cinzel(16, c: kGold2)),
+          content: Text('Tu vas retourner au menu principal et quitter cette partie multijoueur.',
+            style: body(13)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dctx, false),
+              child: Text('Annuler', style: cinzel(12, c: kTextSub))),
+            TextButton(onPressed: () => Navigator.pop(dctx, true),
+              child: Text('Quitter', style: cinzel(12, c: kRed))),
+          ],
+        ),
+      );
+      if (confirmed == true && ctx.mounted) Navigator.of(ctx).pop();
     },
     child: Consumer<GameProvider>(
     builder:(_, gp, __) {
@@ -860,9 +873,13 @@ class _PlayerRow extends StatelessWidget {
 
   Future<void> _showCard(BuildContext ctx) {
     final c = p.character;
+    // Vision Suprême : connaissance privée permanente — le joueur qui a
+    // découvert secrètement cette identité peut la reconsulter à tout
+    // moment ensuite, comme s'il était révélé, mais seulement pour lui.
+    final knowsPrivately = gp.myUid != null && p.privatelyKnownBy.contains(gp.myUid);
     // Un joueur MORT révèle toujours son vrai rôle en cliquant sur son
     // jeton — même s'il n'avait jamais été révélé de son vivant.
-    if ((!p.revealed && p.alive) || c == null) {
+    if ((!p.revealed && p.alive && !knowsPrivately) || c == null) {
       // Pas révélé (et encore en vie) : carte "mystère".
       return showMysteryCardDialog(ctx, p);
     }
@@ -1798,6 +1815,18 @@ class _ActionPanelState extends State<_ActionPanel> {
       final d4 = (atk / 2).ceil().clamp(0, 4).toInt();
       final d6 = (atk - d4).clamp(0, 6).toInt();
       setState(() { _atkD4 = d4; _atkD6 = d6; _atkDmg = atk; _atkTargetId = targetId; });
+    } else if (hasHache && eff == 'double_attack_if_tanky' && target?.character != null && target!.revealed && target.character!.hp >= 13) {
+      // 🥭 Mango Loco + Sabre Hanté Masamune : cible costaude → double
+      // lancer même en D4 forcé, dégâts additionnés (même règle que pour
+      // une attaque normale — le Sabre ne doit pas faire perdre ce passif).
+      final r1 = GameEngine.instance.rollHacheAttack();
+      final r2 = GameEngine.instance.rollHacheAttack();
+      setState(() {
+        _atkD4 = r1['d4']!; _atkD6 = 0;
+        _atkD4b = r2['d4']!; _atkD6b = 0;
+        _atkDmg = r1['damage']! + r2['damage']!;
+        _atkTargetId = targetId;
+      });
     } else if (hasHache) {
       // Sabre Hanté : D4 seulement
       final r = GameEngine.instance.rollHacheAttack();

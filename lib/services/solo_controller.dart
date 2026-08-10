@@ -1919,7 +1919,8 @@ class SoloController extends ChangeNotifier {
       _log(res['log'] as String, cls: 'player');
       if (res['diceResult'] != null) {
         final dr = res['diceResult'] as Map<String, dynamic>;
-        state!.abilityDiceResult = {'d4': dr['d4'] as int? ?? 0, 'd6': dr['d6'] as int? ?? 0, 'sum': dr['sum'] as int? ?? 0};
+        final d4x = dr['d4'] as int? ?? 0; final d6x = dr['d6'] as int? ?? 0; final sumx = dr['sum'] as int? ?? 0;
+        state!.abilityDiceResult = {'d4val': d4x, 'd6val': d6x, 'result': sumx, 'sum': sumx, 'dmg': sumx};
       }
       state!.pendingCard = null;
       humanApplyTerrainEffect(nextPhaseIfDefault: GamePhase.attack);
@@ -1935,8 +1936,9 @@ class SoloController extends ChangeNotifier {
       final sumv = dr['sum'] as int? ?? 0;
       // Format attendu par _AbilityDiceRoll
       if (d4v > 0 && d6v > 0) {
-        // Dynamite et similaires : D4 + D6
-        state!.abilityDiceResult = {'d4val': d4v, 'd6val': d6v, 'sum': sumv, 'dmg': sumv};
+        // Dynamite et similaires : D4 + D6 — le widget lit la clé 'result'
+        // (pas 'sum') pour afficher le total, sans ça il affichait "=0".
+        state!.abilityDiceResult = {'d4val': d4v, 'd6val': d6v, 'result': sumv, 'sum': sumv, 'dmg': sumv};
       } else {
         // Banane Démoniaque : D6 seul
         state!.abilityDiceResult = {'d': 6, 'result': d6v, 'dmg': d6v};
@@ -2025,7 +2027,7 @@ class SoloController extends ChangeNotifier {
         _log(res['log'] as String, cls: 'player');
         // Afficher le popup de dés
         final dr = res['diceResult'] as Map<String, dynamic>;
-        state!.abilityDiceResult = {'d4val': dr['d4'] as int, 'd6val': dr['d6'] as int, 'sum': dr['sum'] as int, 'dmg': dr['sum'] as int};
+        state!.abilityDiceResult = {'d4val': dr['d4'] as int, 'd6val': dr['d6'] as int, 'result': dr['sum'] as int, 'sum': dr['sum'] as int, 'dmg': dr['sum'] as int};
         state!.forcedAttackerUid = null;
         state!.pendingTargetAction = null;
         state!.phase = GamePhase.attack;

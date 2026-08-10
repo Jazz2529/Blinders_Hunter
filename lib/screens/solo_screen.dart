@@ -361,15 +361,32 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
 
   @override
   Widget build(BuildContext ctx) => PopScope(
-    canPop: true,
-    onPopInvoked: (didPop) {
-      // Le bouton retour automatique de l'AppBar (ou le geste retour du
-      // téléphone) ne passait par aucun nettoyage — sons ET musique de la
-      // partie en cours continuaient de jouer en fond après être revenu au
-      // menu (stopAllSfx() seul ne suffisait pas, la musique est séparée).
-      if (didPop) {
+    canPop: false,
+    onPopInvoked: (didPop) async {
+      if (didPop) return;
+      final confirmed = await showDialog<bool>(
+        context: ctx,
+        builder: (dctx) => AlertDialog(
+          backgroundColor: kBg2,
+          title: Text('Quitter la partie ?', style: cinzel(16, c: kGold2)),
+          content: Text('Tu vas retourner au menu principal. La partie en cours sera perdue.',
+            style: body(13)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dctx, false),
+              child: Text('Annuler', style: cinzel(12, c: kTextSub))),
+            TextButton(onPressed: () => Navigator.pop(dctx, true),
+              child: Text('Quitter', style: cinzel(12, c: kRed))),
+          ],
+        ),
+      );
+      if (confirmed == true) {
+        // Le bouton retour automatique de l'AppBar (ou le geste retour du
+        // téléphone) ne passait par aucun nettoyage — sons ET musique de la
+        // partie en cours continuaient de jouer en fond après être revenu au
+        // menu (stopAllSfx() seul ne suffisait pas, la musique est séparée).
         audio.stopAllSfx();
         audio.stopMusic();
+        if (ctx.mounted) Navigator.of(ctx).pop();
       }
     },
     child: Consumer<SoloController>(
@@ -1763,10 +1780,15 @@ class _HpLeaderboard extends StatelessWidget {
   void _showOpponentCard(BuildContext ctx, Player p) {
     final c = p.character;
     final isNils = (p.copiedEffect ?? c?.abilityEffect) == 'store_damage_nils';
+    // Vision Suprême : connaissance privée permanente — le joueur qui a
+    // découvert secrètement cette identité peut la reconsulter à tout
+    // moment ensuite, comme s'il était révélé, mais seulement pour lui.
+    final myUid = ctrl.state?.players.where((pp) => !pp.isBot).firstOrNull?.uid;
+    final knowsPrivately = myUid != null && p.privatelyKnownBy.contains(myUid);
     // Un joueur MORT révèle toujours son vrai rôle en cliquant sur son
     // jeton — même s'il n'avait jamais été révélé de son vivant (convention
     // "les cartes se retournent à la mort", comme sur un vrai plateau).
-    if ((p.revealed || !p.alive) && c != null) {
+    if ((p.revealed || !p.alive || knowsPrivately) && c != null) {
       showFullCardDialog(ctx, c, hpOverride: c.hp + p.maxHpModifier).then((_) {
         if ((p.equipment.isNotEmpty || isNils) && ctx.mounted) _showEquipmentForSolo(ctx, p);
       });
@@ -3227,6 +3249,24 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
   }
 
   void _startHacheAtk(String targetId) {
+    final s = ctrl.state!;
+    final me = s.current;
+    final eff = me.copiedEffect ?? me.character?.abilityEffect;
+    final target = s.players.where((p) => p.uid == targetId).firstOrNull;
+    if (eff == 'double_attack_if_tanky' && target != null && target.revealed && target.character!.hp >= 13) {
+      // 🥭 Mango Loco + Sabre Hanté Masamune : cible costaude → double
+      // lancer même en D4 forcé, dégâts additionnés (même règle que pour
+      // une attaque normale — le Sabre ne doit pas faire perdre ce passif).
+      final r1 = ctrl.rollHacheAttack();
+      final r2 = ctrl.rollHacheAttack();
+      setState(() {
+        _atkD4 = r1['d4']!; _atkD6 = 0;
+        _atkD4b = r2['d4']!; _atkD6b = 0;
+        _atkDmg = (r1['damage'] as int) + (r2['damage'] as int);
+        _atkTarget = targetId;
+      });
+      return;
+    }
     final r = ctrl.rollHacheAttack(); // d4 seulement
     setState(() {
       _atkD4 = r['d4']!; _atkD6 = 0; _atkDmg = r['damage']; _atkTarget = targetId;
@@ -3610,7 +3650,7 @@ class _AbilityDiceRollState extends State<_AbilityDiceRoll>
         if (_revealed) ...[
           Text(
             isBombe
-              ? 'Zone $result — 2 blessures'
+              ? 'Résultat : $result'
               : dmg > 0
                 ? '$dmg blessure${dmg > 1 ? "s" : ""}'
                 : 'Soigne ${ -dmg } blessure${ -dmg > 1 ? "s" : "" }',
