@@ -159,7 +159,7 @@ class TerrainTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(terrain.name,
+                    Text(terrain.desc,
                       style: const TextStyle(
                         fontFamily: 'Cinzel', fontSize: 6.5,
                         color: Color(0xFFF0C040), fontWeight: FontWeight.w700,
