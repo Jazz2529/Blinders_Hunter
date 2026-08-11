@@ -58,15 +58,24 @@ const List<CosmeticItem> kCosmeticsCatalog = [
   // ── Terrains (targetId = effect du terrain, même convention que
   // terrainImagePath() déjà utilisée dans le jeu : 'vision', 'lumiere',
   // 'tenebres', 'choice', 'damage9', 'steal') ──────────────────────────
-  CosmeticItem(id: 'terrain_vision_night', name: 'Bibliothèque — Nuit Étoilée',
+  CosmeticItem(id: 'terrain_vision_grotte', name: 'Grotte',
     category: CosmeticCategory.terrain, targetId: 'vision', cost: 250,
-    imagePath: 'assets/images/terrains_skins/vision_night.png'),
-  CosmeticItem(id: 'terrain_lumiere_gold', name: 'Salle de Bain — Marbre Doré',
+    imagePath: 'assets/images/terrains_skins/grotte23.png'),
+  CosmeticItem(id: 'terrain_lumiere_eglise', name: 'Chapelle',
     category: CosmeticCategory.terrain, targetId: 'lumiere', cost: 250,
-    imagePath: 'assets/images/terrains_skins/lumiere_gold.png'),
-  CosmeticItem(id: 'terrain_steal_royal', name: 'Chambre — Suite Royale',
+    imagePath: 'assets/images/terrains_skins/chapelle6.png'),
+  CosmeticItem(id: 'terrain_steal_armurerie', name: 'Armurerie',
     category: CosmeticCategory.terrain, targetId: 'steal', cost: 250,
-    imagePath: 'assets/images/terrains_skins/steal_royal.png'),
+    imagePath: 'assets/images/terrains_skins/armurerie10.png'),
+     CosmeticItem(id: 'terrain_5_marche', name: 'Marché',
+    category: CosmeticCategory.terrain, targetId: 'choice', cost: 250,
+    imagePath: 'assets/images/terrains_skins/marche45.png'),
+  CosmeticItem(id: 'terrain_tenebre_enfer', name: 'Enfer',
+    category: CosmeticCategory.terrain, targetId: 'tenebre', cost: 250,
+    imagePath: 'assets/images/terrains_skins/enfer8.png'),
+  CosmeticItem(id: 'terrain_9_apothicaire', name: 'Apothicaire',
+    category: CosmeticCategory.terrain, targetId: 'damage9', cost: 250,
+    imagePath: 'assets/images/terrains_skins/apothicaire9.png'),
 ];
 
 List<CosmeticItem> cosmeticsFor(CosmeticCategory cat, String targetId) =>
