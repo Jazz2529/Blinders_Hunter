@@ -33,10 +33,8 @@ const List<TokenData> kAllTokens = [
   TokenData(id:'emilien',  name:'Emilien',  imagePath:'assets/images/tokens/jeton11.png', fallbackEmoji:'🟡'),
   TokenData(id:'felipe',   name:'Felipe',   imagePath:'assets/images/tokens/jeton4.png',  fallbackEmoji:'🟡'),
   TokenData(id:'elaia',    name:'Elaia',    imagePath:'assets/images/tokens/jeton22.png', fallbackEmoji:'🔴'),
-  TokenData(id:'toph',     name:'Toph',     imagePath:'assets/images/tokens/jeton19.png', fallbackEmoji:'🦀'),
-  TokenData(id:'bingbong', name:'Bingbong', imagePath:'assets/images/tokens/jeton17.png', fallbackEmoji:'⚪'),
-  TokenData(id:'conan',    name:'Conan',    imagePath:'assets/images/tokens/jeton18.png', fallbackEmoji:'🔍'),
-  TokenData(id:'flott',    name:'Flott',    imagePath:'assets/images/tokens/jeton20.png', fallbackEmoji:'🏄'),
+  // toph, bingbong, conan, flott : déplacés en boutique (cosmétiques
+  // déblocables) — voir cosmetics_data.dart.
 ];
 
 TokenData? findToken(String id) {

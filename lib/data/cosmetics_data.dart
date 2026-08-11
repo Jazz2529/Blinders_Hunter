@@ -60,6 +60,18 @@ const List<CosmeticItem> kCosmeticsCatalog = [
   CosmeticItem(id: 'token_Manabu', name: 'Manabu',
     category: CosmeticCategory.token, cost: 80, fallbackEmoji: '🔴',
     imagePath: 'assets/images/tokens_skins/manabu.png'),
+    CosmeticItem(id: 'token_toph', name: 'Toph',
+    category: CosmeticCategory.token, cost: 60, fallbackEmoji: '🦀',
+    imagePath: 'assets/images/tokens/jeton19.png'),
+  CosmeticItem(id: 'token_bingbong', name: 'Bingbong',
+    category: CosmeticCategory.token, cost: 80, fallbackEmoji: '⚪',
+    imagePath: 'assets/images/tokens/jeton17.png'),
+  CosmeticItem(id: 'token_conan', name: 'Conan',
+    category: CosmeticCategory.token, cost: 80, fallbackEmoji: '🔍',
+    imagePath: 'assets/images/tokens/jeton18.png'),
+  CosmeticItem(id: 'token_flott', name: 'Flott',
+    category: CosmeticCategory.token, cost: 80, fallbackEmoji: '🏄',
+    imagePath: 'assets/images/tokens/jeton20.png'),
 
   // ── Terrains (targetId = effect du terrain, même convention que
   // terrainImagePath() déjà utilisée dans le jeu : 'vision', 'lumiere',
