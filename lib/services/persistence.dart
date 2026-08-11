@@ -95,5 +95,75 @@ class Prefs {
     // Garder les 200 dernières parties
     if (h.length > 200) h.removeRange(200, h.length);
     _sp?.setString('game_history', jsonEncode(h));
+    // Compteur séparé, JAMAIS purgé (contrairement à l'historique détaillé
+    // limité à 200 entrées) — nécessaire pour les effets brillants qui se
+    // basent sur le nombre TOTAL de parties, même après des centaines.
+    _incrementGamesPlayed(character);
+    // Récompense en or à chaque fin de partie — un seul point d'entrée,
+    // partagé par le solo ET le multijoueur, puisque addGame() est déjà
+    // appelée de façon fiable des deux côtés.
+    addGold(win ? 50 : 10);
+  }
+
+  /// Nombre de parties jouées avec un personnage donné (toutes confondues,
+  /// pas seulement les 200 dernières conservées dans l'historique détaillé —
+  /// compteur séparé, incrémenté à chaque partie, qui ne s'efface jamais).
+  static int gamesPlayedWith(String characterName) {
+    return _sp?.getInt('games_played_$characterName') ?? 0;
+  }
+
+  static void _incrementGamesPlayed(String characterName) {
+    final current = gamesPlayedWith(characterName);
+    _sp?.setInt('games_played_$characterName', current + 1);
+  }
+
+  // ── Or (monnaie de la boutique) ────────────────────────────────────────
+  static int gold() => _sp?.getInt('gold') ?? 0;
+
+  static void addGold(int amount) {
+    _sp?.setInt('gold', gold() + amount);
+  }
+
+  /// Retire de l'or si le solde est suffisant ; renvoie false sinon (achat
+  /// refusé, aucun changement).
+  static bool spendGold(int amount) {
+    final current = gold();
+    if (current < amount) return false;
+    _sp?.setInt('gold', current - amount);
+    return true;
+  }
+
+  // ── Cosmétiques (boutique) ─────────────────────────────────────────────
+  /// Identifiants des cosmétiques possédés (achetés).
+  static Set<String> ownedCosmetics() =>
+      (_sp?.getStringList('cosmetics_owned') ?? const []).toSet();
+
+  static void unlockCosmetic(String cosmeticId) {
+    final owned = ownedCosmetics();
+    owned.add(cosmeticId);
+    _sp?.setStringList('cosmetics_owned', owned.toList());
+  }
+
+  /// Cosmétique actuellement équipé par catégorie+cible, ex :
+  /// 'character:albane' → 'albane_winter' (id du cosmétique).
+  /// Absence d'entrée = illustration de base utilisée.
+  static Map<String, String> equippedCosmetics() {
+    final raw = _sp?.getString('cosmetics_equipped');
+    if (raw == null) return {};
+    try {
+      return Map<String, String>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static void equipCosmetic(String slotKey, String? cosmeticId) {
+    final eq = equippedCosmetics();
+    if (cosmeticId == null) {
+      eq.remove(slotKey); // remet l'illustration de base
+    } else {
+      eq[slotKey] = cosmeticId;
+    }
+    _sp?.setString('cosmetics_equipped', jsonEncode(eq));
   }
 }

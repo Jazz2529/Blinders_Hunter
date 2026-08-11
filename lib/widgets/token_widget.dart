@@ -60,7 +60,7 @@ class TokenWidget extends StatelessWidget {
             opacity: isDead ? 0.35 : 1.0,
             child: ClipOval(
               child: Image.asset(
-                token.imagePath,
+                effectiveTokenImagePath(tokenId),
                 width: size,
                 height: size,
                 fit: BoxFit.cover,
@@ -141,7 +141,7 @@ class TokenPicker extends StatelessWidget {
               ),
               child: ClipOval(
                 child: Image.asset(
-                  token.imagePath,
+                  effectiveTokenImagePath(token.id),
                   fit: BoxFit.cover,
                   cacheWidth: 114, // 38 * 3 — voir TokenWidget pour l'explication
                   cacheHeight: 114,

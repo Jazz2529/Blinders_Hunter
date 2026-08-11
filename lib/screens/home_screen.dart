@@ -7,6 +7,7 @@ import '../services/persistence.dart';
 import 'rules_screen.dart';
 import 'stats_screen.dart';
 import 'gallery_screen.dart';
+import 'shop_screen.dart';
 import '../services/audio_service.dart';
 import '../widgets/theme.dart';
 import '../widgets/token_widget.dart';
@@ -52,9 +53,19 @@ class _HomeScreenState extends State<HomeScreen>
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
         child: Column(children: [
           const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.topRight,
-            child: GestureDetector(
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            GestureDetector(
+              onTap: () => Navigator.push(ctx,
+                MaterialPageRoute(builder: (_) => const ShopScreen())),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: kBg2, borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: kGold.withValues(alpha: 0.5))),
+                child: Text('${Prefs.gold()} 🪙', style: cinzel(13, c: kGold, fw: FontWeight.w900)),
+              ),
+            ),
+            GestureDetector(
               onTap: () => _showSettings(context),
               child: Container(
                 padding: const EdgeInsets.all(8),
@@ -64,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen>
                 child: const Icon(Icons.settings, color: kGold, size: 20),
               ),
             ),
-          ),
+          ]),
           const SizedBox(height: 16),
 
           // Logo animé
@@ -182,6 +193,10 @@ class _HomeScreenState extends State<HomeScreen>
           BHButton(label: '📚 Catalogue (personnages & cartes)', outlined: true,
             onTap: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const CardCatalogScreen()))),
+          const SizedBox(height: 10),
+          BHButton(label: '🛒 Boutique', outlined: true,
+            onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const ShopScreen()))),
           const SizedBox(height: 10),
           TextButton(
             onPressed: _newIdentity,

@@ -2,6 +2,9 @@
 // Données des jetons joueurs — 19 jetons PNG
 // IDs = noms (en minuscules)
 
+import '../services/persistence.dart';
+import 'cosmetics_data.dart';
+
 class TokenData {
   final String id;
   final String name;
@@ -38,4 +41,15 @@ const List<TokenData> kAllTokens = [
 
 TokenData? findToken(String id) {
   try { return kAllTokens.firstWhere((t) => t.id == id); } catch (_) { return null; }
+}
+
+/// Illustration effective d'un jeton — prend en compte le cosmétique équipé
+/// (boutique) s'il y en a un, sinon retombe sur l'image de base.
+String effectiveTokenImagePath(String tokenId) {
+  final equipped = Prefs.equippedCosmetics()['token:$tokenId'];
+  if (equipped != null) {
+    final item = kCosmeticsCatalog.where((c) => c.id == equipped).firstOrNull;
+    if (item != null) return item.imagePath;
+  }
+  return findToken(tokenId)?.imagePath ?? '';
 }

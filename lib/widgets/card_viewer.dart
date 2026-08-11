@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'theme.dart';
 import '../models/models.dart';
 import '../data/characters_data.dart';
+import '../services/persistence.dart';
+import 'shine_effect.dart';
 
 /// ─── Visionneuse de carte ────────────────────────────────────────────────────
 /// Illustration ENTIÈRE (1024×1536, ratio 2:3) à gauche, et à droite le
@@ -270,7 +272,8 @@ class _CardImage extends StatelessWidget {
   Widget build(BuildContext ctx) {
     final fc = factionColor(c.faction.name);
     final fbg = factionBg(c.faction.name);
-    final imgPath = characterImagePath(c.id);
+    final imgPath = effectiveCharacterImagePath(c.id);
+    final tier = shineTierFor(Prefs.gamesPlayedWith(c.name));
     return Container(
       width: w, height: h,
       decoration: BoxDecoration(
@@ -280,19 +283,22 @@ class _CardImage extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(w * 0.045),
-        child: imgPath != null
-            ? Image.asset(imgPath, fit: BoxFit.contain,
-                // Limite la résolution de décodage à ~2x la taille affichée
-                // — sans ça, une image source haute résolution peut faire
-                // échouer le chargement sur un appareil à RAM limitée.
-                cacheWidth: (w * 2).round(),
-                cacheHeight: (h * 2).round(),
-                errorBuilder: (_, __, ___) => Container(color: fbg,
-                    child: Center(child: Text(c.icon,
-                        style: const TextStyle(fontSize: 84)))))
-            : Container(color: fbg,
-                child: Center(child: Text(c.icon,
-                    style: const TextStyle(fontSize: 84)))),
+        child: ShineOverlay(
+          tier: tier,
+          child: imgPath != null
+              ? Image.asset(imgPath, fit: BoxFit.contain,
+                  // Limite la résolution de décodage à ~2x la taille affichée
+                  // — sans ça, une image source haute résolution peut faire
+                  // échouer le chargement sur un appareil à RAM limitée.
+                  cacheWidth: (w * 2).round(),
+                  cacheHeight: (h * 2).round(),
+                  errorBuilder: (_, __, ___) => Container(color: fbg,
+                      child: Center(child: Text(c.icon,
+                          style: const TextStyle(fontSize: 84)))))
+              : Container(color: fbg,
+                  child: Center(child: Text(c.icon,
+                      style: const TextStyle(fontSize: 84)))),
+        ),
       ),
     );
   }

@@ -6,6 +6,8 @@ import '../data/game_data.dart';
 import '../data/characters_data.dart';
 import '../models/models.dart';
 import '../widgets/theme.dart';
+import '../widgets/shine_effect.dart';
+import '../services/persistence.dart';
 import '../widgets/card_viewer.dart';
 
 // ═══════════════════════════════════════════════════════════
@@ -321,7 +323,7 @@ class _CharacterCard extends StatelessWidget {
     final c = char;
     final fc = factionColor(c.faction.name);
     final fbg = factionBg(c.faction.name);
-    final imgPath = characterImagePath(c.id);
+    final imgPath = effectiveCharacterImagePath(c.id);
 
     return GestureDetector(
       // Affiche la carte en plein écran pour l'admirer — un nouveau clic
@@ -344,7 +346,9 @@ class _CharacterCard extends StatelessWidget {
             flex: 6,
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              child: imgPath != null
+              child: ShineOverlay(
+                tier: shineTierFor(Prefs.gamesPlayedWith(c.name)),
+                child: imgPath != null
                 ? Image.asset(imgPath, fit: BoxFit.contain, width: double.infinity,
                     // Limite la résolution de décodage — une grille peut
                     // afficher jusqu'à 40 personnages en même temps, décoder
@@ -353,6 +357,7 @@ class _CharacterCard extends StatelessWidget {
                     cacheWidth: 320,
                     errorBuilder: (_, __, ___) => _fallback(fc, fbg, c.icon))
                 : _fallback(fc, fbg, c.icon),
+              ),
             ),
           ),
           // Infos

@@ -279,7 +279,7 @@ class _TerrainImg extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final path = terrainImagePath(effect);
+    final path = effectiveTerrainImagePath(effect);
     if (path == null) return _fallback(effect);
     return Image.asset(path, fit: BoxFit.contain,
       cacheWidth: 500,

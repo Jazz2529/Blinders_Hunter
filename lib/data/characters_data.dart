@@ -1,6 +1,9 @@
 // lib/data/characters_data.dart
 // Mapping character id → image illustration
 
+import '../services/persistence.dart';
+import 'cosmetics_data.dart';
+
 const Map<String, String> kRevealQuotes = {
  
   'albane': "[Your time ends now]",
@@ -237,7 +240,32 @@ const Map<String, String> kCardImages = {
 const String kVisionOtherImage = 'assets/images/cards/vision_other.png';
 
 String? characterImagePath(String id) => kCharacterImages[id];
+
+/// Illustration effective d'un personnage — prend en compte le cosmétique
+/// équipé (boutique) s'il y en a un, sinon retombe sur l'image de base.
+/// À utiliser PARTOUT où un personnage est affiché en jeu, à la place d'un
+/// appel direct à characterImagePath(), pour que les achats en boutique
+/// soient réellement visibles.
+String? effectiveCharacterImagePath(String id) {
+  final equipped = Prefs.equippedCosmetics()['character:$id'];
+  if (equipped != null) {
+    final item = kCosmeticsCatalog.where((c) => c.id == equipped).firstOrNull;
+    if (item != null) return item.imagePath;
+  }
+  return characterImagePath(id);
+}
 String? terrainImagePath(String effect) => kTerrainImages[effect];
+
+/// Illustration effective d'un terrain — prend en compte le cosmétique
+/// équipé (boutique) s'il y en a un, sinon retombe sur l'image de base.
+String? effectiveTerrainImagePath(String effect) {
+  final equipped = Prefs.equippedCosmetics()['terrain:$effect'];
+  if (equipped != null) {
+    final item = kCosmeticsCatalog.where((c) => c.id == equipped).firstOrNull;
+    if (item != null) return item.imagePath;
+  }
+  return terrainImagePath(effect);
+}
 String? cardImagePath(String effect) => kCardImages[effect];
 
 /// Réplique personnalisée affichée (et jouée en audio) quand ce personnage

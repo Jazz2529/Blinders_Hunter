@@ -204,7 +204,7 @@ class _RoleRevealState extends State<RoleRevealScreen> {
             Text(me!.name,style:cinzel(20,c:kGold2)),
             const SizedBox(height:20),
             Builder(builder: (_) {
-              final imgPath = characterImagePath(c.id);
+              final imgPath = effectiveCharacterImagePath(c.id);
               if (imgPath == null) {
                 return Container(
                   width:100,height:100,
@@ -2477,7 +2477,7 @@ class _RevealQuoteBannerState extends State<_RevealQuoteBanner> {
     final quoteId = p.disguiseCharIdOverride ?? c.id;
     final fc = factionColor(displayChar.faction.name);
     final fb = factionBg(displayChar.faction.name);
-    final imgPath = characterImagePath(displayChar.id);
+    final imgPath = effectiveCharacterImagePath(displayChar.id);
     final fLabel = displayChar.faction.name == 'hunter' ? '🔵 HUNTER'
         : displayChar.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE';
 

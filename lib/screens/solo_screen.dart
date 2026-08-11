@@ -243,7 +243,7 @@ class _SoloSetupState extends State<SoloSetupScreen> with SingleTickerProviderSt
     kAllCharacters.where((c) => c.id == id).firstOrNull;
 
   Widget? _charImg(String id) {
-    final path = characterImagePath(id);
+    final path = effectiveCharacterImagePath(id);
     if (path == null) return null;
     return Image.asset(path, fit: BoxFit.cover, cacheWidth: 640,
       filterQuality: FilterQuality.high,
@@ -1342,7 +1342,7 @@ class _RoleRevealScreenState extends State<_RoleRevealScreen>
     final faction = char.faction.name;
     final fc  = factionColor(faction);
     final fbg = factionBg(faction);
-    final imgPath = characterImagePath(char.id);
+    final imgPath = effectiveCharacterImagePath(char.id);
 
     final roleLabel = switch (faction) {
       'hunter'  => 'HUNTER',
@@ -1652,7 +1652,7 @@ class _PlayerCardSide extends StatelessWidget {
 
     final fc  = factionColor(c.faction.name);
     final fbg = factionBg(c.faction.name);
-    final img = characterImagePath(c.id);
+    final img = effectiveCharacterImagePath(c.id);
     final woundColor = me.wounds >= 10 ? kRed : me.wounds >= 6 ? kGold : kGreen;
 
     return Container(
@@ -3427,7 +3427,7 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
         : c;
     final fc = displayChar != null ? factionColor(displayChar.faction.name) : kGold;
     final fb = displayChar != null ? factionBg(displayChar.faction.name) : kBg2;
-    final imgPath = displayChar != null ? characterImagePath(displayChar.id) : null;
+    final imgPath = displayChar != null ? effectiveCharacterImagePath(displayChar.id) : null;
     final fLabel  = displayChar?.faction.name == 'hunter' ? '🔵 HUNTER'
         : displayChar?.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE';
 
@@ -4358,7 +4358,7 @@ class _SoloGameOverScreenState extends State<SoloGameOverScreen>
                     spacing: 10, runSpacing: 10,
                     children: winners.map((w) {
                       final c2 = w.character;
-                      final imgPath = c2 != null ? characterImagePath(c2.id) : null;
+                      final imgPath = c2 != null ? effectiveCharacterImagePath(c2.id) : null;
                       final wFc = factionColor(c2?.faction.name ?? '');
                       return Container(
                         width: 120,
