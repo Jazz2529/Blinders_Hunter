@@ -126,9 +126,9 @@ class _HomeScreenState extends State<HomeScreen>
                 ListView.builder(
                   physics: const BouncingScrollPhysics(),
                   scrollDirection: Axis.horizontal,
-                  itemCount: kAllTokens.length,
+                  itemCount: availableTokens().length,
                   itemBuilder: (_, i) {
-                    final t = kAllTokens[i];
+                    final t = availableTokens()[i];
                     final sel = t.id == _token;
                     return GestureDetector(
                       onTap: () => setState(() => _token = t.id),
@@ -159,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen>
               ])),
               const SizedBox(height: 6),
               Center(child: Text(
-                kAllTokens.firstWhere((t) => t.id == _token, orElse: () => kAllTokens.first).name,
+                availableTokens().firstWhere((t) => t.id == _token, orElse: () => kAllTokens.first).name,
                 style: body(11, c: kTextSub))),
             ])),
 

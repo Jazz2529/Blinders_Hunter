@@ -40,16 +40,32 @@ const List<TokenData> kAllTokens = [
 ];
 
 TokenData? findToken(String id) {
-  try { return kAllTokens.firstWhere((t) => t.id == id); } catch (_) { return null; }
+  try { return kAllTokens.firstWhere((t) => t.id == id); } catch (_) {
+    // Peut-être un jeton cosmétique (débloqué en boutique) plutôt qu'un
+    // jeton de base — on le convertit à la volée au même format.
+    final item = kCosmeticsCatalog.where((c) =>
+        c.category == CosmeticCategory.token && c.id == id).firstOrNull;
+    if (item != null) {
+      return TokenData(id: item.id, name: item.name,
+        imagePath: item.imagePath, fallbackEmoji: item.fallbackEmoji);
+    }
+    return null;
+  }
 }
 
-/// Illustration effective d'un jeton — prend en compte le cosmétique équipé
-/// (boutique) s'il y en a un, sinon retombe sur l'image de base.
-String effectiveTokenImagePath(String tokenId) {
-  final equipped = Prefs.equippedCosmetics()['token:$tokenId'];
-  if (equipped != null) {
-    final item = kCosmeticsCatalog.where((c) => c.id == equipped).firstOrNull;
-    if (item != null) return item.imagePath;
-  }
-  return findToken(tokenId)?.imagePath ?? '';
+/// Tous les jetons que le joueur peut choisir : les jetons de base, PLUS
+/// les jetons cosmétiques qu'il a débloqués en boutique — ajoutés à la
+/// liste, pas en remplacement d'un jeton existant.
+List<TokenData> availableTokens() {
+  final owned = Prefs.ownedCosmetics();
+  final cosmeticTokens = kCosmeticsCatalog
+      .where((c) => c.category == CosmeticCategory.token && owned.contains(c.id))
+      .map((c) => TokenData(id: c.id, name: c.name,
+          imagePath: c.imagePath, fallbackEmoji: c.fallbackEmoji));
+  return [...kAllTokens, ...cosmeticTokens];
 }
+
+/// Illustration effective d'un jeton — fonctionne aussi bien pour un jeton
+/// de base que pour un jeton cosmétique débloqué en boutique (les deux
+/// sont résolus par findToken(), qui vérifie les deux catalogues).
+String effectiveTokenImagePath(String tokenId) => findToken(tokenId)?.imagePath ?? '';

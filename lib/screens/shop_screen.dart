@@ -44,7 +44,12 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
       return;
     }
     Prefs.unlockCosmetic(item.id);
-    Prefs.equipCosmetic(item.slotKey, item.id); // équipé automatiquement à l'achat
+    // Les jetons n'ont rien à "équiper" — débloqués, ils apparaissent
+    // directement comme choix dans le sélecteur. Seuls les personnages et
+    // terrains utilisent le mécanisme d'équipement (remplacement en place).
+    if (item.category != CosmeticCategory.token) {
+      Prefs.equipCosmetic(item.slotKey, item.id);
+    }
     _refresh();
   }
 
@@ -170,17 +175,24 @@ class _ShopCard extends StatelessWidget {
           child: Column(children: [
             Text(item.name, style: cinzel(11, c: kGold2, fw: FontWeight.w700),
               maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
-            Text(_label, style: body(9, c: kTextDim), maxLines: 1, overflow: TextOverflow.ellipsis),
+            if (item.category != CosmeticCategory.token)
+              Text(_label, style: body(9, c: kTextDim), maxLines: 1, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 6),
             SizedBox(
               width: double.infinity,
               child: isOwned
-                ? BHButton(
-                    label: isEquipped ? '✓ Équipé' : 'Équiper',
-                    outlined: !isEquipped,
-                    gold: isEquipped,
-                    onTap: onToggleEquip,
-                  )
+                ? (item.category == CosmeticCategory.token
+                    // Les jetons n'ont rien à "équiper" : une fois débloqués,
+                    // ils apparaissent directement comme choix supplémentaire
+                    // dans le sélecteur de jeton, au même titre que les
+                    // jetons de base — pas de bascule ici.
+                    ? BHButton(label: '✓ Débloqué — dispo dans le sélecteur', gold: true, onTap: null)
+                    : BHButton(
+                        label: isEquipped ? '✓ Équipé' : 'Équiper',
+                        outlined: !isEquipped,
+                        gold: isEquipped,
+                        onTap: onToggleEquip,
+                      ))
                 : BHButton(
                     label: '${item.cost} 🪙',
                     danger: !canAfford,

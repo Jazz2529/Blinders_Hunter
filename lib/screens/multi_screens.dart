@@ -84,9 +84,9 @@ class LobbyScreen extends StatelessWidget {
             const SizedBox(height:10),
             SizedBox(height:56, child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: kAllTokens.length,
+              itemCount: availableTokens().length,
               itemBuilder: (_, i) {
-                final t = kAllTokens[i];
+                final t = availableTokens()[i];
                 final usedByOther = gp.players.values
                     .any((p) => p.uid != gp.myUid && p.token == t.id);
                 final sel = t.id == gp.me?.token;
