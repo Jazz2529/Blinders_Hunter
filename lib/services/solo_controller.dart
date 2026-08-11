@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import '../data/game_data.dart';
 import '../data/interactions_data.dart';
+import '../data/tokens_data.dart';
 import '../services/audio_service.dart';
 import 'engine.dart';
 
@@ -320,12 +321,12 @@ class SoloController extends ChangeNotifier {
   // ─── Setup ──────────────────────────────
   void startGame() {
     // 5 joueurs : humain + 4 bots
-    // Tous les tokens disponibles — nom bot = nom du token
-    const allTokenIds = [
-      'vlad','jason','marin','felipe','julien','cambou','raph','marion',
-      'albane','emilien','damien','clemence','remi','peio',
-      'toph','bingbong','conan','elise','flott',
-    ];
+    // Tokens disponibles = uniquement les jetons de BASE (kAllTokens) —
+    // PAS les cosmétiques de boutique, qui doivent rester réservés aux
+    // joueurs les ayant réellement débloqués. Dérivé dynamiquement de
+    // kAllTokens plutôt qu'une liste codée en dur, pour rester synchronisé
+    // automatiquement si d'autres jetons rejoignent la boutique plus tard.
+    final allTokenIds = kAllTokens.map((t) => t.id).toList();
     final available = allTokenIds.where((t) => t != humanToken).toList()..shuffle(_rng);
     final players = [
       Player(uid: 'human', name: humanName, token: humanToken),
