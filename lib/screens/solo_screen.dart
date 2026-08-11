@@ -1779,6 +1779,12 @@ class _HpLeaderboard extends StatelessWidget {
 
   void _showOpponentCard(BuildContext ctx, Player p) {
     final c = p.character;
+    // Jason (Caméléon) : affiche le déguisement (Hunter/Shadow imité) tant
+    // qu'il est VIVANT — mort, il révèle sa vraie identité comme tout le
+    // monde (convention "les cartes se retournent à la mort").
+    final displayChar = (p.alive && p.disguiseCharIdOverride != null)
+        ? kAllCharacters.where((ch) => ch.id == p.disguiseCharIdOverride).firstOrNull ?? c
+        : c;
     final isNils = (p.copiedEffect ?? c?.abilityEffect) == 'store_damage_nils';
     // Vision Suprême : connaissance privée permanente — le joueur qui a
     // découvert secrètement cette identité peut la reconsulter à tout
@@ -1788,8 +1794,8 @@ class _HpLeaderboard extends StatelessWidget {
     // Un joueur MORT révèle toujours son vrai rôle en cliquant sur son
     // jeton — même s'il n'avait jamais été révélé de son vivant (convention
     // "les cartes se retournent à la mort", comme sur un vrai plateau).
-    if ((p.revealed || !p.alive || knowsPrivately) && c != null) {
-      showFullCardDialog(ctx, c, hpOverride: c.hp + p.maxHpModifier).then((_) {
+    if ((p.revealed || !p.alive || knowsPrivately) && displayChar != null) {
+      showFullCardDialog(ctx, displayChar, hpOverride: displayChar.hp + p.maxHpModifier).then((_) {
         if ((p.equipment.isNotEmpty || isNils) && ctx.mounted) _showEquipmentForSolo(ctx, p);
       });
     } else {
@@ -2047,7 +2053,7 @@ class _MiniBoard extends StatelessWidget {
       'tokenId': p.token,
       'alive': p.alive,
       'revealed': p.revealed,
-      'faction': p.character?.faction.name ?? '',
+      'faction': p.disguiseFactionOverride ?? p.character?.faction.name ?? '',
     }).toList();
 
     return Container(

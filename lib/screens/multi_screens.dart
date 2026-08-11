@@ -368,7 +368,7 @@ class _GameScreenState extends State<GameScreen> {
         'tokenId': p.token,
         'alive': p.alive,
         'revealed': p.revealed,
-        'faction': p.character?.faction.name ?? '',
+        'faction': p.disguiseFactionOverride ?? p.character?.faction.name ?? '',
       }).toList();
 
       // Divination X ou Y : si JE suis la cible en attente, propose le choix.
@@ -884,8 +884,10 @@ class _PlayerRow extends StatelessWidget {
       return showMysteryCardDialog(ctx, p);
     }
     final isMe = p.uid == gp.myUid;
-    final hasDisguise = !isMe && p.disguiseNameOverride != null;
-    // Jason (Caméléon) : afficher la carte du personnage IMITÉ, pas la sienne
+    // Jason (Caméléon) : afficher la carte du personnage IMITÉ tant qu'il
+    // est VIVANT — mort, il révèle sa vraie identité comme tout le monde
+    // (convention "les cartes se retournent à la mort").
+    final hasDisguise = !isMe && p.alive && p.disguiseNameOverride != null;
     final disguisedCharId = p.disguiseCharIdOverride;
     final disguisedChar = disguisedCharId != null
         ? kAllCharacters.where((ch) => ch.id == disguisedCharId).firstOrNull

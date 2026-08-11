@@ -998,6 +998,7 @@ class SoloController extends ChangeNotifier {
         if (!target.alive) target.killedByUid = p.uid;
         p.storedDamage = 0;
         p.abilityUsed = false; // répétable — se redéclenchera dès que du stock s'accumule à nouveau
+        s.pendingTargetAction = null; // sans ça, l'écran de choix de cible pouvait réapparaître
         _log('📦 ${p.name} déverse $storedN blessures stockées sur ${target.name} ($dealtN reçues) !', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
         s.phase = GamePhase.move; notifyListeners(); return;
