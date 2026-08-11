@@ -109,8 +109,13 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
     }
     return GridView.builder(
       padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.78),
+      // SliverGridDelegateWithMaxCrossAxisExtent au lieu d'un nombre de
+      // colonnes fixe : sur un grand écran PC, un fixe à 2 colonnes forçait
+      // chaque carte à s'étirer sur une largeur énorme (bien au-delà de ce
+      // qui est lisible/visible). Ici, chaque carte fait au maximum 170px
+      // de large, et le nombre de colonnes s'adapte automatiquement.
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 170, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.78),
       itemCount: items.length,
       itemBuilder: (_, i) => _ShopCard(
         item: items[i],
