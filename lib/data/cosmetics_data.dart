@@ -78,22 +78,22 @@ const List<CosmeticItem> kCosmeticsCatalog = [
   // 'tenebres', 'choice', 'damage9', 'steal') ──────────────────────────
   CosmeticItem(id: 'terrain_vision_grotte', name: 'Grotte',
     category: CosmeticCategory.terrain, targetId: 'vision', cost: 250,
-    imagePath: 'assets/images/terrains_skins/grotte23.png'),
+    imagePath: 'assets/images/terrains/grotte23.png'),
   CosmeticItem(id: 'terrain_lumiere_eglise', name: 'Chapelle',
     category: CosmeticCategory.terrain, targetId: 'lumiere', cost: 250,
-    imagePath: 'assets/images/terrains_skins/chapelle6.png'),
+    imagePath: 'assets/images/terrains/chapelle6.png'),
   CosmeticItem(id: 'terrain_steal_armurerie', name: 'Armurerie',
     category: CosmeticCategory.terrain, targetId: 'steal', cost: 250,
-    imagePath: 'assets/images/terrains_skins/armurerie10.png'),
+    imagePath: 'assets/images/terrains/armurerie10.png'),
      CosmeticItem(id: 'terrain_5_marche', name: 'Marché',
     category: CosmeticCategory.terrain, targetId: 'choice', cost: 250,
-    imagePath: 'assets/images/terrains_skins/marche45.png'),
+    imagePath: 'assets/images/terrains/marche45.png'),
   CosmeticItem(id: 'terrain_tenebre_enfer', name: 'Enfer',
     category: CosmeticCategory.terrain, targetId: 'tenebre', cost: 250,
-    imagePath: 'assets/images/terrains_skins/enfer8.png'),
+    imagePath: 'assets/images/terrains/enfer8.png'),
   CosmeticItem(id: 'terrain_9_apothicaire', name: 'Apothicaire',
     category: CosmeticCategory.terrain, targetId: 'damage9', cost: 250,
-    imagePath: 'assets/images/terrains_skins/apothicaire9.png'),
+    imagePath: 'assets/images/terrains/apothicaire9.png'),
 ];
 
 List<CosmeticItem> cosmeticsFor(CosmeticCategory cat, String targetId) =>
