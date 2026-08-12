@@ -99,6 +99,7 @@ class Prefs {
     // limité à 200 entrées) — nécessaire pour les effets brillants qui se
     // basent sur le nombre TOTAL de parties, même après des centaines.
     _incrementGamesPlayed(character);
+    if (win) _incrementGamesWon(character);
     // Récompense en or à chaque fin de partie — un seul point d'entrée,
     // partagé par le solo ET le multijoueur, puisque addGame() est déjà
     // appelée de façon fiable des deux côtés.
@@ -115,6 +116,18 @@ class Prefs {
   static void _incrementGamesPlayed(String characterName) {
     final current = gamesPlayedWith(characterName);
     _sp?.setInt('games_played_$characterName', current + 1);
+  }
+
+  /// Nombre de parties GAGNÉES avec un personnage donné — utilisé pour les
+  /// paliers d'effet brillant (contrairement au nombre total de parties
+  /// jouées, qui ne compte pas que les victoires).
+  static int gamesWonWith(String characterName) {
+    return _sp?.getInt('games_won_$characterName') ?? 0;
+  }
+
+  static void _incrementGamesWon(String characterName) {
+    final current = gamesWonWith(characterName);
+    _sp?.setInt('games_won_$characterName', current + 1);
   }
 
   // ── Or (monnaie de la boutique) ────────────────────────────────────────

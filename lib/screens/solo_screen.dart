@@ -11,6 +11,7 @@ import '../services/display_settings.dart';
 import 'rules_screen.dart';
 import '../widgets/card_viewer.dart';
 import '../services/persistence.dart';
+import '../widgets/shine_effect.dart';
 import '../services/audio_service.dart';
 import '../services/engine.dart';
 import '../widgets/theme.dart';
@@ -3478,15 +3479,18 @@ class _RevealFullScreenState extends State<_RevealFullScreen>
                           borderRadius: BorderRadius.circular(14),
                           child: SizedBox(height: 300,
                             child: AspectRatio(aspectRatio: 2 / 3,
-                              child: imgPath != null
-                                ? Image.asset(imgPath, fit: BoxFit.cover,
-                                    cacheWidth: 800, cacheHeight: 1200,
-                                    errorBuilder: (_, __, ___) => Container(color: fb,
+                              child: ShineOverlay(
+                                tier: shineTierFor(Prefs.gamesWonWith(displayChar?.name ?? '')),
+                                child: imgPath != null
+                                  ? Image.asset(imgPath, fit: BoxFit.cover,
+                                      cacheWidth: 800, cacheHeight: 1200,
+                                      errorBuilder: (_, __, ___) => Container(color: fb,
+                                        child: Center(child: Text(displayChar?.icon ?? '?',
+                                          style: const TextStyle(fontSize: 72)))))
+                                  : Container(color: fb,
                                       child: Center(child: Text(displayChar?.icon ?? '?',
-                                        style: const TextStyle(fontSize: 72)))))
-                                : Container(color: fb,
-                                    child: Center(child: Text(displayChar?.icon ?? '?',
-                                      style: const TextStyle(fontSize: 72)))))))),
+                                        style: const TextStyle(fontSize: 72)))),
+                              ))))),
                       // Infos
                       Padding(padding: const EdgeInsets.all(20),
                         child: Column(children: [

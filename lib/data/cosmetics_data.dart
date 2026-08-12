@@ -32,21 +32,22 @@ class CosmeticItem {
 /// exactement comme pour les illustrations de personnages actuelles.
 const List<CosmeticItem> kCosmeticsCatalog = [
   // ── Personnages ──────────────────────────────────────────────────────
-  CosmeticItem(id: 'albane_gold', name: 'Albane — Tenue Dorée',
-    category: CosmeticCategory.character, targetId: 'albane', cost: 150,
-    imagePath: 'assets/images/characters_skins/albane_gold.png'),
-  CosmeticItem(id: 'christine_winter', name: 'Christine — Édition Hiver',
-    category: CosmeticCategory.character, targetId: 'christine', cost: 150,
-    imagePath: 'assets/images/characters_skins/christine_winter.png'),
-  CosmeticItem(id: 'agathe_royal', name: 'Agathe — Vampire Royale',
-    category: CosmeticCategory.character, targetId: 'agathe', cost: 200,
-    imagePath: 'assets/images/characters_skins/agathe_royal.png'),
-  CosmeticItem(id: 'remi_master', name: 'Rémi — Maître Artisan',
-    category: CosmeticCategory.character, targetId: 'remi', cost: 150,
-    imagePath: 'assets/images/characters_skins/remi_master.png'),
-  CosmeticItem(id: 'felipe_survivor', name: 'Felipe — Survivant',
-    category: CosmeticCategory.character, targetId: 'felipe', cost: 150,
-    imagePath: 'assets/images/characters_skins/felipe_survivor.png'),
+ 
+  CosmeticItem(id: 'agathe-animal', name: 'Agathe - Blomburrow',
+    category: CosmeticCategory.character, targetId: 'agathe', cost: 150,
+    imagePath: 'assets/images/characters/agathe-animal.png'),
+  CosmeticItem(id: 'nils-animal', name: 'Nils -Blomburrow',
+    category: CosmeticCategory.character, targetId: 'nils', cost: 200,
+    imagePath: 'assets/images/characters/nils-animal.png'),
+  CosmeticItem(id: 'peio-animal', name: 'Peio - Blomburrow',
+    category: CosmeticCategory.character, targetId: 'peio', cost: 150,
+    imagePath: 'assets/images/characters/peio-animal.png'),
+  CosmeticItem(id: 'theo-animal', name: 'Theo - Blomburrow',
+    category: CosmeticCategory.character, targetId: 'theo', cost: 150,
+    imagePath: 'assets/images/characters/theo-animal.png'),
+  CosmeticItem(id: 'travert-animal', name: 'Travert - Blomburrow',
+    category: CosmeticCategory.character, targetId: 'travert', cost: 150,
+    imagePath: 'assets/images/characters/travert-animal.png'),
 
   // ── Jetons — ce sont des jetons AUTONOMES, ajoutés à la liste des choix
   // disponibles dans le sélecteur (pas liés à un personnage précis, donc
@@ -72,7 +73,25 @@ const List<CosmeticItem> kCosmeticsCatalog = [
   CosmeticItem(id: 'token_flott', name: 'Flott',
     category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🏄',
     imagePath: 'assets/images/tokens/jeton20.png'),
-
+  CosmeticItem(id: 'token_val', name: 'Valentin Cognito',
+    category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🟡',
+    imagePath: 'assets/images/tokens/val.png'),
+  CosmeticItem(id: 'token_centrale', name: 'Centrale Lille',
+    category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🟢',
+    imagePath: 'assets/images/tokens/centrale.png'),
+  CosmeticItem(id: 'token_homer', name: 'Homer',
+    category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🔴',
+    imagePath: 'assets/images/tokens/homer.png'),
+    CosmeticItem(id: 'token_Krusty', name: 'Krusty',
+    category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🦀',
+    imagePath: 'assets/images/tokens/krusty.png'),
+  CosmeticItem(id: 'token_singe', name: 'Ourang-Outan',
+    category: CosmeticCategory.token, cost: 70, fallbackEmoji: '⚪',
+    imagePath: 'assets/images/tokens/singe.png'),
+  CosmeticItem(id: 'token_Bersek', name: 'Berserk',
+    category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🔍',
+    imagePath: 'assets/images/tokens/berserk.png'),
+ 
   // ── Terrains (targetId = effect du terrain, même convention que
   // terrainImagePath() déjà utilisée dans le jeu : 'vision', 'lumiere',
   // 'tenebres', 'choice', 'damage9', 'steal') ──────────────────────────
@@ -94,7 +113,6 @@ const List<CosmeticItem> kCosmeticsCatalog = [
   CosmeticItem(id: 'terrain_9_apothicaire', name: 'Apothicaire',
     category: CosmeticCategory.terrain, targetId: 'damage9', cost: 250,
     imagePath: 'assets/images/terrains/apothicaire9.png'),
-
   CosmeticItem(id: 'terrain_vision_zoo', name: 'Zoo',
     category: CosmeticCategory.terrain, targetId: 'vision', cost: 250,
     imagePath: 'assets/images/terrains/zoo23.png'),

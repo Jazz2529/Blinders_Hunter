@@ -3,6 +3,7 @@
 // alternatives (personnages, jetons, terrains).
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import '../widgets/theme.dart';
 import '../data/cosmetics_data.dart';
 import '../data/characters_data.dart';
@@ -67,6 +68,16 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
         backgroundColor: kBg1,
         title: Text('Boutique', style: cinzel(18, c: kGold2)),
         actions: [
+          // Bouton de test, visible UNIQUEMENT en mode debug (flutter run) —
+          // disparaît automatiquement dans une vraie build release, donc
+          // aucun risque qu'il se retrouve dans la version partagée à tes
+          // amis.
+          if (kDebugMode)
+            IconButton(
+              icon: const Icon(Icons.add_circle, color: Colors.greenAccent),
+              tooltip: '[DEBUG] +10000 or',
+              onPressed: () { Prefs.addGold(10000); _refresh(); },
+            ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Center(child: Container(

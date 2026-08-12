@@ -273,7 +273,7 @@ class _CardImage extends StatelessWidget {
     final fc = factionColor(c.faction.name);
     final fbg = factionBg(c.faction.name);
     final imgPath = effectiveCharacterImagePath(c.id);
-    final tier = shineTierFor(Prefs.gamesPlayedWith(c.name));
+    final tier = shineTierFor(Prefs.gamesWonWith(c.name));
     return Container(
       width: w, height: h,
       decoration: BoxDecoration(

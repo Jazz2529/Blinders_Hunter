@@ -13,6 +13,8 @@ import 'rules_screen.dart';
 import '../widgets/card_viewer.dart';
 import '../models/models.dart';
 import '../widgets/theme.dart';
+import '../widgets/shine_effect.dart';
+import '../services/persistence.dart';
 import '../widgets/token_widget.dart';
 import '../widgets/terrain_widget.dart';
 import '../widgets/ability_animations.dart';
@@ -2507,15 +2509,18 @@ class _RevealQuoteBannerState extends State<_RevealQuoteBanner> {
                     borderRadius: BorderRadius.circular(14),
                     child: SizedBox(height: 260,
                       child: AspectRatio(aspectRatio: 2 / 3,
-                        child: imgPath != null
-                          ? Image.asset(imgPath, fit: BoxFit.cover,
-                              cacheWidth: 700, cacheHeight: 1050,
-                              errorBuilder: (_, __, ___) => Container(color: fb,
+                        child: ShineOverlay(
+                          tier: shineTierFor(Prefs.gamesWonWith(displayChar.name)),
+                          child: imgPath != null
+                            ? Image.asset(imgPath, fit: BoxFit.cover,
+                                cacheWidth: 700, cacheHeight: 1050,
+                                errorBuilder: (_, __, ___) => Container(color: fb,
+                                  child: Center(child: Text(displayChar.icon,
+                                    style: const TextStyle(fontSize: 64)))))
+                            : Container(color: fb,
                                 child: Center(child: Text(displayChar.icon,
-                                  style: const TextStyle(fontSize: 64)))))
-                          : Container(color: fb,
-                              child: Center(child: Text(displayChar.icon,
-                                style: const TextStyle(fontSize: 64)))))))),
+                                  style: const TextStyle(fontSize: 64)))),
+                        ))))),
                 Padding(padding: const EdgeInsets.all(20),
                   child: Column(children: [
                     Text('${p.name} s\'est révélé !',

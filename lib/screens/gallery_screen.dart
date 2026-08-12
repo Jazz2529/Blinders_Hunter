@@ -347,7 +347,7 @@ class _CharacterCard extends StatelessWidget {
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
               child: ShineOverlay(
-                tier: shineTierFor(Prefs.gamesPlayedWith(c.name)),
+                tier: shineTierFor(Prefs.gamesWonWith(c.name)),
                 child: imgPath != null
                 ? Image.asset(imgPath, fit: BoxFit.contain, width: double.infinity,
                     // Limite la résolution de décodage — une grille peut
