@@ -136,7 +136,7 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'hong_yi', name:'Hong Yi', faction:Faction.shadow, hp:8, icon:'⚡',
-    ability:'Unique: choisissez un joueur — lui infligez 8 blessures, vous finissez toujours à 7 blessures',
+    ability:'Unique: choisissez un joueur — lui infligez 8 blessures, et infligez-vous 4 blessures',
     abilityEffect:'terrain_max_aoe',
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
@@ -212,7 +212,7 @@ const List<CharacterCard> kAllCharacters = [
 
   // ══════════ NEUTRES (8) ══════════
 
-  CharacterCard(id:'cambou', name:'Cambou', faction:Faction.neutral, hp:11, icon:'🌙',
+  CharacterCard(id:'cambou', name:'Cambou', faction:Faction.neutral, hp:14, icon:'🌙',
     ability:'Unique: passez votre tour pour soigner toutes vos blessures et ne plus subir de blessures jusqu\'au prochain tour',
     abilityEffect:'full_heal_shield_turn', abilityRepeatable:false,
     winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),
@@ -258,12 +258,12 @@ const List<CharacterCard> kAllCharacters = [
 
 // ─── Terrains ────────────────────────────────────────────────────────────────
 const List<Terrain> kAllTerrains = [
-  Terrain(num:'2-3', id:0, name:'Bibliothèque', effect:'vision',   desc:'Vision',    icon:'🔮'),
-  Terrain(num:'4-5', id:1, name:'Hall',  effect:'choice',   desc:'choix', icon:'🏪'),
-  Terrain(num:'6',   id:2, name:'Salle de Bain',     effect:'lumiere',  desc:'Lumière',   icon:'⛪'),
-  Terrain(num:'8',   id:3, name:'Cuisine',       effect:'tenebres', desc:'Ténèbres',  icon:'🔨'),
-  Terrain(num:'9',   id:4, name:'Salon',            effect:'damage9',  desc:'Damage', icon:'🏹'),
-  Terrain(num:'10',  id:5, name:'Chambre',       effect:'steal',    desc:'Voler',  icon:'🗼'),
+  Terrain(num:'2-3', id:0, name:'Bibliothèque', effect:'vision',   desc:'Piochez une carte Vision',    icon:'🔮'),
+  Terrain(num:'4-5', id:1, name:'Hall',  effect:'choice',   desc:'Piochez une carte de votre choix', icon:'🏪'),
+  Terrain(num:'6',   id:2, name:'Salle de Bain',     effect:'lumiere',  desc:'Piochez une carte Lumière',   icon:'⛪'),
+  Terrain(num:'8',   id:3, name:'Cuisine',       effect:'tenebres', desc:'Piochez une carte Ténèbres',  icon:'🔨'),
+  Terrain(num:'9',   id:4, name:'Salon',            effect:'damage9',  desc:'Infligez 2 blessures au joueur de votre choix', icon:'🏹'),
+  Terrain(num:'10',  id:5, name:'Chambre',       effect:'steal',    desc:'Volez une carte équipement',  icon:'🗼'),
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

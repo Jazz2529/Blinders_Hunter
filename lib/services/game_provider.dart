@@ -446,8 +446,11 @@ class GameProvider extends ChangeNotifier {
     final queue = Map<String, List<String>>.from(
         (gameState?.forcedDeckQueue ?? const {}).map(
             (k, v) => MapEntry(k, List<String>.from(v))));
-    final card = _eg.drawCard(deck, forcedQueue: queue);
-    await _fb.setPhase(roomId!, gameState!.phase, forcedDeckQueue: queue);
+    final piles = Map<String, List<String>>.from(
+        (gameState?.deckPiles ?? const {}).map(
+            (k, v) => MapEntry(k, List<String>.from(v))));
+    final card = _eg.drawCard(deck, forcedQueue: queue, deckPiles: piles);
+    await _fb.setPhase(roomId!, gameState!.phase, forcedDeckQueue: queue, deckPiles: piles);
     var all = _mutableAll();
     var bot = all.where((p) => p.uid == botUid).firstOrNull;
     if (bot == null || !bot.alive) return;
@@ -871,16 +874,17 @@ class GameProvider extends ChangeNotifier {
     final t = all.firstWhere((p) => p.uid == target.uid);
     final dealt = _eg.applyDamage(t, 8);
     if (!t.alive) t.killedByUid = actor.uid;
-    // Hong Yi finit toujours à exactement 1 blessure (ne meurt plus)
-    actor.wounds = 7;
-    actor.alive = true;
+    // Hong Yi s'inflige 4 blessures en retour (peut désormais mourir de son
+    // propre pouvoir si déjà fortement blessé au préalable).
+    final selfDealt = _eg.applyDamage(actor, 4);
+    if (!actor.alive) actor.killedByUid = actor.uid;
     actor.abilityUsed = true;
     _eg.applyDeathPassives(all);
-    final log = '⚡ ${actor.name} inflige $dealt à ${t.name} — et se retrouve à 7 blessures !';
+    final log = '⚡ ${actor.name} inflige $dealt à ${t.name} — et s\'inflige $selfDealt blessures en retour !';
     await _commitAll(all, log);
-    // Vérifier la victoire pour la cible (Hong Yi ne meurt plus lui-même)
     bool endedHongYi = false;
     if (!t.alive) endedHongYi = await _checkWin(all, justDiedId: t.uid);
+    if (!endedHongYi && !actor.alive) endedHongYi = await _checkWin(all, justDiedId: actor.uid);
     if (endedHongYi) return;
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
         abilityOverlay: 'hongyi_dumbbell');
@@ -1173,9 +1177,12 @@ class GameProvider extends ChangeNotifier {
     final queue = Map<String, List<String>>.from(
         (gameState?.forcedDeckQueue ?? const {}).map(
             (k, v) => MapEntry(k, List<String>.from(v))));
-    final card = _eg.drawCard(deck, forcedQueue: queue);
+    final piles = Map<String, List<String>>.from(
+        (gameState?.deckPiles ?? const {}).map(
+            (k, v) => MapEntry(k, List<String>.from(v))));
+    final card = _eg.drawCard(deck, forcedQueue: queue, deckPiles: piles);
     await _fb.setPhase(roomId!, GamePhase.cardDrawn,
-        pendingAction: card.id, forcedDeckQueue: queue);
+        pendingAction: card.id, forcedDeckQueue: queue, deckPiles: piles);
     // Cartes Vision : nom secret — log public générique
     if (deck == DeckType.vision) {
       await _fb.addLog(roomId!, '🔮 ${me!.name} pioche une carte Vision (secrète)');

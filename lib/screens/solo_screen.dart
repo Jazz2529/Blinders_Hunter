@@ -2804,6 +2804,10 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'set_marker7_choice') {
       targets = s.players.where((p) => p.alive).toList();
     }
+    // Marion : peut aussi se cibler elle-même
+    if (context == 'ability_set5') {
+      targets = s.players.where((p) => p.alive).toList();
+    }
 
     // Richard II : sélection d'une zone à échanger avec la sienne
     if (context == 'swap_zone_pick1' || context == 'swap_zone_pick2') {

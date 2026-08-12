@@ -1496,8 +1496,8 @@ class _ActionPanelState extends State<_ActionPanel> {
                 onTap: () => _act(gp.backToAbility)),
             ];
           } // attackTargets already filters by adjacency
-        } else if (pta == 'clemence_target' || pta == 'terrain_damage9' || pta == 'set_marker7_choice') {
-          // Clémence, Terrain 9 et Premier Secours ("vous compris") peuvent se cibler eux-mêmes
+        } else if (pta == 'clemence_target' || pta == 'terrain_damage9' || pta == 'set_marker7_choice' || pta == 'set_wounds5') {
+          // Clémence, Terrain 9, Premier Secours ("vous compris") et Marion peuvent se cibler eux-mêmes
           all = gp.players.values.where((p) => p.alive).toList();
         } else if (pta == 'copy_ability') {
           // Tommy : seulement les joueurs révélés au pouvoir copiable

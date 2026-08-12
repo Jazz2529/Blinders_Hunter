@@ -173,7 +173,7 @@ class GameEngine with AbilityEngine {
   /// File d'attente de cartes forcées par pile (Elaia). Clé = nom du deck
   /// ('tenebres'|'lumiere'|'vision'), valeur = liste ordonnée d'IDs de cartes
   /// qui seront piochées en priorité (index 0 = prochaine pioche).
-  GameCard drawCard(DeckType deck, {Map<String, List<String>>? forcedQueue}) {
+  GameCard drawCard(DeckType deck, {Map<String, List<String>>? forcedQueue, Map<String, List<String>>? deckPiles}) {
     final key = deck.name;
     final queue = forcedQueue?[key];
     if (queue != null && queue.isNotEmpty) {
@@ -185,6 +185,21 @@ class GameEngine with AbilityEngine {
       // retombe sur un tirage aléatoire normal.
     }
     final pool = deckCards(deck);
+    // Pile réelle, sans remise : chaque carte de la pile ne peut ressortir
+    // qu'une fois que TOUTES les autres cartes de la même pile sont sorties
+    // — puis la pile se remélange et se remplit automatiquement.
+    if (deckPiles != null) {
+      var pile = deckPiles[key];
+      if (pile == null || pile.isEmpty) {
+        pile = pool.map((c) => c.id).toList()..shuffle(_rng);
+      }
+      final cardId = pile.removeAt(0);
+      deckPiles[key] = pile;
+      final drawn = pool.where((c) => c.id == cardId).firstOrNull;
+      if (drawn != null) return drawn;
+      // Sécurité : l'ID ne correspond plus à rien (carte retirée du jeu) —
+      // retombe sur un tirage aléatoire classique pour ne jamais planter.
+    }
     return pool[_rng.nextInt(pool.length)];
   }
 
@@ -439,8 +454,8 @@ class GameEngine with AbilityEngine {
         if (target == null) return 'cible_requise';
         final dealt = applyDamage(target, 8);
         if (!target.alive) target.killedByUid = actor.uid;
-        actor.wounds = 7; actor.alive = true;
-        return '⚡ ${actor.name} inflige $dealt à ${target.name} — et se retrouve à 1 blessure !';
+        final selfDealt = applyDamage(actor, 4);
+        return '⚡ ${actor.name} inflige $dealt à ${target.name} — et s\'inflige $selfDealt blessures en retour !';
 
       // ── Carapatte : D6 lifesteal, unique ──
       case 'd6_lifesteal':
@@ -1050,6 +1065,12 @@ class GameEngine with AbilityEngine {
     if (isCarla && attacker.revealed && target.character?.faction == Faction.hunter && target.revealed) {
       if (dmg > 0) applyHeal(target, dmg);
       return {'log': '🕊 ${attacker.name} (Carla) soigne ${target.name} de $dmg au lieu de blesser', 'scottCountered': false};
+    }
+    // Théo / Fifi Été : +2 si pas attaqué le tour d'avant — manquait ici
+    // (seule resolveAttackFull, utilisée par le joueur humain, l'avait),
+    // donc jamais consommé/appliqué pour un Théo joué par un bot.
+    if (atkEff == 'no_attack_buff' && attacker.revealed && attacker.bonusMaxHp > 0) {
+      dmg += 2; attacker.bonusMaxHp = 0; // consume le buff
     }
     // NOTE : la réduction de la Sainte Tunique se fait déjà correctement DANS
     // applyDamage() en vérifiant le porteur qui SUBIT les dégâts (la cible),

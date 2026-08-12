@@ -96,6 +96,11 @@ class SoloState {
   String? jeanneRewardBanner; // texte à afficher en grand quand la récompense de Jeanne se déclenche
   List<String> lootDeadQueue = []; // file d'attente des morts avec butin (kills simultanés, ex: bazooka)
   Map<String, List<String>> forcedDeckQueue = {}; // cartes forcées par pile
+  // Pile réelle par deck : liste mélangée des IDs restant à piocher. Se
+  // remplit et se mélange automatiquement dès qu'elle est vide (aucune
+  // carte ne peut donc revenir avant que TOUTES les autres de la même
+  // pile n'aient été vues).
+  Map<String, List<String>> deckPiles = {};
 
   SoloState({
     required this.players,
@@ -503,7 +508,7 @@ class SoloController extends ChangeNotifier {
         final deck = log == 'draw_dark' ? DeckType.tenebres : DeckType.lumiere;
         state!.peioReturnToMove = true;
         if (log == 'draw_dark') state!.abilityOverlay = 'monkey_demon_eyes';
-        final card = _eg.drawCard(deck, forcedQueue: state!.forcedDeckQueue);
+        final card = _eg.drawCard(deck, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
         _log(log == 'draw_dark'
             ? '🐒 ${bot.name} pioche une carte Ténèbres : ${card.name}'
             : '⛪ ${bot.name} pioche une carte Lumière : ${card.name}', cls: 'player');
@@ -615,16 +620,16 @@ class SoloController extends ChangeNotifier {
     final terrain = state!.terrainLayout[bot.zoneIndex];
     if (terrain.effect == 'choice') {
       final deck = _ai.bestDeck(bot, difficulty);
-      state!.pendingCard = _eg.drawCard(deck, forcedQueue: state!.forcedDeckQueue);
+      state!.pendingCard = _eg.drawCard(deck, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
       state!.pendingCardIsSecret = (deck == DeckType.vision);
     } else if (terrain.effect == 'vision')   {
-      state!.pendingCard = _eg.drawCard(DeckType.vision, forcedQueue: state!.forcedDeckQueue);
+      state!.pendingCard = _eg.drawCard(DeckType.vision, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
       state!.pendingCardIsSecret = true;
     } else if (terrain.effect == 'lumiere')  {
-      state!.pendingCard = _eg.drawCard(DeckType.lumiere, forcedQueue: state!.forcedDeckQueue);
+      state!.pendingCard = _eg.drawCard(DeckType.lumiere, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
       state!.pendingCardIsSecret = false;
     } else if (terrain.effect == 'tenebres') {
-      state!.pendingCard = _eg.drawCard(DeckType.tenebres, forcedQueue: state!.forcedDeckQueue);
+      state!.pendingCard = _eg.drawCard(DeckType.tenebres, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
       state!.pendingCardIsSecret = false;
     }
     else if (terrain.effect == 'damage9')    {
@@ -842,11 +847,11 @@ class SoloController extends ChangeNotifier {
         '${killer.name} a éliminé ${dead.name} (cible de Jeanne) !\n${_eg.jeanneRewardLabel(reward)}';
     // Cas spéciaux nécessitant une pioche de carte
     if (needsCard && reward == 'heal3_lumiere') {
-      state!.pendingCard = _eg.drawCard(DeckType.lumiere, forcedQueue: state!.forcedDeckQueue);
+      state!.pendingCard = _eg.drawCard(DeckType.lumiere, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
       state!.phase = GamePhase.cardDrawn;
     }
     if (needsCard && reward == 'draw_vision') {
-      state!.pendingCard = _eg.drawCard(DeckType.vision, forcedQueue: state!.forcedDeckQueue);
+      state!.pendingCard = _eg.drawCard(DeckType.vision, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
       state!.phase = GamePhase.cardDrawn;
     }
     // Effacer le marquage
@@ -1211,7 +1216,7 @@ class SoloController extends ChangeNotifier {
       case 'fetch_lumiere':
         p.abilityUsed = true;
         s.phase = GamePhase.cardDrawn;
-        s.pendingCard = _eg.drawCard(DeckType.lumiere, forcedQueue: s.forcedDeckQueue);
+        s.pendingCard = _eg.drawCard(DeckType.lumiere, forcedQueue: s.forcedDeckQueue, deckPiles: s.deckPiles);
         _log('🙏 Prêtresse Raph choisit une carte Lumière', cls: 'player');
         notifyListeners(); return;
 
@@ -1450,14 +1455,17 @@ class SoloController extends ChangeNotifier {
           s.phase = GamePhase.chooseTarget; notifyListeners(); return;
         }
         _applyDmgAudio(target, 8);
-        // Hong Yi finit toujours à exactement 1 blessure (ne meurt plus)
-        p.wounds = 7; p.alive = true;
+        // Hong Yi s'inflige 4 blessures en retour (peut désormais mourir de
+        // son propre pouvoir si déjà fortement blessé au préalable).
+        _applyDmgAudio(p, 4);
         p.abilityUsed = true; // unique
         s.pendingTargetAction = null;
         s.abilityOverlay = 'hongyi_dumbbell';
         s.abilityDiceResult = {'d': 8, 'result': 8, 'dmg': 8};
-        _log('⚡ Hong Yi inflige 8 à ${target.name} — et se retrouve à 1 blessure !', cls: 'player');
+        _log('⚡ Hong Yi inflige 8 à ${target.name} — et s\'inflige 4 blessures en retour !', cls: 'player');
+        if (!p.alive) p.killedByUid = p.uid;
         _checkWin(justDiedId: target.alive ? null : target.uid);
+        if (!p.alive) _checkWin(justDiedId: p.uid);
         if (!s.isOver) { s.phase = GamePhase.move; }
         notifyListeners();
         return;
@@ -1824,7 +1832,7 @@ class SoloController extends ChangeNotifier {
 
   void humanDrawCard(DeckType deck) {
     audio.playCard();
-    final card = _eg.drawCard(deck, forcedQueue: state!.forcedDeckQueue); state!.pendingCard = card;
+    final card = _eg.drawCard(deck, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles); state!.pendingCard = card;
     state!.phase = GamePhase.cardDrawn;
     if (card.deck != DeckType.vision) {
       _log('🃏 Tu pioches : ${card.name}', cls: 'player');

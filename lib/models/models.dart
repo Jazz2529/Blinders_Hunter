@@ -438,6 +438,9 @@ class GameState {
   final int? jeanneRewardBannerTimestamp; // pour l'auto-expiration côté clients
   final int? publicRevealTimestamp;   // pour l'auto-expiration côté clients
   final Map<String, List<String>> forcedDeckQueue; // cartes forcées par pile (Elaia)
+  // Pile réelle par deck : liste mélangée des IDs restant à piocher. Se
+  // remplit et se mélange automatiquement dès qu'elle est vide.
+  final Map<String, List<String>> deckPiles;
 
   const GameState({
     required this.roomId,
@@ -491,6 +494,7 @@ class GameState {
     this.jeanneRewardBannerTimestamp,
     this.publicRevealTimestamp,
     this.forcedDeckQueue = const {},
+    this.deckPiles = const {},
   });
 
   Map<String, dynamic> toJson() => {
@@ -543,6 +547,7 @@ class GameState {
     'jeanneRewardBannerTimestamp': jeanneRewardBannerTimestamp,
     'publicRevealTimestamp': publicRevealTimestamp,
     'forcedDeckQueue': forcedDeckQueue,
+    'deckPiles': deckPiles,
   };
 
   factory GameState.fromJson(Map<String, dynamic> j) => GameState(
@@ -609,6 +614,10 @@ class GameState {
     publicRevealTimestamp: j['publicRevealTimestamp'] as int?,
     forcedDeckQueue: j['forcedDeckQueue'] != null
         ? Map<String, List<String>>.from((j['forcedDeckQueue'] as Map).map(
+            (k, v) => MapEntry(k as String, List<String>.from(v as List))))
+        : const {},
+    deckPiles: j['deckPiles'] != null
+        ? Map<String, List<String>>.from((j['deckPiles'] as Map).map(
             (k, v) => MapEntry(k as String, List<String>.from(v as List))))
         : const {},
   );
