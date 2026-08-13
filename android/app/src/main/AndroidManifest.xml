@@ -20,6 +20,15 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- Désactive le moteur de rendu Impeller (activé par défaut sur
+                 Android depuis Flutter 3.x) — corrige un bug connu et
+                 documenté de Flutter où une grande boîte noire apparaît
+                 au-dessus du clavier virtuel sur certains appareils/versions
+                 d'Android. Skia (l'ancien moteur) reste totalement stable et
+                 sans ce défaut. -->
+            <meta-data
+              android:name="io.flutter.embedding.android.EnableImpeller"
+              android:value="false" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

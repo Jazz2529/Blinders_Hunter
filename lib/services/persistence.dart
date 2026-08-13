@@ -130,6 +130,12 @@ class Prefs {
     _sp?.setInt('games_won_$characterName', current + 1);
   }
 
+  /// [DEBUG UNIQUEMENT] Ajoute une victoire factice à un personnage, sans
+  /// avoir à réellement jouer une partie — pour tester rapidement les
+  /// paliers d'effet brillant. Appelée uniquement depuis un contrôle
+  /// protégé par kDebugMode côté interface.
+  static void debugAddWin(String characterName) => _incrementGamesWon(characterName);
+
   // ── Or (monnaie de la boutique) ────────────────────────────────────────
   static int gold() => _sp?.getInt('gold') ?? 0;
 

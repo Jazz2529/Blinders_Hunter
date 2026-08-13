@@ -2,6 +2,7 @@
 // Catalogue : Galerie des personnages + Galerie des cartes de jeu
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import '../data/game_data.dart';
 import '../data/characters_data.dart';
 import '../models/models.dart';
@@ -330,6 +331,16 @@ class _CharacterCard extends StatelessWidget {
       // sur l'image (ou n'importe où) referme et revient au catalogue,
       // via showFullCardDialog (même écran que celui utilisé en partie).
       onTap: () => showFullCardDialog(ctx, c),
+      // [DEBUG UNIQUEMENT] Appui long : ajoute 15 victoires factices à ce
+      // personnage, pour tester les paliers d'effet brillant sans avoir à
+      // rejouer des dizaines de parties. Disparaît automatiquement en
+      // dehors du mode debug (flutter run), comme le bouton +or.
+      onLongPress: !kDebugMode ? null : () {
+        for (var i = 0; i < 15; i++) { Prefs.debugAddWin(c.name); }
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+          content: Text('[DEBUG] +15 victoires pour ${c.name} (total : ${Prefs.gamesWonWith(c.name)}) — quitte et rouvre le catalogue pour voir l\'effet'),
+          backgroundColor: kGreen, duration: const Duration(seconds: 3)));
+      },
       child: Container(
         decoration: BoxDecoration(
           color: kBg2,

@@ -439,7 +439,7 @@ class SoloController extends ChangeNotifier {
   // ─── Bot ────────────────────────────────
   Future<void> _playBot(Player bot) async {
     state!.botThinking = true; notifyListeners();
-    const d = Duration(milliseconds: 1100);
+    const d = Duration(milliseconds: 1500);
 
     _ai.remember(state!.players);
 
