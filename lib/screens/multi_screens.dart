@@ -1746,6 +1746,15 @@ class _ActionPanelState extends State<_ActionPanel> {
                 borderRadius: BorderRadius.circular(8), border: Border.all(color: kRed.withValues(alpha: 0.5))),
               child: Text('🪓 Tu DOIS attaquer avant de terminer le tour !', style: body(11, c: kRed)),
             )
+          // Une attaque en attente de confirmation (dés déjà lancés) DOIT
+          // être résolue — impossible de terminer le tour pour la contourner.
+          else if (_atkDmg != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: kRed.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8), border: Border.all(color: kRed.withValues(alpha: 0.5))),
+              child: Text('⚔️ Tu dois confirmer ton attaque avant de terminer le tour !', style: body(11, c: kRed)),
+            )
           else
             BHButton(label:'Terminer le tour →', onTap: () => _act(gp.endTurn), outlined:true),
         ];

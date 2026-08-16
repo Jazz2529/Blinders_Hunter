@@ -1963,7 +1963,10 @@ class _WoundsColumnState extends State<_WoundsColumn>
           child: FittedBox(
             fit: BoxFit.scaleDown,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-            // Cadre coloré selon faction si révélé
+            // Cadre coloré selon faction si révélé (déguisement de Jason
+            // pris en compte tant qu'il est VIVANT — sinon son cadre restait
+            // toujours jaune/Neutre au lieu de la couleur du camp qu'il
+            // imite ; mort, il montre sa vraie faction comme tout le monde).
             AnimatedContainer(
               duration: const Duration(milliseconds: 400),
               padding: EdgeInsets.all(p.revealed ? 2.5 : 0),
@@ -1971,7 +1974,7 @@ class _WoundsColumnState extends State<_WoundsColumn>
                 shape: BoxShape.circle,
                 boxShadow: p.revealed ? [
                   BoxShadow(
-                    color: factionColor(p.character!.faction.name).withValues(alpha: 0.7),
+                    color: factionColor((p.alive ? p.disguiseFactionOverride : null) ?? p.character!.faction.name).withValues(alpha: 0.7),
                     blurRadius: 10, spreadRadius: 1)
                 ] : null,
               ),
@@ -1979,7 +1982,7 @@ class _WoundsColumnState extends State<_WoundsColumn>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: p.revealed ? Border.all(
-                    color: factionColor(p.character!.faction.name), width: 2.5) : null,
+                    color: factionColor((p.alive ? p.disguiseFactionOverride : null) ?? p.character!.faction.name), width: 2.5) : null,
                 ),
                 child: Stack(alignment: Alignment.topRight, clipBehavior: Clip.none, children: [
                   TokenWidget(tokenId: p.token, size: 30, isDead: !p.alive),
@@ -2771,6 +2774,24 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                 const Text('🪓', style: TextStyle(fontSize: 14)),
                 const SizedBox(width: 8),
                 Expanded(child: Text('Tu DOIS attaquer avant de terminer le tour !',
+                  style: body(11, c: kRed))),
+              ]),
+            )
+          // Une attaque en attente de confirmation (dés déjà lancés) DOIT
+          // être résolue — impossible de terminer le tour pour la contourner
+          // et échapper aux dégâts qu'elle va infliger.
+          else if (_atkDmg != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: kRed.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: kRed.withValues(alpha: 0.5))),
+              child: Row(children: [
+                const Text('⚔️', style: TextStyle(fontSize: 14)),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Tu dois confirmer ton attaque avant de terminer le tour !',
                   style: body(11, c: kRed))),
               ]),
             )
