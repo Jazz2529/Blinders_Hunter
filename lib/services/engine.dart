@@ -136,14 +136,20 @@ class GameEngine with AbilityEngine {
       // tour), pas après avoir absorbé un certain nombre de points.
       return 0;
     }
+    // Felipe en sursis : insensible à TOUTES les blessures tant que son
+    // tour de grâce est en cours — sans ça, n'importe qui pouvait
+    // l'achever avant même qu'il ait eu la chance de se sauver.
+    if (p.felipeOnBorrowedTime) return 0;
     if (p.sainteTunique) n = max(0, n - 1);
     p.wounds += n;
-    // Felipe : passif — la PREMIÈRE fois qu'il subirait des dégâts létaux, il
-    // survit avec 1 PV au lieu de mourir, et dispose d'un tour de sursis
-    // pour éliminer quelqu'un (voir applyDeathPassives pour le sauvetage, et
-    // la fin de tour pour la mort si le sursis n'a pas suffi).
+    // Felipe : passif RÉVÉLÉ — la PREMIÈRE fois qu'il subirait des dégâts
+    // létaux, il survit avec 1 PV au lieu de mourir, et dispose d'un tour de
+    // sursis pour éliminer quelqu'un (voir applyDeathPassives pour le
+    // sauvetage, et la fin de tour pour la mort si le sursis n'a pas
+    // suffi). Ne fonctionne QUE s'il est révélé — sinon aucun effet, il
+    // meurt normalement comme n'importe qui.
     final isFelipe = (p.copiedEffect ?? p.character?.abilityEffect ?? '') == 'felipe_passive';
-    if (isFelipe && !p.felipeOnBorrowedTime && p.wounds >= effectiveMaxHp(p)) {
+    if (isFelipe && p.revealed && !p.felipeOnBorrowedTime && p.wounds >= effectiveMaxHp(p)) {
       p.felipeOnBorrowedTime = true;
       p.wounds = effectiveMaxHp(p) - 1; // 1 PV restant, toujours en vie
     } else if (p.wounds >= effectiveMaxHp(p)) {
@@ -1236,8 +1242,11 @@ class GameEngine with AbilityEngine {
 
     // Tous les Shadows morts → Hunters + survive gagnent
     if (shadows.isEmpty) {
+      final deadHunters = players.where((p) =>
+          !p.alive && p.character!.faction == Faction.hunter);
       final ids = <String>{
         ...hunters.map((p) => p.uid),
+        ...deadHunters.map((p) => p.uid), // les Hunters morts gagnent aussi
         ...alive.where((p) {
           final we = p.character!.winEffect;
           return we == 'survive' || we == 'kill_christine_or_hunters';
@@ -1248,8 +1257,11 @@ class GameEngine with AbilityEngine {
 
     // Tous les Hunters morts → Shadows + survive gagnent
     if (hunters.isEmpty) {
+      final deadShadows = players.where((p) =>
+          !p.alive && p.character!.faction == Faction.shadow);
       final ids = <String>{
         ...shadows.map((p) => p.uid),
+        ...deadShadows.map((p) => p.uid), // les Shadows morts gagnent aussi
         ...alive.where((p) {
           final we = p.character!.winEffect;
           return we == 'survive';
@@ -1413,14 +1425,15 @@ class GameEngine with AbilityEngine {
         }
       }
       // Felipe : s'il est en sursis (a survécu à des dégâts létaux) et que
-      // C'EST LUI qui vient d'éliminer ce joueur, il est sauvé — repasse à
-      // 2 PV au lieu de mourir à la fin de son tour de sursis.
+      // C'EST LUI qui vient d'éliminer ce joueur, il est sauvé — se soigne
+      // de 2 blessures au lieu de mourir à la fin de son tour de sursis
+      // (relatif à ses blessures actuelles, plus une valeur fixe).
       if (p.killedByUid != null) {
         Player? felipeKiller;
         for (final k in all) { if (k.uid == p.killedByUid) { felipeKiller = k; break; } }
         if (felipeKiller != null && felipeKiller.felipeOnBorrowedTime) {
           felipeKiller.felipeOnBorrowedTime = false;
-          felipeKiller.wounds = effectiveMaxHp(felipeKiller) - 2;
+          applyHeal(felipeKiller, 2);
           felipeKiller.alive = true;
         }
       }

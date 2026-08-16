@@ -4374,28 +4374,53 @@ class _SoloGameOverScreenState extends State<SoloGameOverScreen>
                       final c2 = w.character;
                       final imgPath = c2 != null ? effectiveCharacterImagePath(c2.id) : null;
                       final wFc = factionColor(c2?.faction.name ?? '');
+                      final isDead = !w.alive;
                       return Container(
                         width: 120,
                         decoration: BoxDecoration(
                           color: kBg2,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: wFc, width: 2.5),
-                          boxShadow: [BoxShadow(color: wFc.withValues(alpha: 0.4), blurRadius: 10)],
+                          border: Border.all(color: isDead ? kTextDim : wFc, width: 2.5),
+                          boxShadow: isDead ? null
+                            : [BoxShadow(color: wFc.withValues(alpha: 0.4), blurRadius: 10)],
                         ),
                         child: Column(mainAxisSize: MainAxisSize.min, children: [
-                          // Illustration
+                          // Illustration — en niveaux de gris + icône tombale
+                          // pour un gagnant mort, mais la carte reste bien
+                          // visible (juste "éteinte", pas cachée).
                           ClipRRect(
                             borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
                             child: SizedBox(
                               height: 130, width: double.infinity,
-                              child: imgPath != null
-                                ? Image.asset(imgPath, fit: BoxFit.cover,
-                                    cacheHeight: 520,
-                                    errorBuilder: (_, __, ___) => Container(color: fbg,
-                                      child: Center(child: Text(c2?.icon ?? '?',
-                                        style: const TextStyle(fontSize: 40)))))
-                                : Container(color: fbg, child: Center(
-                                    child: Text(c2?.icon ?? '?', style: const TextStyle(fontSize: 40)))),
+                              child: Stack(fit: StackFit.expand, children: [
+                                ColorFiltered(
+                                  colorFilter: isDead
+                                    ? const ColorFilter.matrix(<double>[
+                                        0.2126, 0.7152, 0.0722, 0, 0,
+                                        0.2126, 0.7152, 0.0722, 0, 0,
+                                        0.2126, 0.7152, 0.0722, 0, 0,
+                                        0, 0, 0, 1, 0,
+                                      ])
+                                    // Filtre neutre (n'altère pas l'image) —
+                                    // BlendMode.dst ignore complètement la
+                                    // couleur source, contrairement à
+                                    // multiply avec du transparent qui
+                                    // aurait noirci l'image entière.
+                                    : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+                                  child: imgPath != null
+                                    ? Image.asset(imgPath, fit: BoxFit.cover,
+                                        cacheHeight: 520,
+                                        errorBuilder: (_, __, ___) => Container(color: fbg,
+                                          child: Center(child: Text(c2?.icon ?? '?',
+                                            style: const TextStyle(fontSize: 40)))))
+                                    : Container(color: fbg, child: Center(
+                                        child: Text(c2?.icon ?? '?', style: const TextStyle(fontSize: 40)))),
+                                ),
+                                if (isDead) ...[
+                                  Container(color: Colors.black.withValues(alpha: 0.45)),
+                                  const Center(child: Text('🪦', style: TextStyle(fontSize: 36))),
+                                ],
+                              ]),
                             ),
                           ),
                           // Infos
@@ -4403,7 +4428,7 @@ class _SoloGameOverScreenState extends State<SoloGameOverScreen>
                             padding: const EdgeInsets.all(7),
                             child: Column(children: [
                               Text(c2?.name ?? w.name,
-                                style: cinzel(11, c: wFc, fw: FontWeight.w700),
+                                style: cinzel(11, c: isDead ? kTextDim : wFc, fw: FontWeight.w700),
                                 textAlign: TextAlign.center,
                                 overflow: TextOverflow.ellipsis),
                               const SizedBox(height: 3),
