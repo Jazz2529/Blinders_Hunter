@@ -11,7 +11,7 @@ import 'shine_effect.dart';
 /// panneau d'infos : nom, faction, PV, capacité et condition de victoire.
 /// Sur écran étroit (téléphone), l'illustration passe au-dessus du texte.
 /// Tap n'importe où pour fermer.
-Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride, int? oscarXpOverride}) {
+Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride, int? oscarXpOverride, String? maximeTargetName}) {
   return showDialog(
     context: ctx,
     barrierColor: Colors.black.withValues(alpha: 0.88),
@@ -23,8 +23,8 @@ Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverr
         behavior: HitTestBehavior.opaque,
         child: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride)
-                   : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride),
+            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName)
+                   : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName),
             const SizedBox(height: 12),
             Text('Touche l\'écran pour fermer', style: body(12, c: kTextDim)),
           ]),
@@ -210,7 +210,8 @@ class _WideLayout extends StatelessWidget {
   final Size size;
   final int? hpOverride;
   final int? oscarXpOverride;
-  const _WideLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride});
+  final String? maximeTargetName;
+  const _WideLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName});
 
   @override
   Widget build(BuildContext ctx) {
@@ -229,7 +230,7 @@ class _WideLayout extends StatelessWidget {
       SizedBox(width: 320,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: imgH),
-          child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride),
+          child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName),
         )),
     ]);
   }
@@ -241,7 +242,8 @@ class _NarrowLayout extends StatelessWidget {
   final Size size;
   final int? hpOverride;
   final int? oscarXpOverride;
-  const _NarrowLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride});
+  final String? maximeTargetName;
+  const _NarrowLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName});
 
   @override
   Widget build(BuildContext ctx) {
@@ -258,7 +260,7 @@ class _NarrowLayout extends StatelessWidget {
       child: Column(children: [
         _CardImage(c: c, w: imgW, h: imgH),
         const SizedBox(height: 12),
-        Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride)),
+        Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName)),
       ]),
     );
   }
@@ -312,7 +314,8 @@ class _InfoPanel extends StatelessWidget {
   final Color fc;
   final int? hpOverride;
   final int? oscarXpOverride;
-  const _InfoPanel({required this.c, required this.fc, this.hpOverride, this.oscarXpOverride});
+  final String? maximeTargetName;
+  const _InfoPanel({required this.c, required this.fc, this.hpOverride, this.oscarXpOverride, this.maximeTargetName});
 
   @override
   Widget build(BuildContext ctx) {
@@ -361,6 +364,20 @@ class _InfoPanel extends StatelessWidget {
                     border: Border.all(color: kGold, width: 1.5)),
                   child: Text('🧪 $oscarXpOverride / 13 XP',
                     style: cinzel(14, c: kGold2, fw: FontWeight.w900)),
+                )),
+              ],
+              // Maxime : rappelle qui est le premier joueur à l'avoir blessé
+              // (sa cible pour la victoire) — vide tant que personne ne l'a
+              // encore touché.
+              if (maximeTargetName != null) ...[
+                const SizedBox(height: 8),
+                Center(child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: kRed.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: kRed, width: 1.5)),
+                  child: Text('🎯 Cible : $maximeTargetName',
+                    style: cinzel(13, c: kRed, fw: FontWeight.w900)),
                 )),
               ],
               const SizedBox(height: 16),

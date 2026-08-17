@@ -130,6 +130,16 @@ class GameEngine with AbilityEngine {
   /// sous 1, pour éviter un PV max nul ou négatif qui n'aurait pas de sens.
   int effectiveMaxHp(Player p) => max(1, (p.character?.hp ?? 1) + p.maxHpModifier);
 
+  /// Maxime : mémorise le PREMIER joueur à lui avoir réellement infligé des
+  /// blessures cette partie — sa condition de victoire. Ne s'écrase jamais
+  /// une fois posé (seul le tout premier compte).
+  void applyMaximeFirstAttacker(Player attacker, Player target, int actualDmg) {
+    if ((target.copiedEffect ?? target.character?.abilityEffect) != 'maxime_double_first') return;
+    if (actualDmg <= 0) return;
+    if (target.maximeFirstAttackerUid != null) return;
+    target.maximeFirstAttackerUid = attacker.uid;
+  }
+
   /// Victor : +20% de charme à la cible attaquée, +10% à tous les joueurs
   /// sur sa zone (peut cumuler avec la cible si elle y est aussi). Se
   /// déclenche à CHAQUE attaque UNE FOIS RÉVÉLÉ, indépendamment des dégâts
@@ -969,6 +979,11 @@ class GameEngine with AbilityEngine {
     if (attacker.oscarFireBonus) {
       dmg += 2; attacker.oscarFireBonus = false; // consommé
     }
+    // Maxime : sa première attaque après s'être révélé inflige le double.
+    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'maxime_double_first'
+        && attacker.revealed && !attacker.maximeUsedFirstBonus) {
+      dmg *= 2; attacker.maximeUsedFirstBonus = true; // consommé, ne se reproduit plus
+    }
 
     // Protection cible
     if (target.invulnerable) return {'log': '🛡 ${target.name} est invulnérable — attaque bloquée'};
@@ -1015,6 +1030,7 @@ class GameEngine with AbilityEngine {
     // Victor : charme la cible et tous les joueurs présents sur sa zone —
     // se déclenche à chaque attaque, quel que soit le résultat des dégâts.
     applyVictorCharm(attacker, target, all);
+    applyMaximeFirstAttacker(attacker, target, actual);
     String log = '⚔️ ${attacker.name} attaque ${target.name} — $actual dégâts';
 
     // Rémi : équipement personnalisé — effets choisis qui se déclenchent
@@ -1159,6 +1175,10 @@ class GameEngine with AbilityEngine {
     if (attacker.oscarFireBonus) {
       dmg += 2; attacker.oscarFireBonus = false; // consommé
     }
+    // Maxime : sa première attaque après s'être révélé inflige le double.
+    if (atkEff == 'maxime_double_first' && attacker.revealed && !attacker.maximeUsedFirstBonus) {
+      dmg *= 2; attacker.maximeUsedFirstBonus = true;
+    }
     // NOTE : la réduction de la Sainte Tunique se fait déjà correctement DANS
     // applyDamage() en vérifiant le porteur qui SUBIT les dégâts (la cible),
     // pas l'attaquant — une ligne ici vérifiait à tort la Tunique de
@@ -1184,6 +1204,7 @@ class GameEngine with AbilityEngine {
       attacker.oscarXp += actual;
     }
     applyVictorCharm(attacker, target, all);
+    applyMaximeFirstAttacker(attacker, target, actual);
     String log = '⚔️ ${attacker.name} attaque ${target.name} — $actual dégâts';
     // Scott : contre-attaque (uniquement s'il survit à l'attaque)
     bool scottCountered = false;
@@ -1312,6 +1333,21 @@ class GameEngine with AbilityEngine {
           }
         } catch (_) {}
       }
+    }
+
+    // Maxime — a-t-il éliminé le premier joueur à l'avoir blessé ?
+    if (justDiedId != null) {
+      try {
+        final victim = players.firstWhere((p) => p.uid == justDiedId);
+        if (victim.killedByUid != null) {
+          final killer = players.firstWhere((p) => p.uid == victim.killedByUid);
+          if (killer.character!.winEffect == 'maxime_kill_first_attacker' && killer.alive &&
+              killer.maximeFirstAttackerUid == victim.uid) {
+            return {'winnerIds': [killer.uid],
+              'reason': '🗡️ ${killer.name} (Maxime) élimine ${victim.name}, le premier à l\'avoir blessé — Victoire !'};
+          }
+        }
+      } catch (_) {}
     }
 
     // Mango Loco — a-t-il éliminé un joueur avec 13 PV ou plus ?

@@ -242,6 +242,12 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'victor_charm', abilityRepeatable:true,
     winCondition:'Avoir charmé 2 joueurs à 100%', winEffect:'victor_charm2'),
 
+  CharacterCard(id:'maxime', name:'Maxime', faction:Faction.neutral, hp:11, icon:'🗡️',
+    ability:'Passif: votre première attaque après vous être révélé inflige le double de blessures.',
+    abilityEffect:'maxime_double_first', abilityRepeatable:true,
+    winCondition:'Éliminer le premier joueur à vous avoir infligé des blessures cette partie',
+    winEffect:'maxime_kill_first_attacker'),
+
   CharacterCard(id:'leo', name:'Léo', faction:Faction.neutral, hp:12, icon:'💀',
     ability:'Unique: lancez le D4 et infligez ce résultat à tout le monde (vous inclus)',
     abilityEffect:'d4_all', abilityRepeatable:false,

@@ -186,6 +186,8 @@ class Player {
   bool fannyHasStolen = false; // Fanny : est-ce qu'elle a déjà volé une carte (une seule fois)
   bool deathPassiveProcessed = false; // Marqueur dédié "passifs de mort déjà traités pour ce joueur" — séparé de abilityUsed pour ne pas entrer en conflit avec les personnages dont la capacité unique avait déjà été utilisée AVANT leur mort
   Map<String, int> charmLevels; // Victor : uid → % de charme (0-100), stocké UNIQUEMENT sur Victor — lui seul peut voir cette donnée
+  bool maximeUsedFirstBonus = false; // Maxime : sa première attaque après révélation (dégâts doublés) a-t-elle déjà eu lieu
+  String? maximeFirstAttackerUid; // Maxime : uid du premier joueur à lui avoir infligé des blessures cette partie (condition de victoire)
   bool nilsStoring = false;  // Nils : mode "stockage" actif (ses attaques stockent au lieu de blesser)
   bool emilienRerolledThisTurn = false; // Emilien : relance du D6 déjà utilisée ce tour (une seule fois)
   int maxHpModifier = 0; // Agathe : PV max volés/perdus, définitivement (+ pour elle, − pour la victime, plafonné à ±5)
@@ -256,6 +258,8 @@ class Player {
     this.fannyHasStolen = false,
     this.deathPassiveProcessed = false,
     Map<String, int>? charmLevels,
+    this.maximeUsedFirstBonus = false,
+    this.maximeFirstAttackerUid,
     this.nilsStoring = false,
     this.emilienRerolledThisTurn = false,
     this.maxHpModifier = 0,
@@ -309,6 +313,8 @@ class Player {
     'fannyHasStolen': fannyHasStolen,
     'deathPassiveProcessed': deathPassiveProcessed,
     'charmLevels': charmLevels,
+    'maximeUsedFirstBonus': maximeUsedFirstBonus,
+    'maximeFirstAttackerUid': maximeFirstAttackerUid,
     'nilsStoring': nilsStoring,
     'emilienRerolledThisTurn': emilienRerolledThisTurn,
     'maxHpModifier': maxHpModifier,
@@ -383,6 +389,8 @@ class Player {
     charmLevels: j['charmLevels'] != null
         ? Map<String, int>.from((j['charmLevels'] as Map).map((k, v) => MapEntry(k as String, v as int)))
         : null,
+    maximeUsedFirstBonus: j['maximeUsedFirstBonus'] as bool? ?? false,
+    maximeFirstAttackerUid: j['maximeFirstAttackerUid'] as String?,
     nilsStoring: (j['nilsStoring'] as bool?) ?? false,
     emilienRerolledThisTurn: (j['emilienRerolledThisTurn'] as bool?) ?? false,
     maxHpModifier: (j['maxHpModifier'] as num?)?.toInt() ?? 0,

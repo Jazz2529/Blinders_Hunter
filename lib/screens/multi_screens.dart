@@ -423,9 +423,15 @@ class _GameScreenState extends State<GameScreen> {
             TextButton(
               onPressed: () {
                 final c = gp.me?.character;
+                final maximeTarget = (c?.id == 'maxime' && gp.me?.maximeFirstAttackerUid != null)
+                    ? gp.players[gp.me!.maximeFirstAttackerUid]
+                    : null;
                 if (c != null) showFullCardDialog(ctx, c,
                   hpOverride: c.hp + (gp.me?.maxHpModifier ?? 0),
-                  oscarXpOverride: c.id == 'oscar' ? gp.me?.oscarXp : null);
+                  oscarXpOverride: c.id == 'oscar' ? gp.me?.oscarXp : null,
+                  maximeTargetName: c.id == 'maxime'
+                    ? (maximeTarget?.name ?? 'Personne pour le moment')
+                    : null);
               },
               style: TextButton.styleFrom(
                 backgroundColor: kGold.withValues(alpha: 0.15),
@@ -1360,7 +1366,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               'zero_wound_power', 'third_attack_bonus', 'infinite_range',
               'chameleon_passive', 'heal1_on_own_attack', 'builder_power', 'prophete_mark',
               'double_attack_if_tanky', 'heal_hunter_on_attack', 'reroll_d6_attack', 'felipe_passive',
-              'double_move_dice', 'fanny_none', 'victor_charm',
+              'double_move_dice', 'fanny_none', 'victor_charm', 'maxime_double_first',
             }.contains(me?.copiedEffect ?? me?.character?.abilityEffect) &&
               !((me?.copiedEffect ?? me?.character?.abilityEffect) == 'store_damage_nils' && (me?.storedDamage ?? 0) < 1))
               BHButton(
