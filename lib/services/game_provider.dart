@@ -157,7 +157,7 @@ class GameProvider extends ChangeNotifier {
   bool _abilityNeedsTarget(String eff) => [
     'damage2_choice','damage2_then_heal3','set_wounds5','steal_equip_choice',
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
-    'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors',
+    'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors','luc_ignite',
   ].contains(eff);
 
   bool _cardNeedsTarget(String eff) => [

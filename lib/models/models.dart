@@ -174,6 +174,8 @@ class Player {
   String? copiedEffect; // Baptiste/Oscar: effet copié
   String? poisonSourceUid; // qui a empoisonné
   int poisonTurnsRemaining; // Damien : tours restants de poison (3 dégâts/tour)
+  String? lucFireSourceUid; // qui a mis le feu
+  int lucFireTurnsRemaining; // Luc : tours restants en feu (2 dégâts/tour, +1 dégât aux attaques)
   String? disguiseIconOverride;
   String? disguiseNameOverride;
   String? disguiseFactionOverride;
@@ -245,6 +247,8 @@ class Player {
     this.copiedEffect,
     this.poisonSourceUid,
     this.poisonTurnsRemaining = 0,
+    this.lucFireSourceUid,
+    this.lucFireTurnsRemaining = 0,
     this.disguiseIconOverride,
     this.disguiseNameOverride,
     this.disguiseFactionOverride,
@@ -299,6 +303,8 @@ class Player {
     'killedByUid': killedByUid, 'copiedEffect': copiedEffect,
     'poisonSourceUid': poisonSourceUid,
     'poisonTurnsRemaining': poisonTurnsRemaining,
+    'lucFireSourceUid': lucFireSourceUid,
+    'lucFireTurnsRemaining': lucFireTurnsRemaining,
     'disguiseIconOverride': disguiseIconOverride,
     'disguiseNameOverride': disguiseNameOverride,
     'disguiseFactionOverride': disguiseFactionOverride,
@@ -374,6 +380,8 @@ class Player {
     copiedEffect: j['copiedEffect'] as String?,
     poisonSourceUid: j['poisonSourceUid'] as String?,
     poisonTurnsRemaining: (j['poisonTurnsRemaining'] as int?) ?? 0,
+    lucFireSourceUid: j['lucFireSourceUid'] as String?,
+    lucFireTurnsRemaining: (j['lucFireTurnsRemaining'] as int?) ?? 0,
     disguiseIconOverride: j['disguiseIconOverride'] as String?,
     disguiseNameOverride: j['disguiseNameOverride'] as String?,
     disguiseFactionOverride: j['disguiseFactionOverride'] as String?,

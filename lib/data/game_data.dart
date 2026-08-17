@@ -150,6 +150,16 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'damage2_or_heal1', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
+  CharacterCard(id:'bob', name:'Bob', faction:Faction.shadow, hp:5, icon:'⛓️',
+    ability:'Passif: chaque fois que vous mourriez, vous revenez à la vie avec 1 PV MAX de moins (5 → 4 → 3…) — jusqu\'à ce que ce total atteigne 0, où vous mourez alors définitivement.',
+    abilityEffect:'bob_resurrect', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'luc', name:'Luc', faction:Faction.shadow, hp:11, icon:'🔥',
+    ability:'Répétable: mettez le feu à un joueur de votre choix — pendant 2 tours, il perd 2 PV au début de son tour, mais ses attaques infligent 1 blessure de plus.',
+    abilityEffect:'luc_ignite', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
   CharacterCard(id:'louise', name:'Louise', faction:Faction.shadow, hp:10, icon:'💢',
     ability:'Passif: si votre attaque inflige 0 blessure → infligez 4. Sinon infligez 1 de plus',
     abilityEffect:'zero_wound_power', abilityRepeatable:true,

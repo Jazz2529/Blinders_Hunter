@@ -1677,8 +1677,14 @@ class SoloController extends ChangeNotifier {
         if (log.isNotEmpty) _log(log, cls: 'player');
     }
 
-    // Après toute capacité qui n'a pas explicitement changé la phase → déplacement
-    if (state!.phase == GamePhase.ability) {
+    // Après toute capacité qui n'a pas explicitement changé la phase →
+    // déplacement. Doit couvrir DEUX cas : le premier appel sans cible
+    // (phase encore "ability"), ET le second appel APRÈS sélection de
+    // cible (phase déjà passée à "chooseTarget" par le premier appel) —
+    // sans ce second cas, un pouvoir à cible géré par le "default" restait
+    // bloqué sur l'écran de sélection indéfiniment (Luc pouvait ainsi
+    // enflammer plusieurs joueurs à la suite).
+    if (state!.phase == GamePhase.ability || state!.phase == GamePhase.chooseTarget) {
       state!.phase = GamePhase.move;
     }
     _checkWin(); notifyListeners();

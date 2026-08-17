@@ -1843,16 +1843,25 @@ class _HpLeaderboard extends StatelessWidget {
         Text('🗡 BLESSURES', style: cinzel(8, c: kGold, ls: 2)),
         const SizedBox(height: 3),
         Expanded(
-          child: Row(children: players.map((p) => Expanded(
-            child: _WoundsColumn(
-              player: p,
-              isCurrent: s.players.indexOf(p) == s.currentIdx,
-              isMe: !p.isBot,
-              isFlashing: s.woundFlashUid == p.uid,
-              isMarked: s.markedPlayerUid == p.uid,
-              onTap: (target) { _showOpponentCard(ctx, target, isMe: !target.isBot); },
-            ),
-          )).toList()),
+          child: Row(children: players.map((p) {
+            // Victor : cœur visible UNIQUEMENT si c'est LUI (le joueur
+            // humain) qui a charmé CE joueur à 100% — reste privé pour
+            // n'importe qui d'autre, y compris pour la cible elle-même.
+            final victorMe = s.players.where((pp) =>
+                !pp.isBot && pp.character?.id == 'victor').firstOrNull;
+            final maxed = victorMe != null && (victorMe.charmLevels[p.uid] ?? 0) >= 100;
+            return Expanded(
+              child: _WoundsColumn(
+                player: p,
+                isCurrent: s.players.indexOf(p) == s.currentIdx,
+                isMe: !p.isBot,
+                isFlashing: s.woundFlashUid == p.uid,
+                isMarked: s.markedPlayerUid == p.uid,
+                victorCharmMaxed: maxed,
+                onTap: (target) { _showOpponentCard(ctx, target, isMe: !target.isBot); },
+              ),
+            );
+          }).toList()),
         ),
       ]),
     );
@@ -1977,9 +1986,11 @@ class _HpLeaderboard extends StatelessWidget {
 class _WoundsColumn extends StatefulWidget {
   final Player player;
   final bool isCurrent, isMe, isFlashing, isMarked;
+  final bool victorCharmMaxed;
   final void Function(Player)? onTap;
   const _WoundsColumn({required this.player, required this.isCurrent,
-    required this.isMe, this.isFlashing = false, this.isMarked = false, this.onTap});
+    required this.isMe, this.isFlashing = false, this.isMarked = false,
+    this.victorCharmMaxed = false, this.onTap});
   @override State<_WoundsColumn> createState() => _WoundsColumnState();
 }
 
@@ -2095,6 +2106,17 @@ class _WoundsColumnState extends State<_WoundsColumn>
                 ),
               ),
             ),
+            // Luc : joueur en feu — visible de tous, aucune info cachée ici
+            // contrairement au charme de Victor.
+            if (p.alive && p.lucFireTurnsRemaining > 0)
+              Text('🔥 ${p.lucFireTurnsRemaining}',
+                style: const TextStyle(fontSize: 8, fontFamily: 'Cinzel',
+                  fontWeight: FontWeight.w900, color: kRed)),
+            // Victor : cœur affiché UNIQUEMENT si CE joueur est charmé à
+            // 100% ET que la personne qui regarde l'écran est Victor lui-même
+            // — cette info reste strictement privée pour tous les autres.
+            if (widget.victorCharmMaxed) const Text('💘',
+              style: TextStyle(fontSize: 10)),
             // Felipe : en sursis — doit éliminer quelqu'un ce tour ou mourir
             if (p.felipeOnBorrowedTime)
               const Text('⏳ SURSIS', style: TextStyle(
@@ -2405,7 +2427,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
           'zero_wound_steal','slime_passive','heal1_on_own_attack','remi_canada_passive',
           'mathieu_passive','third_attack_bonus','counter_roll_cancel','draw_on_hit_dual_target',
           'chameleon_passive','counter_attack_passive','zero_wound_power','builder_power',
-          'prophete_mark','double_attack_if_tanky','fanny_none','victor_charm','maxime_double_first'};
+          'prophete_mark','double_attack_if_tanky','fanny_none','victor_charm','maxime_double_first','bob_resurrect'};
         final isAutoPassive = me.revealed && autoPassives.contains(me.copiedEffect ?? c.abilityEffect);
         return [
           // Indicateurs d'état spéciaux Shadow
@@ -3347,7 +3369,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'terrain_max_aoe', 'damien_serve', 'copy_ability',
       'self1_trigger_terrain', 'draw_light', 'draw_dark', 'peek_reorder_deck',
       'casino_bet', 'swap_zones', 'd4_bonus_attack', 'store_damage_nils', 'steal_max_hp',
-      'move_adjacent_choice', 'oscar_xp_spend',
+      'move_adjacent_choice', 'oscar_xp_spend', 'luc_ignite',
     };
     if (selfManaged.contains(eff)) {
       ctrl.humanUseAbility();

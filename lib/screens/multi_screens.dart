@@ -1012,6 +1012,18 @@ class _PlayerRow extends StatelessWidget {
           if (p.bonusMaxHp > 0 &&
               (p.copiedEffect ?? p.character?.abilityEffect) == 'no_attack_buff')
             Text('⚡ +2 DÉGÂTS', style: cinzel(9, c: kGold, fw: FontWeight.w900)),
+          // Luc : joueur en feu — visible de tous.
+          if (p.alive && p.lucFireTurnsRemaining > 0)
+            Text('🔥 ${p.lucFireTurnsRemaining}', style: cinzel(9, c: kRed, fw: FontWeight.w900)),
+          // Victor : cœur visible UNIQUEMENT si c'est LUI (le joueur
+          // connecté sur CET appareil) qui a charmé CE joueur à 100% —
+          // strictement privé pour n'importe qui d'autre.
+          Builder(builder: (_) {
+            final victorMe = gp.players.values.where((pp) =>
+                pp.uid == gp.myUid && pp.character?.id == 'victor').firstOrNull;
+            final maxed = victorMe != null && (victorMe.charmLevels[p.uid] ?? 0) >= 100;
+            return maxed ? const Text('💘', style: TextStyle(fontSize: 13)) : const SizedBox.shrink();
+          }),
         ]),
       ),
     ))));
@@ -1350,7 +1362,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               'zero_wound_power', 'third_attack_bonus', 'infinite_range',
               'chameleon_passive', 'heal1_on_own_attack', 'builder_power', 'prophete_mark',
               'double_attack_if_tanky', 'heal_hunter_on_attack', 'reroll_d6_attack', 'felipe_passive',
-              'double_move_dice', 'fanny_none', 'victor_charm', 'maxime_double_first',
+              'double_move_dice', 'fanny_none', 'victor_charm', 'maxime_double_first', 'bob_resurrect',
             }.contains(me?.copiedEffect ?? me?.character?.abilityEffect) &&
               !((me?.copiedEffect ?? me?.character?.abilityEffect) == 'store_damage_nils' && (me?.storedDamage ?? 0) < 1))
               BHButton(
@@ -3182,6 +3194,17 @@ class _PlayerChip extends StatelessWidget {
             if (p.bonusMaxHp > 0 &&
                 (p.copiedEffect ?? p.character?.abilityEffect) == 'no_attack_buff')
               Text('⚡+2', style: body(8, c: kGold)),
+            // Luc : joueur en feu — visible de tous.
+            if (p.alive && p.lucFireTurnsRemaining > 0)
+              Text('🔥${p.lucFireTurnsRemaining}', style: body(8, c: kRed)),
+            // Victor : cœur visible UNIQUEMENT si c'est LUI (le joueur
+            // connecté sur CET appareil) qui a charmé CE joueur à 100%.
+            Builder(builder: (_) {
+              final victorMe = gp.players.values.where((pp) =>
+                  pp.uid == gp.myUid && pp.character?.id == 'victor').firstOrNull;
+              final maxed = victorMe != null && (victorMe.charmLevels[p.uid] ?? 0) >= 100;
+              return maxed ? const Text('💘', style: TextStyle(fontSize: 9)) : const SizedBox.shrink();
+            }),
           ]),
         ),
       ),

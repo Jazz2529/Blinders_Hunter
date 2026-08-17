@@ -496,6 +496,13 @@ class GameEngine with AbilityEngine {
         actor.zoneIndex = chosen;
         return 'christine_moved:$chosen';
 
+      // ── Luc : met le feu à un joueur de son choix ──
+      case 'luc_ignite':
+        if (target == null) return 'cible_requise';
+        target.lucFireTurnsRemaining = 2;
+        target.lucFireSourceUid = actor.uid;
+        return '🔥 ${actor.name} met le feu à ${target.name} — 2 blessures par tour pendant 2 tours, +1 dégât à ses attaques !';
+
       // ── Oscar : dépense son XP au choix parmi 3 options ──
       case 'oscar_xp_spend':
         if (extra == null) return 'oscar_choice'; // signal : afficher les 3 options
@@ -984,6 +991,9 @@ class GameEngine with AbilityEngine {
         && attacker.revealed && !attacker.maximeUsedFirstBonus) {
       dmg *= 2; attacker.maximeUsedFirstBonus = true; // consommé, ne se reproduit plus
     }
+    // Luc : le joueur EN FEU inflige 1 dégât de plus à ses attaques, tant
+    // que le feu dure (indépendamment de qui a attaqué qui).
+    if (dmg > 0 && attacker.lucFireTurnsRemaining > 0) dmg += 1;
 
     // Protection cible
     if (target.invulnerable) return {'log': '🛡 ${target.name} est invulnérable — attaque bloquée'};
@@ -1179,6 +1189,8 @@ class GameEngine with AbilityEngine {
     if (atkEff == 'maxime_double_first' && attacker.revealed && !attacker.maximeUsedFirstBonus) {
       dmg *= 2; attacker.maximeUsedFirstBonus = true;
     }
+    // Luc : le joueur EN FEU inflige 1 dégât de plus à ses attaques.
+    if (dmg > 0 && attacker.lucFireTurnsRemaining > 0) dmg += 1;
     // NOTE : la réduction de la Sainte Tunique se fait déjà correctement DANS
     // applyDamage() en vérifiant le porteur qui SUBIT les dégâts (la cible),
     // pas l'attaquant — une ligne ici vérifiait à tort la Tunique de
@@ -1566,6 +1578,19 @@ class GameEngine with AbilityEngine {
         for (final ally in all.where((a) =>
             a.alive && a.character?.faction == Faction.hunter && a.revealed)) {
           applyHeal(ally, 2);
+        }
+      }
+      // Bob : revient à la vie avec 1 PV MAX de moins (8 → 7 → 6…) — sauf
+      // si ce total tomberait à 0 ou moins, auquel cas il reste mort pour
+      // de bon cette fois.
+      if (eff == 'bob_resurrect') {
+        final newMaxHp = effectiveMaxHp(p) - 1;
+        if (newMaxHp > 0) {
+          p.maxHpModifier -= 1;
+          p.wounds = 0;
+          p.alive = true;
+          p.killedByUid = null; // il n'est plus "mort", personne ne l'a tué
+          p.deathPassiveProcessed = false; // pourra redéclencher ce passif à sa prochaine mort
         }
       }
       // Felipe : s'il est en sursis (a survécu à des dégâts létaux) et que
@@ -2116,6 +2141,17 @@ class GameEngine with AbilityEngine {
       logs.add('☠️ ${p.name} subit 3 blessures du poison (${p.poisonTurnsRemaining} tour(s) restant(s))');
       if (!p.alive) p.killedByUid = p.poisonSourceUid; // attribue le kill à Damien
       if (p.poisonTurnsRemaining <= 0) p.poisonSourceUid = null;
+    }
+
+    // Luc : feu — 2 blessures par tour pendant 2 tours, +1 dégât aux
+    // attaques du joueur en feu tant que ça dure (voir resolveAttackFull et
+    // resolveAttack pour ce second effet).
+    if (p.alive && p.lucFireTurnsRemaining > 0) {
+      applyDamage(p, 2);
+      p.lucFireTurnsRemaining--;
+      logs.add('🔥 ${p.name} brûle et subit 2 blessures (${p.lucFireTurnsRemaining} tour(s) restant(s))');
+      if (!p.alive) p.killedByUid = p.lucFireSourceUid; // attribue le kill à Luc
+      if (p.lucFireTurnsRemaining <= 0) p.lucFireSourceUid = null;
     }
 
     final eff = p.copiedEffect ?? p.character?.abilityEffect ?? '';
