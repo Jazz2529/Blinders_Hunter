@@ -232,6 +232,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'oscar_xp_spend', abilityRepeatable:true,
     winCondition:'Atteindre 13 XP cumulée', winEffect:'oscar_xp13'),
 
+  CharacterCard(id:'fanny', name:'Fanny', faction:Faction.neutral, hp:12, icon:'🎭',
+    ability:'Aucun pouvoir tant que vous n\'avez éliminé personne — si vous éliminez un joueur, vous volez sa carte ENTIÈRE (camp, pouvoir, condition de victoire). Vous devenez alors ce personnage.',
+    abilityEffect:'fanny_none', abilityRepeatable:false,
+    winCondition:'Aucune tant que vous n\'avez éliminé personne', winEffect:'fanny_none'),
+
   CharacterCard(id:'leo', name:'Léo', faction:Faction.neutral, hp:12, icon:'💀',
     ability:'Unique: lancez le D4 et infligez ce résultat à tout le monde (vous inclus)',
     abilityEffect:'d4_all', abilityRepeatable:false,

@@ -183,6 +183,8 @@ class Player {
   int storedDamage = 0;      // Nils : blessures stockées en attendant d'être déchargées
   int oscarXp = 0;           // Oscar : XP cumulée (1 par blessure infligée en attaque), condition de victoire à 13
   bool oscarFireBonus = false; // Oscar : "Feu" activé — +2 dégâts à sa prochaine attaque ce tour
+  bool fannyHasStolen = false; // Fanny : est-ce qu'elle a déjà volé une carte (une seule fois)
+  bool deathPassiveProcessed = false; // Marqueur dédié "passifs de mort déjà traités pour ce joueur" — séparé de abilityUsed pour ne pas entrer en conflit avec les personnages dont la capacité unique avait déjà été utilisée AVANT leur mort
   bool nilsStoring = false;  // Nils : mode "stockage" actif (ses attaques stockent au lieu de blesser)
   bool emilienRerolledThisTurn = false; // Emilien : relance du D6 déjà utilisée ce tour (une seule fois)
   int maxHpModifier = 0; // Agathe : PV max volés/perdus, définitivement (+ pour elle, − pour la victime, plafonné à ±5)
@@ -250,6 +252,8 @@ class Player {
     this.storedDamage = 0,
     this.oscarXp = 0,
     this.oscarFireBonus = false,
+    this.fannyHasStolen = false,
+    this.deathPassiveProcessed = false,
     this.nilsStoring = false,
     this.emilienRerolledThisTurn = false,
     this.maxHpModifier = 0,
@@ -299,6 +303,8 @@ class Player {
     'storedDamage': storedDamage,
     'oscarXp': oscarXp,
     'oscarFireBonus': oscarFireBonus,
+    'fannyHasStolen': fannyHasStolen,
+    'deathPassiveProcessed': deathPassiveProcessed,
     'nilsStoring': nilsStoring,
     'emilienRerolledThisTurn': emilienRerolledThisTurn,
     'maxHpModifier': maxHpModifier,
@@ -368,6 +374,8 @@ class Player {
     storedDamage: (j['storedDamage'] as num?)?.toInt() ?? 0,
     oscarXp: (j['oscarXp'] as num?)?.toInt() ?? 0,
     oscarFireBonus: j['oscarFireBonus'] as bool? ?? false,
+    fannyHasStolen: j['fannyHasStolen'] as bool? ?? false,
+    deathPassiveProcessed: j['deathPassiveProcessed'] as bool? ?? false,
     nilsStoring: (j['nilsStoring'] as bool?) ?? false,
     emilienRerolledThisTurn: (j['emilienRerolledThisTurn'] as bool?) ?? false,
     maxHpModifier: (j['maxHpModifier'] as num?)?.toInt() ?? 0,

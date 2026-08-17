@@ -2397,7 +2397,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
           'zero_wound_steal','slime_passive','heal1_on_own_attack','remi_canada_passive',
           'mathieu_passive','third_attack_bonus','counter_roll_cancel','draw_on_hit_dual_target',
           'chameleon_passive','counter_attack_passive','zero_wound_power','builder_power',
-          'prophete_mark','double_attack_if_tanky'};
+          'prophete_mark','double_attack_if_tanky','fanny_none'};
         final isAutoPassive = me.revealed && autoPassives.contains(me.copiedEffect ?? c.abilityEffect);
         return [
           // Indicateurs d'état spéciaux Shadow

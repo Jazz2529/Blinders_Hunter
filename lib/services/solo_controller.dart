@@ -637,6 +637,7 @@ class SoloController extends ChangeNotifier {
       if (t != null) {
         _eg.applyDamage(t, 2, isTerrain9Dmg: true);
         if (!t.alive) t.killedByUid = bot.uid; // sinon aucun butin possible
+        _eg.applyDeathPassives(state!.players); // sinon Fanny (et autres passifs de mort) ne se déclenchent jamais sur ce kill
         _log('🏹 ${bot.name} inflige 2 à ${t.name}');
         _checkWin(justDiedId: t.alive?null:t.uid);
       }
@@ -2041,6 +2042,7 @@ class SoloController extends ChangeNotifier {
       final dmg9 = _eg.applyDamage(target, 2, isTerrain9Dmg: true);
       _log('🏹 Terrain 9 — tu infliges $dmg9 à ${target.name}', cls: 'player');
       if (!target.alive) target.killedByUid = state!.current.uid; // sinon aucun butin possible
+      _eg.applyDeathPassives(state!.players); // sinon Fanny (et autres passifs de mort) ne se déclenchent jamais sur ce kill
       _checkWin(justDiedId: target.alive ? null : target.uid);
     } else if (action == 'terrain_steal') {
       if (target.equipment.isNotEmpty) {

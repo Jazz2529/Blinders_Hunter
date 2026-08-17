@@ -570,6 +570,10 @@ class GameEngine with AbilityEngine {
         actor.abilityUsed = false; // répétable
         return '🔄 ${actor.name} échange "${myCard.name}" contre "${theirCard.name}" avec ${target.name}';
 
+      // ── Fanny : aucun pouvoir tant qu'elle n'a pas volé une carte ──
+      case 'fanny_none':
+        return '🎭 ${actor.name} n\'a encore aucun pouvoir — elle doit d\'abord éliminer un joueur.';
+
       default:
         return '⚡ ${actor.name} utilise sa capacité';
     }
@@ -1466,12 +1470,17 @@ class GameEngine with AbilityEngine {
 
   /// À appeler une seule fois, juste après qu'un coup a potentiellement tué un
   /// joueur (avant le commit). Gère les passifs déclenchés par la mort
-  /// (ex: Baleine soigne les Hunters révélés). `abilityUsed` est réutilisé sur
-  /// le mort comme marqueur "passif de mort déjà déclenché" pour éviter les
-  /// déclenchements multiples si la fonction est appelée plusieurs fois.
+  /// (ex: Baleine soigne les Hunters révélés). `deathPassiveProcessed` marque
+  /// le mort comme "passif de mort déjà déclenché" pour éviter les
+  /// déclenchements multiples si la fonction est appelée plusieurs fois —
+  /// un champ DÉDIÉ, séparé de `abilityUsed` : réutiliser ce dernier créait
+  /// un vrai bug (un joueur mort ayant déjà utilisé sa capacité UNIQUE avant
+  /// de mourir avait abilityUsed=true, ce qui faisait sauter TOUT le
+  /// traitement de sa mort — Fanny ne volait jamais sa carte, Felipe n'était
+  /// jamais sauvé si SA victime avait déjà agi, etc.
   void applyDeathPassives(List<Player> all) {
     for (final p in all) {
-      if (p.alive || p.abilityUsed) continue;
+      if (p.alive || p.deathPassiveProcessed) continue;
       final eff = p.copiedEffect ?? p.character?.abilityEffect ?? '';
       if (eff == 'death_heal_allies') {
         for (final ally in all.where((a) =>
@@ -1492,6 +1501,28 @@ class GameEngine with AbilityEngine {
           felipeKiller.alive = true;
         }
       }
+      // Fanny : vole la carte ENTIÈRE de sa PREMIÈRE victime (camp, pouvoir,
+      // condition de victoire) — devient effectivement ce personnage, tout
+      // en gardant son propre nom/icône/PV. Un seul vol possible (son
+      // premier kill) — les suivants ne redéclenchent rien.
+      if (p.killedByUid != null) {
+        Player? fannyKiller;
+        for (final k in all) { if (k.uid == p.killedByUid) { fannyKiller = k; break; } }
+        if (fannyKiller != null && fannyKiller.character?.id == 'fanny' &&
+            !fannyKiller.fannyHasStolen && p.character != null) {
+          fannyKiller.fannyHasStolen = true;
+          final victim = p.character!;
+          fannyKiller.character = CharacterCard(
+            id: 'fanny', name: 'Fanny', icon: '🎭', hp: 12,
+            faction: victim.faction,
+            ability: victim.ability,
+            abilityEffect: victim.abilityEffect,
+            abilityRepeatable: victim.abilityRepeatable,
+            winCondition: victim.winCondition,
+            winEffect: victim.winEffect,
+          );
+        }
+      }
       // Crucifix en Argent : récupère TOUS les équipements de la victime
       if (p.killedByUid != null) {
         Player? killer;
@@ -1506,7 +1537,7 @@ class GameEngine with AbilityEngine {
           recalcPassives(killer);
         }
       }
-      p.abilityUsed = true; // marque ce mort comme "passif traité"
+      p.deathPassiveProcessed = true; // marque ce mort comme "passif traité"
     }
   }
 
