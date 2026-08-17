@@ -96,21 +96,32 @@ class GameEngine with AbilityEngine {
     if (eff == 'gege_passive' && attacker.revealed) return [];
     final z = attacker.zoneIndex;
     final adj = kAdjacences[z];
+    List<Player> result;
     // Révolver des Ténèbres : portée INVERSÉE — uniquement les zones hors
     // de son propre secteur ET hors des zones adjacentes (ne peut plus
     // attaquer dans sa propre zone).
     if (attacker.equipment.any((e) => e.effect == 'revolver_tenebres')) {
-      return all.where((p) => p.alive && p.uid != attacker.uid
+      result = all.where((p) => p.alive && p.uid != attacker.uid
           && p.zoneIndex != z && !adj.contains(p.zoneIndex)).toList();
     }
     // Pirate et Sniper = portée infinie — Pirate seulement une fois révélé
     // (son pouvoir est un "passif révélé", pas actif tant qu'il est caché).
-    if (attacker.sniper || (attacker.revealed && (attacker.infiniteRange || eff == 'infinite_range' ||
+    else if (attacker.sniper || (attacker.revealed && (attacker.infiniteRange || eff == 'infinite_range' ||
         remiActiveChoices(attacker).contains('remi_range')))) {
-      return all.where((p) => p.alive && p.uid != attacker.uid).toList();
+      result = all.where((p) => p.alive && p.uid != attacker.uid).toList();
+    } else {
+      result = all.where((p) => p.alive && p.uid != attacker.uid
+          && (p.zoneIndex == z || adj.contains(p.zoneIndex))).toList();
     }
-    return all.where((p) => p.alive && p.uid != attacker.uid
-        && (p.zoneIndex == z || adj.contains(p.zoneIndex))).toList();
+    // Victor : un joueur charmé à 100% ne peut plus l'attaquer — le retire
+    // de la liste de cibles valides, quelle que soit la portée normalement
+    // applicable (bouclier "romantique", pas une question de distance).
+    final victor = all.where((p) =>
+        p.alive && (p.copiedEffect ?? p.character?.abilityEffect) == 'victor_charm').firstOrNull;
+    if (victor != null && (victor.charmLevels[attacker.uid] ?? 0) >= 100) {
+      result = result.where((p) => p.uid != victor.uid).toList();
+    }
+    return result;
   }
 
   // ─── Dégâts / soins ──────────────────────
@@ -118,6 +129,26 @@ class GameEngine with AbilityEngine {
   /// (positif si elle en a volé, négatif si elle lui en a volé) — jamais
   /// sous 1, pour éviter un PV max nul ou négatif qui n'aurait pas de sens.
   int effectiveMaxHp(Player p) => max(1, (p.character?.hp ?? 1) + p.maxHpModifier);
+
+  /// Victor : +20% de charme à la cible attaquée, +10% à tous les joueurs
+  /// sur sa zone (peut cumuler avec la cible si elle y est aussi). Se
+  /// déclenche à CHAQUE attaque UNE FOIS RÉVÉLÉ, indépendamment des dégâts
+  /// réellement infligés — c'est l'action d'attaquer qui compte, pas le
+  /// résultat.
+  void applyVictorCharm(Player attacker, Player target, List<Player>? all) {
+    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') != 'victor_charm') return;
+    if (!attacker.revealed) return;
+    final curTarget = attacker.charmLevels[target.uid] ?? 0;
+    attacker.charmLevels[target.uid] = (curTarget + 20).clamp(0, 100).toInt();
+    if (all == null) return;
+    for (final other in all) {
+      if (other.uid == attacker.uid || !other.alive) continue;
+      if (other.zoneIndex == attacker.zoneIndex) {
+        final cur = attacker.charmLevels[other.uid] ?? 0;
+        attacker.charmLevels[other.uid] = (cur + 10).clamp(0, 100).toInt();
+      }
+    }
+  }
 
   int applyDamage(Player p, int n, {bool isTenebresCard = false, bool ignoreShield = false, bool isTerrain9Dmg = false}) {
     if (!p.alive) return 0;
@@ -981,6 +1012,9 @@ class GameEngine with AbilityEngine {
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'oscar_xp_spend' && attacker.revealed && actual > 0) {
       attacker.oscarXp += actual + (attacker.epeeNinja ? 2 : 0);
     }
+    // Victor : charme la cible et tous les joueurs présents sur sa zone —
+    // se déclenche à chaque attaque, quel que soit le résultat des dégâts.
+    applyVictorCharm(attacker, target, all);
     String log = '⚔️ ${attacker.name} attaque ${target.name} — $actual dégâts';
 
     // Rémi : équipement personnalisé — effets choisis qui se déclenchent
@@ -1092,7 +1126,7 @@ class GameEngine with AbilityEngine {
   }
 
   // Compat: legacy string version
-  Map<String, dynamic> resolveAttack(Player attacker, Player target, int baseDmg) {
+  Map<String, dynamic> resolveAttack(Player attacker, Player target, int baseDmg, {List<Player>? all}) {
     int dmg = baseDmg;
     if (attacker.lance && dmg > 0) dmg += 2;
     if (attacker.lanceLonginus && dmg > 0 &&
@@ -1149,6 +1183,7 @@ class GameEngine with AbilityEngine {
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'oscar_xp_spend' && attacker.revealed && actual > 0) {
       attacker.oscarXp += actual;
     }
+    applyVictorCharm(attacker, target, all);
     String log = '⚔️ ${attacker.name} attaque ${target.name} — $actual dégâts';
     // Scott : contre-attaque (uniquement s'il survit à l'attaque)
     bool scottCountered = false;
@@ -1212,6 +1247,15 @@ class GameEngine with AbilityEngine {
       if (p.character!.winEffect == 'oscar_xp13' && p.oscarXp >= 13) {
         return {'winnerIds': [p.uid],
           'reason': '🧪 ${p.name} (Oscar) atteint 13 XP cumulée — Victoire !'};
+      }
+    }
+
+    // Victor — vérification immédiate (2 joueurs charmés à 100%)
+    for (final p in alive) {
+      if (p.character!.winEffect == 'victor_charm2' &&
+          p.charmLevels.values.where((v) => v >= 100).length >= 2) {
+        return {'winnerIds': [p.uid],
+          'reason': '💘 ${p.name} (Victor) a charmé 2 joueurs — Victoire !'};
       }
     }
 

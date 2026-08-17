@@ -237,6 +237,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'fanny_none', abilityRepeatable:false,
     winCondition:'Aucune tant que vous n\'avez éliminé personne', winEffect:'fanny_none'),
 
+  CharacterCard(id:'victor', name:'Victor', faction:Faction.neutral, hp:13, icon:'💘',
+    ability:'Passif révélé: une fois révélé, chaque attaque augmente de 20% la barre de charme du joueur attaqué, et de 10% celle de tous les joueurs sur votre zone. À 100%, un joueur ne peut plus vous attaquer. Vous seul voyez ces barres.',
+    abilityEffect:'victor_charm', abilityRepeatable:true,
+    winCondition:'Avoir charmé 2 joueurs à 100%', winEffect:'victor_charm2'),
+
   CharacterCard(id:'leo', name:'Léo', faction:Faction.neutral, hp:12, icon:'💀',
     ability:'Unique: lancez le D4 et infligez ce résultat à tout le monde (vous inclus)',
     abilityEffect:'d4_all', abilityRepeatable:false,

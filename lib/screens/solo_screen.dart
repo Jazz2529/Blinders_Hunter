@@ -452,6 +452,28 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
                 Text('Carte', style: cinzel(10, c: kGold)),
               ]),
             ),
+            // Victor uniquement : bouton pour consulter ses barres de charme
+            // — privées, jamais visibles par les autres joueurs.
+            Builder(builder: (bctx) {
+              final me2 = ctrl.state?.players.where((p) => !p.isBot).firstOrNull;
+              if (me2?.character?.id != 'victor') return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: TextButton(
+                  onPressed: () => showVictorCharmPanel(ctx, me2!, ctrl.state!.players),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.pink.withValues(alpha: 0.15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('💘', style: TextStyle(fontSize: 15)),
+                    const SizedBox(width: 4),
+                    Text('Charme', style: cinzel(10, c: Colors.pinkAccent)),
+                  ]),
+                ),
+              );
+            }),
             const SizedBox(width: 4),
             IconButton(
               icon: const Text('⚙️', style: TextStyle(fontSize: 16)),
@@ -2397,7 +2419,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
           'zero_wound_steal','slime_passive','heal1_on_own_attack','remi_canada_passive',
           'mathieu_passive','third_attack_bonus','counter_roll_cancel','draw_on_hit_dual_target',
           'chameleon_passive','counter_attack_passive','zero_wound_power','builder_power',
-          'prophete_mark','double_attack_if_tanky','fanny_none'};
+          'prophete_mark','double_attack_if_tanky','fanny_none','victor_charm'};
         final isAutoPassive = me.revealed && autoPassives.contains(me.copiedEffect ?? c.abilityEffect);
         return [
           // Indicateurs d'état spéciaux Shadow
@@ -3463,6 +3485,61 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
 // ─────────────────────────────────────────────
 // WIDGETS PARTAGÉS
 // ─────────────────────────────────────────────
+
+// ─── Victor : panneau privé de charme ────────────────────────────────────
+/// Liste des barres de charme de chaque joueur — visible UNIQUEMENT par
+/// Victor (aucun autre joueur ni la cible elle-même ne voit jamais cette
+/// info, y compris une fois à 100%). Fonction top-level (pas une méthode
+/// de classe) : appelée depuis plusieurs endroits de l'interface.
+void showVictorCharmPanel(BuildContext ctx, Player victor, List<Player> allPlayers) {
+  final others = allPlayers.where((p) => p.uid != victor.uid).toList();
+  showDialog(
+    context: ctx,
+    builder: (dctx) => AlertDialog(
+      backgroundColor: kBg2,
+      title: Text('💘 Charme — privé', style: cinzel(15, c: Colors.pinkAccent)),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(mainAxisSize: MainAxisSize.min,
+          children: others.map((p) {
+            final pct = victor.charmLevels[p.uid] ?? 0;
+            final maxed = pct >= 100;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(p.alive ? p.name : '${p.name} 💀',
+                    style: body(13, c: p.alive ? kText : kTextDim))),
+                  Text('$pct%', style: cinzel(13,
+                    c: maxed ? Colors.pinkAccent : kTextSub, fw: FontWeight.w900)),
+                ]),
+                const SizedBox(height: 3),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: pct / 100, minHeight: 8,
+                    backgroundColor: kBg3,
+                    valueColor: AlwaysStoppedAnimation(
+                      maxed ? Colors.pinkAccent : Colors.pink.withValues(alpha: 0.6)),
+                  ),
+                ),
+                if (maxed) Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text('💘 Charmé — ne peut plus t\'attaquer',
+                    style: body(10, c: Colors.pinkAccent)),
+                ),
+              ]),
+            );
+          }).toList(),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dctx),
+          child: Text('Fermer', style: cinzel(12, c: kTextSub))),
+      ],
+    ),
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════
 // ANIMATION DÉ DE POUVOIR (Vlad D4, Travert D6, Carapatte D6...)

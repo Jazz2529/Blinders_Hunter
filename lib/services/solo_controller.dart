@@ -715,7 +715,7 @@ class SoloController extends ChangeNotifier {
         // Mathieu : seules les attaques faites une fois RÉVÉLÉ comptent pour
         // le seuil des 3 attaques (une attaque en étant caché ne compte pas).
         if (bot.revealed) bot.attackCount++;
-        final attackRes = _eg.resolveAttack(bot, target, dmg);
+        final attackRes = _eg.resolveAttack(bot, target, dmg, all: state!.players);
         final log = attackRes['log'] as String;
         _log(log);
         if ((bot.copiedEffect ?? bot.character?.abilityEffect ?? '') == 'third_attack_bonus'

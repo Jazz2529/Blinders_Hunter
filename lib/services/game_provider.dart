@@ -424,7 +424,7 @@ class GameProvider extends ChangeNotifier {
         final roll2 = _eg.rollAttack();
         final dmg = roll2['damage']!;
         if (bot.revealed) bot.attackCount++;
-        final attackRes = _eg.resolveAttack(bot, target, dmg);
+        final attackRes = _eg.resolveAttack(bot, target, dmg, all: all);
         _eg.applyDeathPassives(all);
         await _commitAll(all, attackRes['log'] as String);
         final tgtNow = all.where((p) => p.uid == target.uid).firstOrNull;
@@ -1424,7 +1424,7 @@ class GameProvider extends ChangeNotifier {
       }
       log = '💥 ${attacker.name} (Bazooka) — $bazDmg dégâts à tous !';
     } else {
-      final res = _eg.resolveAttack(attacker, target, baseDmg);
+      final res = _eg.resolveAttack(attacker, target, baseDmg, all: all);
       log = res['log'] as String;
       if (res['scottCountered'] == true) {
         scottCountered = true;
