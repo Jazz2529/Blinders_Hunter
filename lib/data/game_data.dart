@@ -227,6 +227,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'chameleon_passive', abilityRepeatable:true,
     winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),
 
+  CharacterCard(id:'oscar', name:'Oscar', faction:Faction.neutral, hp:13, icon:'🧪',
+    ability:'Répétable: une fois révélé, cumule 1 XP par blessure infligée en attaque. Au début de son tour, peut dépenser son XP au choix — 💧 Eau (3xp): vole un équipement au joueur de son choix — 🌿 Plante (2xp): se soigne de 2 blessures — 🔥 Feu (4xp): +2 dégâts à sa prochaine attaque ce tour',
+    abilityEffect:'oscar_xp_spend', abilityRepeatable:true,
+    winCondition:'Atteindre 13 XP cumulée', winEffect:'oscar_xp13'),
+
   CharacterCard(id:'leo', name:'Léo', faction:Faction.neutral, hp:12, icon:'💀',
     ability:'Unique: lancez le D4 et infligez ce résultat à tout le monde (vous inclus)',
     abilityEffect:'d4_all', abilityRepeatable:false,

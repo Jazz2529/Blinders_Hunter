@@ -181,6 +181,8 @@ class Player {
   bool disguiseJustLost = false; // Jason : vient de perdre son déguisement (5+ dégâts/tour) — déclenche sa vraie révélation
   bool jasonWeaponVoicePlayed = false; // Jason : voice line arme spéciale déjà jouée cette partie (une seule fois)
   int storedDamage = 0;      // Nils : blessures stockées en attendant d'être déchargées
+  int oscarXp = 0;           // Oscar : XP cumulée (1 par blessure infligée en attaque), condition de victoire à 13
+  bool oscarFireBonus = false; // Oscar : "Feu" activé — +2 dégâts à sa prochaine attaque ce tour
   bool nilsStoring = false;  // Nils : mode "stockage" actif (ses attaques stockent au lieu de blesser)
   bool emilienRerolledThisTurn = false; // Emilien : relance du D6 déjà utilisée ce tour (une seule fois)
   int maxHpModifier = 0; // Agathe : PV max volés/perdus, définitivement (+ pour elle, − pour la victime, plafonné à ±5)
@@ -246,6 +248,8 @@ class Player {
     this.disguiseJustLost = false,
     this.jasonWeaponVoicePlayed = false,
     this.storedDamage = 0,
+    this.oscarXp = 0,
+    this.oscarFireBonus = false,
     this.nilsStoring = false,
     this.emilienRerolledThisTurn = false,
     this.maxHpModifier = 0,
@@ -293,6 +297,8 @@ class Player {
     'disguiseJustLost': disguiseJustLost,
     'jasonWeaponVoicePlayed': jasonWeaponVoicePlayed,
     'storedDamage': storedDamage,
+    'oscarXp': oscarXp,
+    'oscarFireBonus': oscarFireBonus,
     'nilsStoring': nilsStoring,
     'emilienRerolledThisTurn': emilienRerolledThisTurn,
     'maxHpModifier': maxHpModifier,
@@ -360,6 +366,8 @@ class Player {
     disguiseJustLost: (j['disguiseJustLost'] as bool?) ?? false,
     jasonWeaponVoicePlayed: (j['jasonWeaponVoicePlayed'] as bool?) ?? false,
     storedDamage: (j['storedDamage'] as num?)?.toInt() ?? 0,
+    oscarXp: (j['oscarXp'] as num?)?.toInt() ?? 0,
+    oscarFireBonus: j['oscarFireBonus'] as bool? ?? false,
     nilsStoring: (j['nilsStoring'] as bool?) ?? false,
     emilienRerolledThisTurn: (j['emilienRerolledThisTurn'] as bool?) ?? false,
     maxHpModifier: (j['maxHpModifier'] as num?)?.toInt() ?? 0,

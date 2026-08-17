@@ -983,7 +983,7 @@ class SoloController extends ChangeNotifier {
     _log('🃏 ${p.name} révèle : ${disguise.name}', cls: 'player'); notifyListeners();
   }
 
-  void humanUseAbility({Player? target, String? passive}) {
+  void humanUseAbility({Player? target, String? passive, String? extra}) {
     final p = state!.current;
     final s = state!;
     final eff = p.copiedEffect ?? p.character?.abilityEffect ?? '';
@@ -1653,6 +1653,11 @@ class SoloController extends ChangeNotifier {
         _checkWin();
         s.phase = GamePhase.move; notifyListeners(); return;
 
+      // ── Oscar : affiche l'écran de choix (Eau/Plante/Feu) ──
+      case 'oscar_xp_spend':
+        s.pendingTargetAction = 'oscar_choice';
+        s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+
       // ── Default: délègue au moteur (toutes les capacités non listées ci-dessus) ──
       default:
         final res = _eg.applyAbilityFull(p, s.players, s.terrainLayout, target: target);
@@ -1676,6 +1681,45 @@ class SoloController extends ChangeNotifier {
       state!.phase = GamePhase.move;
     }
     _checkWin(); notifyListeners();
+  }
+
+  /// Oscar : traite le choix d'un des 3 éléments (Eau/Plante/Feu). "Eau"
+  /// nécessite une cible supplémentaire (qui voler) — Plante et Feu se
+  /// résolvent immédiatement.
+  void humanOscarChoice(String choice) {
+    final p = state!.current;
+    final s = state!;
+    if (choice == 'water') {
+      s.pendingTargetAction = 'oscar_water_target';
+      notifyListeners();
+      return;
+    }
+    final log = _eg.applyAbility(p, s.players, s.terrainLayout, extra: choice);
+    if (log == 'oscar_not_enough') {
+      _log('❌ Oscar n\'a pas assez d\'XP pour cette option.', cls: 'player');
+    } else {
+      _log(log, cls: 'player');
+      p.abilityUsed = true; // répétable, mais 1 dépense par tour
+    }
+    s.pendingTargetAction = null;
+    s.phase = GamePhase.move;
+    notifyListeners();
+  }
+
+  /// Oscar : résout le vol d'équipement ("Eau") une fois la cible choisie.
+  void humanOscarWaterTarget(Player target) {
+    final p = state!.current;
+    final s = state!;
+    final log = _eg.applyAbility(p, s.players, s.terrainLayout, target: target, extra: 'water');
+    if (log == 'oscar_not_enough') {
+      _log('❌ Oscar n\'a pas assez d\'XP pour cette option.', cls: 'player');
+    } else {
+      _log(log, cls: 'player');
+      p.abilityUsed = true;
+    }
+    s.pendingTargetAction = null;
+    s.phase = GamePhase.move;
+    notifyListeners();
   }
 
   /// Elaia étape 1 : choisit la pile à regarder (tenebres/lumiere/vision).

@@ -438,7 +438,8 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
                 final s = ctrl.state;
                 final me = s?.players.where((p) => !p.isBot).firstOrNull;
                 if (me?.character != null) showFullCardDialog(ctx, me!.character!,
-                  hpOverride: me.character!.hp + me.maxHpModifier);
+                  hpOverride: me.character!.hp + me.maxHpModifier,
+                  oscarXpOverride: me.character!.id == 'oscar' ? me.oscarXp : null);
               },
               style: TextButton.styleFrom(
                 backgroundColor: kGold.withValues(alpha: 0.15),
@@ -869,6 +870,83 @@ class _LootChoiceWidget extends StatelessWidget {
   }
 }
 // ═══════════════════════════════════════════════════════════
+// ─── Oscar : écran de choix Eau/Plante/Feu ───────────────────────────────
+class _OscarChoiceWidget extends StatelessWidget {
+  final SoloController ctrl;
+  const _OscarChoiceWidget({required this.ctrl});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final p = ctrl.state!.current;
+    final xp = p.oscarXp;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: surfaceDecor(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('🧪 Oscar — Dépenser son XP', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
+        const SizedBox(height: 4),
+        Text('XP actuelle : $xp', style: body(13, c: kGold), textAlign: TextAlign.center),
+        const SizedBox(height: 12),
+        _OscarOption(icon: '💧', label: 'Eau', cost: 3, xp: xp,
+          desc: 'Vole un équipement au joueur de ton choix',
+          onTap: () {
+            ctrl.state!.pendingTargetAction = 'oscar_water_target';
+            ctrl.notifyListeners();
+          }),
+        const SizedBox(height: 8),
+        _OscarOption(icon: '🌿', label: 'Plante', cost: 2, xp: xp,
+          desc: 'Te soigne de 2 blessures',
+          onTap: () => ctrl.humanOscarChoice('plant')),
+        const SizedBox(height: 8),
+        _OscarOption(icon: '🔥', label: 'Feu', cost: 4, xp: xp,
+          desc: '+2 dégâts à ta prochaine attaque ce tour',
+          onTap: () => ctrl.humanOscarChoice('fire')),
+        const SizedBox(height: 10),
+        BHButton(label: 'Ne rien dépenser', outlined: true, onTap: () {
+          ctrl.state!.pendingTargetAction = null;
+          ctrl.state!.phase = GamePhase.move;
+          ctrl.notifyListeners();
+        }),
+      ]),
+    );
+  }
+}
+
+class _OscarOption extends StatelessWidget {
+  final String icon, label, desc;
+  final int cost, xp;
+  final VoidCallback onTap;
+  const _OscarOption({required this.icon, required this.label, required this.cost,
+    required this.xp, required this.desc, required this.onTap});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final affordable = xp >= cost;
+    return GestureDetector(
+      onTap: affordable ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: affordable ? kBg3 : kBg2,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: affordable ? kGold.withValues(alpha: 0.5) : kBord)),
+        child: Row(children: [
+          Text(icon, style: TextStyle(fontSize: 22, color: affordable ? null : kTextDim)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('$label — ${cost}xp',
+                style: cinzel(13, c: affordable ? kGold2 : kTextDim, fw: FontWeight.w700)),
+              Text(desc, style: body(11, c: affordable ? kTextSub : kTextDim)),
+            ]),
+          ),
+          if (!affordable) Icon(Icons.lock, size: 16, color: kTextDim),
+        ]),
+      ),
+    );
+  }
+}
+
 class _CasinoWidget extends StatefulWidget {
   final SoloController ctrl;
   const _CasinoWidget({required this.ctrl});
@@ -1796,7 +1874,8 @@ class _HpLeaderboard extends StatelessWidget {
     // jeton — même s'il n'avait jamais été révélé de son vivant (convention
     // "les cartes se retournent à la mort", comme sur un vrai plateau).
     if ((p.revealed || !p.alive || knowsPrivately) && displayChar != null) {
-      showFullCardDialog(ctx, displayChar, hpOverride: displayChar.hp + p.maxHpModifier).then((_) {
+      showFullCardDialog(ctx, displayChar, hpOverride: displayChar.hp + p.maxHpModifier,
+        oscarXpOverride: displayChar.id == 'oscar' ? p.oscarXp : null).then((_) {
         if ((p.equipment.isNotEmpty || isNils) && ctx.mounted) _showEquipmentForSolo(ctx, p);
       });
     } else {
@@ -2580,6 +2659,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         if (s.pendingTargetAction == 'casino_bet') return [_CasinoWidget(ctrl: ctrl)];
         if (s.pendingTargetAction == 'fifi_dice_picker') return [_FifiDiceWidget(ctrl: ctrl)];
         if (s.pendingTargetAction == 'captain_ricard_counter') return [_CaptainRicardWidget(ctrl: ctrl)];
+        if (s.pendingTargetAction == 'oscar_choice') return [_OscarChoiceWidget(ctrl: ctrl)];
         return _buildInlineTargetList(ctx);
 
       // ── ATTAQUE ───────────────────────────────────────────
@@ -2810,7 +2890,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
   List<Widget> _buildInlineTargetList(BuildContext ctx) {
     final me = s.current;
     final context = _targetContext ?? s.pendingTargetAction ?? '';
-    bool needsEquip = context.contains('steal');
+    bool needsEquip = context.contains('steal') || context == 'oscar_water_target';
 
     var targets = s.players.where((p) => p.alive && p.uid != me.uid).toList();
     if (needsEquip) targets = targets.where((p) => p.equipment.isNotEmpty).toList();
@@ -2929,6 +3009,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'ability_tommy')       title = '🎭 Tommy — Copier le pouvoir de qui ?';
     if (context == 'ability_oceane')      title = '🌊 Océane — Qui exclure du soin ?';
     if (context == 'ability_nils')        title = '📦 Nils — Déverser ${me.storedDamage} blessures stockées sur qui ?';
+    if (context == 'oscar_water_target')  title = '💧 Oscar — Voler un équipement à qui ?';
     if (context == 'ability_agathe')      title = '🧛 Agathe — Voler 1 PV MAX à qui ?';
     if (context == 'ability_raph_heal')   title = '🥷 Raph (Soleil Levant) — Choisissez qui soigner de 3 (vous subissez 2)';
     if (context == 'ability_tristan')     title = '🔄 Tristan — Choisissez un joueur (échange un équipement au hasard)';
@@ -3026,6 +3107,8 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
 
     if (context == 'terrain_damage9') {
       ctrl.humanApplyTerrainTarget(target.uid);
+    } else if (context == 'oscar_water_target') {
+      ctrl.humanOscarWaterTarget(target);
     } else if (context == 'terrain_steal') {
       ctrl.state!.pendingTargetAction = 'terrain_steal';
       ctrl.humanApplyTerrainTarget(target.uid);
@@ -3256,7 +3339,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'terrain_max_aoe', 'damien_serve', 'copy_ability',
       'self1_trigger_terrain', 'draw_light', 'draw_dark', 'peek_reorder_deck',
       'casino_bet', 'swap_zones', 'd4_bonus_attack', 'store_damage_nils', 'steal_max_hp',
-      'move_adjacent_choice',
+      'move_adjacent_choice', 'oscar_xp_spend',
     };
     if (selfManaged.contains(eff)) {
       ctrl.humanUseAbility();

@@ -424,7 +424,8 @@ class _GameScreenState extends State<GameScreen> {
               onPressed: () {
                 final c = gp.me?.character;
                 if (c != null) showFullCardDialog(ctx, c,
-                  hpOverride: c.hp + (gp.me?.maxHpModifier ?? 0));
+                  hpOverride: c.hp + (gp.me?.maxHpModifier ?? 0),
+                  oscarXpOverride: c.id == 'oscar' ? gp.me?.oscarXp : null);
               },
               style: TextButton.styleFrom(
                 backgroundColor: kGold.withValues(alpha: 0.15),
@@ -895,7 +896,8 @@ class _PlayerRow extends StatelessWidget {
         ? kAllCharacters.where((ch) => ch.id == disguisedCharId).firstOrNull
         : null;
     final shown = (hasDisguise && disguisedChar != null) ? disguisedChar : c;
-    return showFullCardDialog(ctx, shown, hpOverride: shown.hp + p.maxHpModifier);
+    return showFullCardDialog(ctx, shown, hpOverride: shown.hp + p.maxHpModifier,
+      oscarXpOverride: shown.id == 'oscar' ? p.oscarXp : null);
   }
 
   @override
@@ -1337,7 +1339,8 @@ class _ActionPanelState extends State<_ActionPanel> {
               await gp.revealSelf();
               if (ctx.mounted && gp.me?.character != null) {
                 showFullCardDialog(ctx, gp.me!.character!,
-                  hpOverride: gp.me!.character!.hp + gp.me!.maxHpModifier);
+                  hpOverride: gp.me!.character!.hp + gp.me!.maxHpModifier,
+                  oscarXpOverride: gp.me!.character!.id == 'oscar' ? gp.me!.oscarXp : null);
               }
             }),
           if ((me?.copiedEffect ?? me?.character?.abilityEffect) == 'double_move_dice' && me?.revealed == true)
@@ -1474,6 +1477,13 @@ class _ActionPanelState extends State<_ActionPanel> {
         ];
       case GamePhase.chooseTarget:
         final pta = gp.gameState?.pendingTargetAction;
+        // Oscar : afficher l'écran de choix (Eau/Plante/Feu) — seulement au
+        // joueur concerné, les autres attendent.
+        if (pta == 'oscar_choice') {
+          if (gp.isMyTurn) return [_MultiOscarChoiceWidget(gp: gp)];
+          return [Text('🧪 ${gp.currentPlayer?.name ?? "Oscar"} choisit comment dépenser son XP…',
+            style: cinzel(13, c: kGold))];
+        }
         // Mr Casino : afficher le widget de pari (seulement à Mr Casino)
         if (pta == 'casino_bet') {
           if (gp.isMyTurn) return [_MultiCasinoWidget(gp: gp)];
@@ -1538,6 +1548,7 @@ class _ActionPanelState extends State<_ActionPanel> {
         if (pta == 'd4_heal_neighbors') title = '🌊 Océane — Qui exclure du soin ?';
         if (pta == 'heal_other_d4') title = '🍓 Fraise Tagada — Choisissez qui soigner (D4)';
         if (pta == 'creation_marin') title = '🩸 Création de Marin — Choisissez une cible';
+        if (pta == 'oscar_water_target') title = '💧 Oscar — Voler un équipement à qui ?';
         if (pta == 'corne_des_woods') title = '🌳 Corne des Woods — Qui doit attaquer ?';
         if (pta == 'corne_des_woods_victim') title = '🌳 Corne des Woods — Choisissez la victime';
         if (pta == 'clemence_target') title = '🎨 Clémence — Choisissez une cible';
@@ -1607,6 +1618,8 @@ class _ActionPanelState extends State<_ActionPanel> {
                 await gp.useAbility(target: t);
               } else if (pta == 'terrain_max_aoe') {
                 await gp.hongYiApplyAbility(t);
+              } else if (pta == 'oscar_water_target') {
+                await gp.oscarChoice('water', target: t);
               } else if (pta == 'store_damage_nils') {
                 await gp.useAbility(target: t);
               } else if (pta == 'steal_max_hp') {
@@ -2696,6 +2709,76 @@ class _StatusBanner extends StatelessWidget {
   );
 }
 
+// ─── Oscar : écran de choix Eau/Plante/Feu (multijoueur) ─────────────────
+class _MultiOscarChoiceWidget extends StatelessWidget {
+  final GameProvider gp;
+  const _MultiOscarChoiceWidget({required this.gp});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final xp = gp.me?.oscarXp ?? 0;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: surfaceDecor(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('🧪 Oscar — Dépenser son XP', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
+        const SizedBox(height: 4),
+        Text('XP actuelle : $xp', style: body(13, c: kGold), textAlign: TextAlign.center),
+        const SizedBox(height: 12),
+        _MultiOscarOption(icon: '💧', label: 'Eau', cost: 3, xp: xp,
+          desc: 'Vole un équipement au joueur de ton choix',
+          onTap: () => gp.oscarChoice('water')),
+        const SizedBox(height: 8),
+        _MultiOscarOption(icon: '🌿', label: 'Plante', cost: 2, xp: xp,
+          desc: 'Te soigne de 2 blessures',
+          onTap: () => gp.oscarChoice('plant')),
+        const SizedBox(height: 8),
+        _MultiOscarOption(icon: '🔥', label: 'Feu', cost: 4, xp: xp,
+          desc: '+2 dégâts à ta prochaine attaque ce tour',
+          onTap: () => gp.oscarChoice('fire')),
+        const SizedBox(height: 10),
+        BHButton(label: 'Ne rien dépenser', outlined: true,
+          onTap: () => gp.fb.setPhase(gp.roomId!, GamePhase.move, clearPending: true)),
+      ]),
+    );
+  }
+}
+
+class _MultiOscarOption extends StatelessWidget {
+  final String icon, label, desc;
+  final int cost, xp;
+  final VoidCallback onTap;
+  const _MultiOscarOption({required this.icon, required this.label, required this.cost,
+    required this.xp, required this.desc, required this.onTap});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final affordable = xp >= cost;
+    return GestureDetector(
+      onTap: affordable ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: affordable ? kBg3 : kBg2,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: affordable ? kGold.withValues(alpha: 0.5) : kBord)),
+        child: Row(children: [
+          Text(icon, style: TextStyle(fontSize: 22, color: affordable ? null : kTextDim)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('$label — ${cost}xp',
+                style: cinzel(13, c: affordable ? kGold2 : kTextDim, fw: FontWeight.w700)),
+              Text(desc, style: body(11, c: affordable ? kTextSub : kTextDim)),
+            ]),
+          ),
+          if (!affordable) const Icon(Icons.lock, size: 16, color: kTextDim),
+        ]),
+      ),
+    );
+  }
+}
+
 class _MultiCasinoWidget extends StatefulWidget {
   final GameProvider gp;
   final VoidCallback? onDone;
@@ -3064,7 +3147,9 @@ class _PlayerChip extends StatelessWidget {
           // mort"), sinon une carte "mystère" — puis son équipement dans
           // tous les cas (info publique, connue même sans identité).
           if ((p.revealed || !p.alive) && c != null) {
-            await showFullCardDialog(ctx, disguisedCharChip ?? c, hpOverride: displayMaxHp);
+            final shownChip = disguisedCharChip ?? c;
+            await showFullCardDialog(ctx, shownChip, hpOverride: displayMaxHp,
+              oscarXpOverride: shownChip.id == 'oscar' ? p.oscarXp : null);
           } else {
             await showMysteryCardDialog(ctx, p);
           }

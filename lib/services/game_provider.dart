@@ -175,7 +175,7 @@ class GameProvider extends ChangeNotifier {
   // rester bloqué au milieu d'un flux conçu pour une vraie interface.
   bool _isComplexBotUnsafeAbility(String eff) => const {
     'casino_bet', 'swap_zones', 'choose_all_dice', 'bonus_turns',
-    'elaia_peek', 'copy_ability',
+    'elaia_peek', 'copy_ability', 'oscar_xp_spend',
   }.contains(eff);
 
   void _recordMultiResult(Map<String, dynamic>? result) {
@@ -891,6 +891,28 @@ class GameProvider extends ChangeNotifier {
     await endTurn();
   }
 
+  /// Oscar : traite le choix d'un des 3 éléments (Eau/Plante/Feu). "Eau"
+  /// sans target ouvre juste la sélection de cible (qui voler) — avec
+  /// target, ou pour Plante/Feu, résout directement.
+  Future<void> oscarChoice(String choice, {Player? target}) async {
+    if (choice == 'water' && target == null) {
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: 'oscar_water_target');
+      return;
+    }
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final tgt = target != null ? all.firstWhere((p) => p.uid == target.uid, orElse: () => actor) : null;
+    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout, target: tgt, extra: choice);
+    if (log == 'oscar_not_enough') {
+      await _fb.addLog(roomId!, '❌ ${actor.name} n\'a pas assez d\'XP pour cette option.');
+      return;
+    }
+    actor.abilityUsed = true;
+    _eg.applyDeathPassives(all);
+    await _commitAll(all, log);
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+  }
+
   /// Albane : marque abilityUsed après avoir choisi son lancer.
   /// Fifi : confirme ses valeurs de dés choisies.
   Future<void> fifiConfirmChoices(int move, int atk) async {
@@ -963,6 +985,12 @@ class GameProvider extends ChangeNotifier {
       // tour, réactivé au tour suivant (capacité répétable) automatiquement.
       await _commitAll(all, '🔮 ${actor.name} active son pouvoir de prescience…');
       await _fb.setPhase(roomId!, GamePhase.ability, elaiaStep: 1);
+      return;
+    }
+    if (log == 'oscar_choice') {
+      // Oscar : ouvre l'écran de choix (Eau/Plante/Feu) — résolu ensuite
+      // via oscarChoice(), pas ici (aucun target n'a encore été choisi).
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: 'oscar_choice');
       return;
     }
     if (log.startsWith('tommy_copied:')) {

@@ -243,7 +243,7 @@ class GameEngine with AbilityEngine {
     'chameleon_passive', 'copy_ability',
   };
 
-  String applyAbility(Player actor, List<Player> all, List<Terrain> layout, {Player? target}) {
+  String applyAbility(Player actor, List<Player> all, List<Terrain> layout, {Player? target, String? extra}) {
     actor.abilityUsed = true;
     final eff = actor.copiedEffect ?? actor.character!.abilityEffect;
     switch (eff) {
@@ -454,6 +454,36 @@ class GameEngine with AbilityEngine {
         final chosen = adjZones[_rng.nextInt(adjZones.length)];
         actor.zoneIndex = chosen;
         return 'christine_moved:$chosen';
+
+      // ── Oscar : dépense son XP au choix parmi 3 options ──
+      case 'oscar_xp_spend':
+        if (extra == null) return 'oscar_choice'; // signal : afficher les 3 options
+        if (extra == 'water') {
+          if (actor.oscarXp < 3) return 'oscar_not_enough';
+          if (target == null) return 'cible_requise';
+          if (target.equipment.isEmpty) {
+            return '💧 ${actor.name} tente de voler un équipement à ${target.name}, mais il n\'en a aucun !';
+          }
+          actor.oscarXp -= 3;
+          final stolen = target.equipment.removeAt(_rng.nextInt(target.equipment.length));
+          actor.equipment.add(stolen);
+          equipPassivePublic(actor, stolen);
+          recalcPassives(target);
+          return '💧 ${actor.name} dépense 3 XP — vole "${stolen.name}" à ${target.name} !';
+        }
+        if (extra == 'plant') {
+          if (actor.oscarXp < 2) return 'oscar_not_enough';
+          actor.oscarXp -= 2;
+          applyHeal(actor, 2);
+          return '🌿 ${actor.name} dépense 2 XP — se soigne de 2 blessures.';
+        }
+        if (extra == 'fire') {
+          if (actor.oscarXp < 4) return 'oscar_not_enough';
+          actor.oscarXp -= 4;
+          actor.oscarFireBonus = true;
+          return '🔥 ${actor.name} dépense 4 XP — sa prochaine attaque ce tour infligera 2 dégâts de plus !';
+        }
+        return 'oscar_choice';
 
       // ── Hong Yi : 8 dégâts à la cible, lui-même finit à 1 blessure ──
       case 'terrain_max_aoe':
@@ -900,6 +930,10 @@ class GameEngine with AbilityEngine {
         && attacker.revealed && attacker.bonusMaxHp > 0) {
       dmg += 2; attacker.bonusMaxHp = 0; // consume le buff
     }
+    // Oscar : "Feu" activé — +2 dégâts sur sa prochaine attaque
+    if (attacker.oscarFireBonus) {
+      dmg += 2; attacker.oscarFireBonus = false; // consommé
+    }
 
     // Protection cible
     if (target.invulnerable) return {'log': '🛡 ${target.name} est invulnérable — attaque bloquée'};
@@ -937,6 +971,11 @@ class GameEngine with AbilityEngine {
     if (actual > 0 && attacker.epeeNinja) {
       applyDamage(target, 2);
       if (!target.alive) target.killedByUid = attacker.uid;
+    }
+    // Oscar : cumule 1 XP par blessure infligée en attaque (toute source
+    // confondue — dégâts de base et bonus type Épée Ninja).
+    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'oscar_xp_spend' && attacker.revealed && actual > 0) {
+      attacker.oscarXp += actual + (attacker.epeeNinja ? 2 : 0);
     }
     String log = '⚔️ ${attacker.name} attaque ${target.name} — $actual dégâts';
 
@@ -1078,6 +1117,10 @@ class GameEngine with AbilityEngine {
     if (atkEff == 'no_attack_buff' && attacker.revealed && attacker.bonusMaxHp > 0) {
       dmg += 2; attacker.bonusMaxHp = 0; // consume le buff
     }
+    // Oscar : "Feu" activé — +2 dégâts sur sa prochaine attaque
+    if (attacker.oscarFireBonus) {
+      dmg += 2; attacker.oscarFireBonus = false; // consommé
+    }
     // NOTE : la réduction de la Sainte Tunique se fait déjà correctement DANS
     // applyDamage() en vérifiant le porteur qui SUBIT les dégâts (la cible),
     // pas l'attaquant — une ligne ici vérifiait à tort la Tunique de
@@ -1098,6 +1141,10 @@ class GameEngine with AbilityEngine {
     final actual = applyDamage(target, dmg);
     if (!target.alive) target.killedByUid = attacker.uid;
     // (epeeNinja already included in dmg above)
+    // Oscar : cumule 1 XP par blessure infligée en attaque.
+    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'oscar_xp_spend' && attacker.revealed && actual > 0) {
+      attacker.oscarXp += actual;
+    }
     String log = '⚔️ ${attacker.name} attaque ${target.name} — $actual dégâts';
     // Scott : contre-attaque (uniquement s'il survit à l'attaque)
     bool scottCountered = false;
@@ -1153,6 +1200,14 @@ class GameEngine with AbilityEngine {
           return {'winnerIds': [p.uid],
             'reason': '🔄 ${p.name} (Tristan) possède 3 équipements de la même couleur — Victoire !'};
         }
+      }
+    }
+
+    // Oscar — vérification immédiate (13 XP cumulée)
+    for (final p in alive) {
+      if (p.character!.winEffect == 'oscar_xp13' && p.oscarXp >= 13) {
+        return {'winnerIds': [p.uid],
+          'reason': '🧪 ${p.name} (Oscar) atteint 13 XP cumulée — Victoire !'};
       }
     }
 

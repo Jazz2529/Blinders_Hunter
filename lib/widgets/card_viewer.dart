@@ -11,7 +11,7 @@ import 'shine_effect.dart';
 /// panneau d'infos : nom, faction, PV, capacité et condition de victoire.
 /// Sur écran étroit (téléphone), l'illustration passe au-dessus du texte.
 /// Tap n'importe où pour fermer.
-Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride}) {
+Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride, int? oscarXpOverride}) {
   return showDialog(
     context: ctx,
     barrierColor: Colors.black.withValues(alpha: 0.88),
@@ -23,8 +23,8 @@ Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverr
         behavior: HitTestBehavior.opaque,
         child: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride)
-                   : _WideLayout(c: c, size: size, hpOverride: hpOverride),
+            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride)
+                   : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride),
             const SizedBox(height: 12),
             Text('Touche l\'écran pour fermer', style: body(12, c: kTextDim)),
           ]),
@@ -209,7 +209,8 @@ class _WideLayout extends StatelessWidget {
   final CharacterCard c;
   final Size size;
   final int? hpOverride;
-  const _WideLayout({required this.c, required this.size, this.hpOverride});
+  final int? oscarXpOverride;
+  const _WideLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride});
 
   @override
   Widget build(BuildContext ctx) {
@@ -228,7 +229,7 @@ class _WideLayout extends StatelessWidget {
       SizedBox(width: 320,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: imgH),
-          child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride),
+          child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride),
         )),
     ]);
   }
@@ -239,7 +240,8 @@ class _NarrowLayout extends StatelessWidget {
   final CharacterCard c;
   final Size size;
   final int? hpOverride;
-  const _NarrowLayout({required this.c, required this.size, this.hpOverride});
+  final int? oscarXpOverride;
+  const _NarrowLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride});
 
   @override
   Widget build(BuildContext ctx) {
@@ -256,7 +258,7 @@ class _NarrowLayout extends StatelessWidget {
       child: Column(children: [
         _CardImage(c: c, w: imgW, h: imgH),
         const SizedBox(height: 12),
-        Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride)),
+        Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride)),
       ]),
     );
   }
@@ -309,7 +311,8 @@ class _InfoPanel extends StatelessWidget {
   final CharacterCard c;
   final Color fc;
   final int? hpOverride;
-  const _InfoPanel({required this.c, required this.fc, this.hpOverride});
+  final int? oscarXpOverride;
+  const _InfoPanel({required this.c, required this.fc, this.hpOverride, this.oscarXpOverride});
 
   @override
   Widget build(BuildContext ctx) {
@@ -347,6 +350,19 @@ class _InfoPanel extends StatelessWidget {
                         : '❤️ $effectiveHp PV',
                     style: cinzel(15, c: kGold, fw: FontWeight.w900)),
               )),
+              // Oscar : indicateur d'XP cumulée, visible dès qu'on connaît
+              // sa valeur actuelle (passé par l'appelant, seulement en partie).
+              if (oscarXpOverride != null) ...[
+                const SizedBox(height: 8),
+                Center(child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: kGold.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: kGold, width: 1.5)),
+                  child: Text('🧪 $oscarXpOverride / 13 XP',
+                    style: cinzel(14, c: kGold2, fw: FontWeight.w900)),
+                )),
+              ],
               const SizedBox(height: 16),
               _infoBlock('⚡ CAPACITÉ', c.ability, fc),
               const SizedBox(height: 12),
