@@ -994,6 +994,17 @@ class GameEngine with AbilityEngine {
     // Luc : le joueur EN FEU inflige 1 dégât de plus à ses attaques, tant
     // que le feu dure (indépendamment de qui a attaqué qui).
     if (dmg > 0 && attacker.lucFireTurnsRemaining > 0) dmg += 1;
+    // Maxence : passif révélé — chaque attaque lui inflige 1 blessure, mais
+    // ajoute 2 dégâts à cette même attaque. Peut potentiellement le tuer
+    // lui-même s'il est déjà très affaibli.
+    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'maxence_selfharm_boost'
+        && attacker.revealed) {
+      dmg += 2;
+      applyDamage(attacker, 1);
+      if (!attacker.alive) attacker.killedByUid = attacker.uid;
+    }
+    // Tom : dégâts bonus PERMANENTS cumulés (+2 par Shadow éliminé).
+    if (dmg > 0 && attacker.tomBonusDmg > 0) dmg += attacker.tomBonusDmg;
 
     // Protection cible
     if (target.invulnerable) return {'log': '🛡 ${target.name} est invulnérable — attaque bloquée'};
@@ -1191,6 +1202,15 @@ class GameEngine with AbilityEngine {
     }
     // Luc : le joueur EN FEU inflige 1 dégât de plus à ses attaques.
     if (dmg > 0 && attacker.lucFireTurnsRemaining > 0) dmg += 1;
+    // Maxence : passif révélé — chaque attaque lui inflige 1 blessure, mais
+    // ajoute 2 dégâts à cette même attaque.
+    if (atkEff == 'maxence_selfharm_boost' && attacker.revealed) {
+      dmg += 2;
+      applyDamage(attacker, 1);
+      if (!attacker.alive) attacker.killedByUid = attacker.uid;
+    }
+    // Tom : dégâts bonus PERMANENTS cumulés (+2 par Shadow éliminé).
+    if (dmg > 0 && attacker.tomBonusDmg > 0) dmg += attacker.tomBonusDmg;
     // NOTE : la réduction de la Sainte Tunique se fait déjà correctement DANS
     // applyDamage() en vérifiant le porteur qui SUBIT les dégâts (la cible),
     // pas l'attaquant — une ligne ici vérifiait à tort la Tunique de
@@ -1604,6 +1624,18 @@ class GameEngine with AbilityEngine {
           felipeKiller.felipeOnBorrowedTime = false;
           applyHeal(felipeKiller, 2);
           felipeKiller.alive = true;
+        }
+      }
+      // Tom : chaque Shadow qu'il élimine lui donne +2 PV MAX (permanent) et
+      // +2 dégâts permanents à ses futures attaques. Peut se cumuler
+      // plusieurs fois au fil de la partie.
+      if (p.killedByUid != null && p.character?.faction == Faction.shadow) {
+        Player? tomKiller;
+        for (final k in all) { if (k.uid == p.killedByUid) { tomKiller = k; break; } }
+        if (tomKiller != null && tomKiller.uid != p.uid &&
+            (tomKiller.copiedEffect ?? tomKiller.character?.abilityEffect) == 'tom_shadow_kill_boost') {
+          tomKiller.maxHpModifier += 2;
+          tomKiller.tomBonusDmg += 2;
         }
       }
       // Fanny : vole la carte ENTIÈRE de sa PREMIÈRE victime (camp, pouvoir,

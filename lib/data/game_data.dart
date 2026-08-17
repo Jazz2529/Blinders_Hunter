@@ -160,6 +160,16 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'luc_ignite', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
+  CharacterCard(id:'maxence', name:'Maxence', faction:Faction.shadow, hp:12, icon:'🩸',
+    ability:'Passif révélé: chaque attaque vous inflige 1 blessure, mais lui inflige 2 dégâts de plus.',
+    abilityEffect:'maxence_selfharm_boost', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'tom', name:'Tom', faction:Faction.shadow, hp:14, icon:'💀',
+    ability:'Passif: chaque fois que vous éliminez un Shadow, vous gagnez 2 PV MAX et +2 dégâts permanents à vos attaques.',
+    abilityEffect:'tom_shadow_kill_boost', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
   CharacterCard(id:'louise', name:'Louise', faction:Faction.shadow, hp:10, icon:'💢',
     ability:'Passif: si votre attaque inflige 0 blessure → infligez 4. Sinon infligez 1 de plus',
     abilityEffect:'zero_wound_power', abilityRepeatable:true,

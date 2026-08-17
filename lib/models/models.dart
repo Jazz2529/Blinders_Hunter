@@ -176,6 +176,7 @@ class Player {
   int poisonTurnsRemaining; // Damien : tours restants de poison (3 dégâts/tour)
   String? lucFireSourceUid; // qui a mis le feu
   int lucFireTurnsRemaining; // Luc : tours restants en feu (2 dégâts/tour, +1 dégât aux attaques)
+  int tomBonusDmg = 0; // Tom : dégâts bonus PERMANENTS cumulés, +2 à chaque Shadow qu'il élimine
   String? disguiseIconOverride;
   String? disguiseNameOverride;
   String? disguiseFactionOverride;
@@ -249,6 +250,7 @@ class Player {
     this.poisonTurnsRemaining = 0,
     this.lucFireSourceUid,
     this.lucFireTurnsRemaining = 0,
+    this.tomBonusDmg = 0,
     this.disguiseIconOverride,
     this.disguiseNameOverride,
     this.disguiseFactionOverride,
@@ -305,6 +307,7 @@ class Player {
     'poisonTurnsRemaining': poisonTurnsRemaining,
     'lucFireSourceUid': lucFireSourceUid,
     'lucFireTurnsRemaining': lucFireTurnsRemaining,
+    'tomBonusDmg': tomBonusDmg,
     'disguiseIconOverride': disguiseIconOverride,
     'disguiseNameOverride': disguiseNameOverride,
     'disguiseFactionOverride': disguiseFactionOverride,
@@ -382,6 +385,7 @@ class Player {
     poisonTurnsRemaining: (j['poisonTurnsRemaining'] as int?) ?? 0,
     lucFireSourceUid: j['lucFireSourceUid'] as String?,
     lucFireTurnsRemaining: (j['lucFireTurnsRemaining'] as int?) ?? 0,
+    tomBonusDmg: (j['tomBonusDmg'] as int?) ?? 0,
     disguiseIconOverride: j['disguiseIconOverride'] as String?,
     disguiseNameOverride: j['disguiseNameOverride'] as String?,
     disguiseFactionOverride: j['disguiseFactionOverride'] as String?,
