@@ -1008,7 +1008,7 @@ class SoloController extends ChangeNotifier {
         s.pendingTargetAction = null; // sans ça, l'écran de choix de cible pouvait réapparaître
         _log('📦 ${p.name} déverse $storedN blessures stockées sur ${target.name} ($dealtN reçues) !', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
-        s.phase = GamePhase.move; notifyListeners(); return;
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Agathe : vole 1 PV MAX à un joueur au choix, définitivement (max 5x) ──
       case 'steal_max_hp':
@@ -1031,7 +1031,7 @@ class SoloController extends ChangeNotifier {
         s.pendingTargetAction = null;
         _log('🧛 ${p.name} vole 1 PV MAX à ${target.name} (elle: ${_eg.effectiveMaxHp(p)} PV max, lui: ${_eg.effectiveMaxHp(target)} PV max)', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
-        s.phase = GamePhase.move; notifyListeners(); return;
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Albane: double dés géré dans la phase move ──
       case 'double_move_dice':
@@ -1067,7 +1067,7 @@ class SoloController extends ChangeNotifier {
         s.pendingTargetAction = null;
         _log('🐉 Art\'Cade enflamme la zone 6 — $hit6 joueur(s) subissent 2 blessures !', cls: 'player');
         _checkWin();
-        s.phase = GamePhase.move; notifyListeners(); return;
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Captain Ricard: s'inflige des blessures pour soigner un mort/vivant ──
       case 'sacrifice_heal_dead':
@@ -1153,7 +1153,7 @@ class SoloController extends ChangeNotifier {
         if (target == null) { s.pendingTargetAction = 'ability_set5'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
         final before = target.wounds;
         target.wounds = 5;
-        if (target.wounds >= _eg.effectiveMaxHp(target)) target.alive = false;
+        if (target.wounds >= _eg.effectiveMaxHp(target)) { target.alive = false; target.killedByUid = p.uid; }
         p.abilityUsed = true;
         s.pendingTargetAction = null;
         s.abilityOverlay = 'marion_plants';
@@ -1166,7 +1166,7 @@ class SoloController extends ChangeNotifier {
           _log('📍 Marion place ${target.name} à 5 blessures (déjà à 5)', cls: 'player');
         }
         _checkWin(justDiedId: target.alive ? null : target.uid);
-        s.phase = GamePhase.move; notifyListeners(); return;
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Cupidon: lie 2 joueurs ──
       case 'link_two_players':
@@ -1328,7 +1328,7 @@ class SoloController extends ChangeNotifier {
         s.abilityDiceResult = {'d': 4, 'result': dv, 'dmg': dealtVlad};
         _log('💨 Vlad lance D4($dv) → inflige $dealtVlad blessures à ${target.name} !', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
-        s.phase = GamePhase.move;
+        if (!s.isOver) { s.phase = GamePhase.move; }
         notifyListeners(); return;
 
       // ── Elaia : prescience — choisir la pile à regarder ──
@@ -1386,7 +1386,7 @@ class SoloController extends ChangeNotifier {
         _eg.applyDamage(target, 2);
         _log('🍳 Julien inflige 2 à ${target.name}', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
-        s.phase = GamePhase.move; notifyListeners(); return;
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Marin Shadow: donne item → inflige 2 ──
       case 'trade_item_damage3':
@@ -1397,7 +1397,7 @@ class SoloController extends ChangeNotifier {
         _eg.applyDamage(target, 2);
         _log('💰 Marin donne "${item.name}" à ${target.name} et inflige 2', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
-        s.phase = GamePhase.move; notifyListeners(); return;
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Travert: D6 sur cible choisie ──
       case 'd6_global_attack':
@@ -1415,7 +1415,7 @@ class SoloController extends ChangeNotifier {
         final travertIt = _eg.travertInteraction(s.players);
         audio.playInteractionVoice(travertIt.key);
         _checkWin(justDiedId: target.alive ? null : target.uid);
-        s.phase = GamePhase.move; notifyListeners(); return;
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Raphaël Shadow: attaque répétée, miroir ──
       case 'mirror_damage':
@@ -1437,7 +1437,7 @@ class SoloController extends ChangeNotifier {
           _log('🎵 Jazzon inflige 1 à ${target.name} (pas d\'équipement)', cls: 'player');
         }
         _checkWin(justDiedId: target.alive ? null : target.uid);
-        s.phase = GamePhase.move; notifyListeners(); return;
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Glads: récupère TOUS les équipements ──
       case 'gather_attack_redistribute':
@@ -1486,7 +1486,7 @@ class SoloController extends ChangeNotifier {
         p.abilityUsed = true;
         _log('🔊 Enceinte révèle et inflige 3 à ${target.name} !', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
-        s.phase = GamePhase.move; notifyListeners(); return;
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Jésus: ressuscite à 0 blessure (passif mort) ──
       case 'resurrect_once':
@@ -1605,7 +1605,7 @@ class SoloController extends ChangeNotifier {
         _log('🔥 Léo lance D4($dLeo) — TOUS les joueurs (lui inclus) subissent $dLeo blessures !', cls: 'player');
         for (final uid in killedUids) _checkWin(justDiedId: uid);
         if (killedUids.isEmpty) _checkWin();
-        s.phase = GamePhase.move; notifyListeners(); return;
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       case 'heal1_on_own_attack':
         p.abilityUsed = false;
@@ -1626,7 +1626,7 @@ class SoloController extends ChangeNotifier {
         s.abilityOverlay = 'carapatte_food';
         _log('🐢 Carapatte lance D6($dcL) sur ${target.name} — inflige $dcL, se soigne de $dealtL', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
-        s.phase = GamePhase.move; notifyListeners(); return;
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Tristan : échange un équipement avec un autre joueur ──
       case 'swap_equipment':
@@ -1639,7 +1639,7 @@ class SoloController extends ChangeNotifier {
         if (logSwap.isNotEmpty) _log(logSwap, cls: 'player');
         s.pendingTargetAction = null;
         _checkWin();
-        s.phase = GamePhase.move; notifyListeners(); return;
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Marin : 3 dégâts + dague à la cible ──
       case 'damage3_give_dague':
@@ -1652,7 +1652,7 @@ class SoloController extends ChangeNotifier {
         if (logMarin.isNotEmpty) _log(logMarin, cls: 'player');
         s.pendingTargetAction = null;
         _checkWin();
-        s.phase = GamePhase.move; notifyListeners(); return;
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Oscar : affiche l'écran de choix (Eau/Plante/Feu) ──
       case 'oscar_xp_spend':
@@ -1764,7 +1764,7 @@ class SoloController extends ChangeNotifier {
     _log(log, cls: 'player');
     s.damienTargetUid = null;
     _checkWin(justDiedId: target.alive ? null : target.uid);
-    s.phase = GamePhase.move; notifyListeners();
+    if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners();
   }
 
   /// Damien : sert le poison — 3 dégâts/tour pendant 2 tours.
@@ -2181,7 +2181,8 @@ class SoloController extends ChangeNotifier {
         if (state != null) { state!.woundFlashUid = null; notifyListeners(); }
       });
     }
-    state!.phase = GamePhase.attack; notifyListeners();
+    if (!state!.isOver) { state!.phase = GamePhase.attack; }
+    notifyListeners();
   }
 
 
@@ -2293,7 +2294,7 @@ class SoloController extends ChangeNotifier {
     _eg.applyDamage(me, dmg);
     if (reason.isNotEmpty) _log(reason, cls: 'player');
     _checkWin(justDiedId: me.alive ? null : me.uid);
-    state!.phase = GamePhase.attack;
+    if (!state!.isOver) { state!.phase = GamePhase.attack; }
     notifyListeners();
   }
 
