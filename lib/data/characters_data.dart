@@ -53,6 +53,10 @@ const Map<String, String> kRevealQuotes = {
   'felipe': "[Your soul shall be Mine]",
   'theo': "[Let's show these fine folk some Badlands hospitality]",
   'remi': "[May have gone slightly overboard on the size]",
+  'oscar': "[Alright little one, let's bring you to life]",
+  'victor': "[What adventure you're up to today ?]",
+  'maxime': "[Aah this guy is toasted]",
+  'fanny': "[Evil lurks in these holes]",
   'christine': "[No one crosses the uncrowned]",
 };
 

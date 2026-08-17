@@ -432,32 +432,6 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
             Text(s.phase.name, style: body(11, c: kTextSub)),
           ]),
           actions: [
-            // BOUTON MA CARTE — simple et fiable
-            TextButton(
-              onPressed: () {
-                final s = ctrl.state;
-                final me = s?.players.where((p) => !p.isBot).firstOrNull;
-                final maximeTarget = (me?.character?.id == 'maxime' && me?.maximeFirstAttackerUid != null)
-                    ? s?.players.where((p) => p.uid == me!.maximeFirstAttackerUid).firstOrNull
-                    : null;
-                if (me?.character != null) showFullCardDialog(ctx, me!.character!,
-                  hpOverride: me.character!.hp + me.maxHpModifier,
-                  oscarXpOverride: me.character!.id == 'oscar' ? me.oscarXp : null,
-                  maximeTargetName: me.character!.id == 'maxime'
-                    ? (maximeTarget?.name ?? 'Personne pour le moment')
-                    : null);
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: kGold.withValues(alpha: 0.15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Text('🃏', style: TextStyle(fontSize: 15)),
-                const SizedBox(width: 4),
-                Text('Carte', style: cinzel(10, c: kGold)),
-              ]),
-            ),
             // Victor uniquement : bouton pour consulter ses barres de charme
             // — privées, jamais visibles par les autres joueurs.
             Builder(builder: (bctx) {
@@ -1876,7 +1850,7 @@ class _HpLeaderboard extends StatelessWidget {
               isMe: !p.isBot,
               isFlashing: s.woundFlashUid == p.uid,
               isMarked: s.markedPlayerUid == p.uid,
-              onTap: (target) { _showOpponentCard(ctx, target); },
+              onTap: (target) { _showOpponentCard(ctx, target, isMe: !target.isBot); },
             ),
           )).toList()),
         ),
@@ -1884,12 +1858,13 @@ class _HpLeaderboard extends StatelessWidget {
     );
   }
 
-  void _showOpponentCard(BuildContext ctx, Player p) {
+  void _showOpponentCard(BuildContext ctx, Player p, {bool isMe = false}) {
     final c = p.character;
     // Jason (Caméléon) : affiche le déguisement (Hunter/Shadow imité) tant
     // qu'il est VIVANT — mort, il révèle sa vraie identité comme tout le
-    // monde (convention "les cartes se retournent à la mort").
-    final displayChar = (p.alive && p.disguiseCharIdOverride != null)
+    // monde (convention "les cartes se retournent à la mort"). Pour SOI-MÊME,
+    // on affiche toujours sa vraie carte, jamais un déguisement.
+    final displayChar = (!isMe && p.alive && p.disguiseCharIdOverride != null)
         ? kAllCharacters.where((ch) => ch.id == p.disguiseCharIdOverride).firstOrNull ?? c
         : c;
     final isNils = (p.copiedEffect ?? c?.abilityEffect) == 'store_damage_nils';
@@ -1901,9 +1876,15 @@ class _HpLeaderboard extends StatelessWidget {
     // Un joueur MORT révèle toujours son vrai rôle en cliquant sur son
     // jeton — même s'il n'avait jamais été révélé de son vivant (convention
     // "les cartes se retournent à la mort", comme sur un vrai plateau).
-    if ((p.revealed || !p.alive || knowsPrivately) && displayChar != null) {
+    // Pour SOI-MÊME : toujours la vraie carte, peu importe la révélation.
+    if ((isMe || p.revealed || !p.alive || knowsPrivately) && displayChar != null) {
+      final maximeTarget = (isMe && displayChar.id == 'maxime' && p.maximeFirstAttackerUid != null)
+          ? ctrl.state?.players.where((pp) => pp.uid == p.maximeFirstAttackerUid).firstOrNull
+          : null;
       showFullCardDialog(ctx, displayChar, hpOverride: displayChar.hp + p.maxHpModifier,
-        oscarXpOverride: displayChar.id == 'oscar' ? p.oscarXp : null).then((_) {
+        oscarXpOverride: displayChar.id == 'oscar' ? p.oscarXp : null,
+        maximeTargetName: (isMe && displayChar.id == 'maxime')
+          ? (maximeTarget?.name ?? 'Personne pour le moment') : null).then((_) {
         if ((p.equipment.isNotEmpty || isNils) && ctx.mounted) _showEquipmentForSolo(ctx, p);
       });
     } else {
@@ -2047,8 +2028,7 @@ class _WoundsColumnState extends State<_WoundsColumn>
     // Blessures toujours visibles — mais PAS les PV max
 
     return GestureDetector(
-      onTap: (!isMe && widget.onTap != null)
-          ? () => widget.onTap!(p) : null,
+      onTap: widget.onTap != null ? () => widget.onTap!(p) : null,
       child: WoundDelta(
       wounds: p.wounds,
       child: AnimatedBuilder(

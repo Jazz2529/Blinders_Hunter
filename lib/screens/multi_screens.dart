@@ -420,30 +420,6 @@ class _GameScreenState extends State<GameScreen> {
             }),
           ]),
           actions:[
-            TextButton(
-              onPressed: () {
-                final c = gp.me?.character;
-                final maximeTarget = (c?.id == 'maxime' && gp.me?.maximeFirstAttackerUid != null)
-                    ? gp.players[gp.me!.maximeFirstAttackerUid]
-                    : null;
-                if (c != null) showFullCardDialog(ctx, c,
-                  hpOverride: c.hp + (gp.me?.maxHpModifier ?? 0),
-                  oscarXpOverride: c.id == 'oscar' ? gp.me?.oscarXp : null,
-                  maximeTargetName: c.id == 'maxime'
-                    ? (maximeTarget?.name ?? 'Personne pour le moment')
-                    : null);
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: kGold.withValues(alpha: 0.15),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Text('🃏', style: TextStyle(fontSize: 14)),
-                const SizedBox(width: 4),
-                Text('MA CARTE', style: cinzel(9, c: kGold)),
-              ]),
-            ),
             IconButton(
               icon: const Icon(Icons.settings, color: kGold),
               onPressed: () => showDialog(context: ctx, builder: (_) => const SettingsDialog()),
@@ -882,28 +858,36 @@ class _PlayerRow extends StatelessWidget {
 
   Future<void> _showCard(BuildContext ctx) {
     final c = p.character;
+    final isMe = p.uid == gp.myUid;
     // Vision Suprême : connaissance privée permanente — le joueur qui a
     // découvert secrètement cette identité peut la reconsulter à tout
     // moment ensuite, comme s'il était révélé, mais seulement pour lui.
     final knowsPrivately = gp.myUid != null && p.privatelyKnownBy.contains(gp.myUid);
     // Un joueur MORT révèle toujours son vrai rôle en cliquant sur son
-    // jeton — même s'il n'avait jamais été révélé de son vivant.
-    if ((!p.revealed && p.alive && !knowsPrivately) || c == null) {
+    // jeton — même s'il n'avait jamais été révélé de son vivant. Pour
+    // SOI-MÊME : toujours la vraie carte, peu importe la révélation —
+    // sinon on voyait une fiche "mystère" en cliquant sur son propre jeton.
+    if ((!isMe && !p.revealed && p.alive && !knowsPrivately) || c == null) {
       // Pas révélé (et encore en vie) : carte "mystère".
       return showMysteryCardDialog(ctx, p);
     }
-    final isMe = p.uid == gp.myUid;
     // Jason (Caméléon) : afficher la carte du personnage IMITÉ tant qu'il
     // est VIVANT — mort, il révèle sa vraie identité comme tout le monde
-    // (convention "les cartes se retournent à la mort").
+    // (convention "les cartes se retournent à la mort"). Pour SOI-MÊME :
+    // toujours sa vraie carte, jamais le déguisement.
     final hasDisguise = !isMe && p.alive && p.disguiseNameOverride != null;
     final disguisedCharId = p.disguiseCharIdOverride;
     final disguisedChar = disguisedCharId != null
         ? kAllCharacters.where((ch) => ch.id == disguisedCharId).firstOrNull
         : null;
     final shown = (hasDisguise && disguisedChar != null) ? disguisedChar : c;
+    final maximeTarget = (isMe && shown.id == 'maxime' && p.maximeFirstAttackerUid != null)
+        ? gp.players[p.maximeFirstAttackerUid]
+        : null;
     return showFullCardDialog(ctx, shown, hpOverride: shown.hp + p.maxHpModifier,
-      oscarXpOverride: shown.id == 'oscar' ? p.oscarXp : null);
+      oscarXpOverride: shown.id == 'oscar' ? p.oscarXp : null,
+      maximeTargetName: (isMe && shown.id == 'maxime')
+        ? (maximeTarget?.name ?? 'Personne pour le moment') : null);
   }
 
   @override
