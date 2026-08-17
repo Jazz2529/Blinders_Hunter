@@ -9,6 +9,7 @@ import '../models/models.dart';
 import '../widgets/theme.dart';
 import '../widgets/shine_effect.dart';
 import '../services/persistence.dart';
+import '../data/cosmetics_data.dart';
 import '../widgets/card_viewer.dart';
 
 // ═══════════════════════════════════════════════════════════
@@ -315,16 +316,29 @@ class GalleryScreen extends StatelessWidget {
 }
 
 // ─── Carte personnage dans la galerie ────────────────────────────────────────
-class _CharacterCard extends StatelessWidget {
+class _CharacterCard extends StatefulWidget {
   final CharacterCard char;
   const _CharacterCard({required this.char});
 
   @override
+  State<_CharacterCard> createState() => _CharacterCardState();
+}
+
+class _CharacterCardState extends State<_CharacterCard> {
+  @override
   Widget build(BuildContext ctx) {
-    final c = char;
+    final c = widget.char;
     final fc = factionColor(c.faction.name);
     final fbg = factionBg(c.faction.name);
     final imgPath = effectiveCharacterImagePath(c.id);
+    // Tous les skins POSSÉDÉS pour ce personnage : l'apparence de base
+    // (toujours "possédée") + tous les cosmétiques débloqués en boutique
+    // pour lui. S'il y en a plus d'un, on affiche un badge permettant de
+    // choisir lequel afficher.
+    final ownedCosmetics = Prefs.ownedCosmetics();
+    final ownedSkinsForChar = cosmeticsFor(CosmeticCategory.character, c.id)
+        .where((item) => ownedCosmetics.contains(item.id)).toList();
+    final hasMultipleSkins = ownedSkinsForChar.isNotEmpty;
 
     return GestureDetector(
       // Affiche la carte en plein écran pour l'admirer — un nouveau clic
@@ -357,18 +371,46 @@ class _CharacterCard extends StatelessWidget {
             flex: 6,
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              child: ShineOverlay(
-                tier: shineTierFor(Prefs.gamesWonWith(c.name)),
-                child: imgPath != null
-                ? Image.asset(imgPath, fit: BoxFit.contain, width: double.infinity,
-                    // Limite la résolution de décodage — une grille peut
-                    // afficher jusqu'à 40 personnages en même temps, décoder
-                    // chacun à sa pleine résolution source épuiserait vite la
-                    // RAM sur un appareil limité (émulateur notamment).
-                    cacheWidth: 320,
-                    errorBuilder: (_, __, ___) => _fallback(fc, fbg, c.icon))
-                : _fallback(fc, fbg, c.icon),
-              ),
+              child: Stack(fit: StackFit.expand, children: [
+                ShineOverlay(
+                  tier: shineTierFor(Prefs.gamesWonWith(c.name)),
+                  child: imgPath != null
+                  ? Image.asset(imgPath, fit: BoxFit.contain, width: double.infinity,
+                      // Limite la résolution de décodage — une grille peut
+                      // afficher jusqu'à 40 personnages en même temps, décoder
+                      // chacun à sa pleine résolution source épuiserait vite la
+                      // RAM sur un appareil limité (émulateur notamment).
+                      cacheWidth: 320,
+                      errorBuilder: (_, __, ___) => _fallback(fc, fbg, c.icon))
+                  : _fallback(fc, fbg, c.icon),
+                ),
+                if (hasMultipleSkins)
+                  Positioned(
+                    bottom: 6, left: 6,
+                    child: GestureDetector(
+                      // GestureDetector séparé : absorbe le tap pour ne PAS
+                      // déclencher l'ouverture de la fiche complète du
+                      // personnage par-dessus.
+                      onTap: () async {
+                        await _showSkinPicker(ctx, c, ownedSkinsForChar);
+                        if (mounted) setState(() {});
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: kGold, width: 1.2)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Text('🎨', style: TextStyle(fontSize: 11)),
+                          const SizedBox(width: 3),
+                          Text('${ownedSkinsForChar.length + 1}',
+                            style: cinzel(10, c: kGold, fw: FontWeight.w900)),
+                        ]),
+                      ),
+                    ),
+                  ),
+              ]),
             ),
           ),
           // Infos
@@ -400,6 +442,87 @@ class _CharacterCard extends StatelessWidget {
   Widget _fallback(Color fc, Color fbg, String icon) => Container(
     color: fbg,
     child: Center(child: Text(icon, style: const TextStyle(fontSize: 50))));
+}
+
+/// Affiche une popup permettant de choisir l'apparence à utiliser pour ce
+/// personnage, parmi l'apparence de base et tous les skins débloqués en
+/// boutique pour lui. Le choix est appliqué immédiatement au clic.
+Future<void> _showSkinPicker(BuildContext ctx, CharacterCard c, List<CosmeticItem> ownedSkins) {
+  final equippedId = Prefs.equippedCosmetics()['character:${c.id}'];
+  return showDialog(
+    context: ctx,
+    builder: (dctx) => AlertDialog(
+      backgroundColor: kBg2,
+      title: Text('Apparence de ${c.name}', style: cinzel(15, c: kGold2)),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          // Apparence de base — toujours disponible
+          _SkinOption(
+            label: 'Apparence de base',
+            imagePath: characterImagePath(c.id),
+            fallbackIcon: c.icon,
+            isEquipped: equippedId == null,
+            onTap: () {
+              Prefs.equipCosmetic('character:${c.id}', null);
+              Navigator.pop(dctx);
+            },
+          ),
+          // Chaque skin débloqué
+          ...ownedSkins.map((item) => _SkinOption(
+            label: item.name,
+            imagePath: item.imagePath,
+            fallbackIcon: c.icon,
+            isEquipped: equippedId == item.id,
+            onTap: () {
+              Prefs.equipCosmetic('character:${c.id}', item.id);
+              Navigator.pop(dctx);
+            },
+          )),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dctx),
+          child: Text('Fermer', style: cinzel(12, c: kTextSub))),
+      ],
+    ),
+  );
+}
+
+class _SkinOption extends StatelessWidget {
+  final String label;
+  final String? imagePath;
+  final String fallbackIcon;
+  final bool isEquipped;
+  final VoidCallback onTap;
+  const _SkinOption({required this.label, required this.imagePath,
+    required this.fallbackIcon, required this.isEquipped, required this.onTap});
+
+  @override
+  Widget build(BuildContext ctx) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: isEquipped ? kGold.withValues(alpha: 0.12) : kBg3,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: isEquipped ? kGold : kBord2, width: isEquipped ? 2 : 1)),
+      child: Row(children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: SizedBox(width: 40, height: 56,
+            child: imagePath != null
+              ? Image.asset(imagePath!, fit: BoxFit.cover, cacheWidth: 80,
+                  errorBuilder: (_, __, ___) => Center(child: Text(fallbackIcon)))
+              : Center(child: Text(fallbackIcon, style: const TextStyle(fontSize: 22)))),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(label, style: body(13, c: isEquipped ? kGold2 : kText, fw: FontWeight.w600))),
+        if (isEquipped) const Icon(Icons.check_circle, color: kGold, size: 20),
+      ]),
+    ),
+  );
 }
 
 class _HpBadge extends StatelessWidget {
