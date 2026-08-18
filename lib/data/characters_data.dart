@@ -56,6 +56,7 @@ const Map<String, String> kRevealQuotes = {
   'agathe': "[My heart is one with the eternal forest]",
   'felipe': "[Your soul shall be Mine]",
   'baptiste': "[Death is a debt. Let me pay it in your place]",
+  'hailey': "[Their gifts are mine now. Every last one]",
   'theo': "[Let's show these fine folk some Badlands hospitality]",
   'remi': "[May have gone slightly overboard on the size]",
   'oscar': "[Every wound you deal, I turn to gold]",

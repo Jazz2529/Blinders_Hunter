@@ -2567,7 +2567,9 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                   ? '📦 Déverser ${me.storedDamage} blessures stockées'
                   : effChar.abilityEffect == 'craft_equipment_remi'
                     ? '🛠️ Fabriquer mon équipement'
-                    : '⚡ Activer ma capacité',
+                    : effChar.abilityEffect == 'hailey_copy_hunter'
+                      ? '📖 Copier un pouvoir Hunter'
+                      : '⚡ Activer ma capacité',
               onTap: () => _handleAbility()),
           if (me.revealed && me.abilityUsed && !effChar.abilityRepeatable)
             Padding(padding: const EdgeInsets.only(bottom: 8),
@@ -3301,6 +3303,65 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
   /// Rémi : propose 3 effets tirés au hasard parmi les 10 disponibles
   /// (légendaires nettement plus rares), et il en choisit exactement 2
   /// parmi CES 3 (pas parmi tous les 10).
+  /// Hailey : 3 Hunters non joués tirés au hasard — choisit d'en copier le
+  /// pouvoir. Résolu entièrement côté interface (pas de cible à choisir),
+  /// comme Rémi.
+  void _showHaileyChoiceDialog() {
+    final offered = haileyDraw3(s.players, Random());
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dctx) => Dialog(
+        backgroundColor: kBg2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 460, maxHeight: 480),
+          padding: const EdgeInsets.all(20),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              const Text('📖', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 8),
+              Expanded(child: Text('COPIER LE POUVOIR DE QUI ?',
+                style: cinzel(13, c: kGold2, fw: FontWeight.w900))),
+            ]),
+            const SizedBox(height: 4),
+            Text('Ce choix est définitif — 3 Hunters non joués cette partie.',
+              style: body(11, c: kTextSub)),
+            const SizedBox(height: 12),
+            if (offered.isEmpty)
+              Padding(padding: const EdgeInsets.all(20),
+                child: Text('Aucun Hunter disponible à copier cette partie.',
+                  style: body(12, c: kTextDim), textAlign: TextAlign.center)),
+            ...offered.map((c) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.pop(dctx);
+                  ctrl.humanHaileyChoice(c.id);
+                  setState(() {});
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: kBg3, borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: kGold.withValues(alpha: 0.5))),
+                  child: Row(children: [
+                    Text(c.icon, style: const TextStyle(fontSize: 24)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(c.name, style: cinzel(13, c: kGold2, fw: FontWeight.w700)),
+                      Text(c.ability, style: body(11, c: kTextSub)),
+                    ])),
+                  ]),
+                ),
+              ),
+            )),
+          ]),
+        ),
+      ),
+    );
+  }
+
   void _showRemiCraftDialog() {
     final offered = remiDraw3();
     final selected = <String>{};
@@ -3430,6 +3491,11 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     // Rémi : ouvre le sélecteur de 2 effets parmi 10
     if (eff == 'craft_equipment_remi') {
       _showRemiCraftDialog();
+      return;
+    }
+    // Hailey : ouvre le sélecteur de pouvoir Hunter à copier (3 au hasard)
+    if (eff == 'hailey_copy_hunter') {
+      _showHaileyChoiceDialog();
       return;
     }
     // Toutes ces capacités gèrent elles-mêmes leur transition de phase à

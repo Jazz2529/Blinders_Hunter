@@ -1860,6 +1860,23 @@ class SoloController extends ChangeNotifier {
     state!.phase = GamePhase.move; notifyListeners();
   }
 
+  /// Hailey : choisit lequel des 3 Hunters (tirés côté interface) copier —
+  /// réutilise directement copiedEffect, le même mécanisme que Tommy.
+  void humanHaileyChoice(String characterId) {
+    final p = state!.current;
+    final chosen = kAllCharacters.where((c) => c.id == characterId).firstOrNull;
+    if (chosen == null) {
+      state!.phase = GamePhase.move; notifyListeners(); return;
+    }
+    p.copiedEffect = chosen.abilityEffect;
+    // IMPORTANT : ne PAS toucher abilityUsed ici — copier un pouvoir n'est
+    // pas l'UTILISER. S'il s'agit d'un pouvoir unique, c'est la fonction qui
+    // le RÉSOUT (ex: remiCraftEquipment) qui marquera abilityUsed=true, au
+    // moment où Hailey l'active réellement — pas au moment où elle le copie.
+    _log('📖 ${p.name} copie le pouvoir de ${chosen.name} : ${chosen.ability}', cls: 'player');
+    state!.phase = GamePhase.move; notifyListeners();
+  }
+
   /// Julien : choix explicite "se soigner" — sépare bien du choix "attaquer"
   /// (qui passe par pendingTargetAction='ability_julien'). Sans cette
   /// fonction dédiée, appeler humanUseAbility() sans cible posait à tort

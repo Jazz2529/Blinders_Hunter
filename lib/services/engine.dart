@@ -47,6 +47,18 @@ List<String> remiDraw3([Random? rng]) {
   return result;
 }
 
+/// Hailey : tire 3 Hunters au hasard parmi ceux NON JOUÉS cette partie
+/// (ni elle-même). Si moins de 3 Hunters sont disponibles, en renvoie
+/// autant que possible.
+List<CharacterCard> haileyDraw3(List<Player> all, [Random? rng]) {
+  final r = rng ?? Random();
+  final playedIds = all.map((p) => p.character?.id).whereType<String>().toSet();
+  final pool = kAllCharacters.where((c) =>
+      c.faction == Faction.hunter && c.id != 'hailey' && !playedIds.contains(c.id)).toList();
+  pool.shuffle(r);
+  return pool.take(3).toList();
+}
+
 /// Rémi : renvoie les 2 effets actifs pour CE joueur, d'après l'équipement
 /// personnalisé QU'IL PORTE ACTUELLEMENT — pas d'après qui l'a fabriqué.
 /// L'effet suit l'objet : si quelqu'un d'autre le vole, c'est lui qui en

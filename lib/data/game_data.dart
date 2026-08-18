@@ -68,6 +68,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'baptiste_revive', abilityRepeatable:false,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
+  CharacterCard(id:'hailey', name:'Hailey', faction:Faction.hunter, hp:12, icon:'📖',
+    ability:'Unique: 3 Hunters non joués cette partie sont tirés au hasard — copiez le pouvoir de celui de votre choix parmi les 3.',
+    abilityEffect:'hailey_copy_hunter', abilityRepeatable:false,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
   CharacterCard(id:'fijacked', name:'Fijacked', faction:Faction.hunter, hp:11, icon:'🏺',
     ability:'Passif révélé: au début de votre tour, soignez 1 blessure par équipement possédé',
     abilityEffect:'heal_per_equip_eot', abilityRepeatable:true,
