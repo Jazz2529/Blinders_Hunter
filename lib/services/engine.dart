@@ -357,6 +357,12 @@ class GameEngine with AbilityEngine {
         applyHeal(target, 3);
         return '🥷 ${actor.name} subit 2 et soigne ${target.name} de 3';
 
+      // ── Inès : verrouille la capacité d'un joueur tant qu'elle est en vie ──
+      case 'lock_ability_while_alive':
+        if (target == null) return 'cible_requise';
+        target.abilityLockedByUid = actor.uid;
+        return '🔒 ${actor.name} verrouille la capacité de ${target.name} tant qu\'elle est en vie';
+
       // ── Marion : place la cible à exactement 5 blessures (soin ou dégâts) ──
       case 'set_wounds5':
         if (target == null) return 'cible_requise';
@@ -1630,6 +1636,12 @@ class GameEngine with AbilityEngine {
         for (final ally in all.where((a) =>
             a.alive && a.character?.faction == Faction.hunter && a.revealed)) {
           applyHeal(ally, 2);
+        }
+      }
+      if (eff == 'lock_ability_while_alive') {
+        // Inès vient de mourir : libère le joueur qu'elle avait verrouillé
+        for (final locked in all) {
+          if (locked.abilityLockedByUid == p.uid) locked.abilityLockedByUid = null;
         }
       }
       // Bob : revient à la vie avec 1 PV MAX de moins (8 → 7 → 6…) — sauf

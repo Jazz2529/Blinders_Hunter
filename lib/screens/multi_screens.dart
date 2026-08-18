@@ -1364,7 +1364,8 @@ class _ActionPanelState extends State<_ActionPanel> {
               'double_attack_if_tanky', 'heal_hunter_on_attack', 'reroll_d6_attack', 'felipe_passive',
               'double_move_dice', 'fanny_none', 'victor_charm', 'maxime_double_first', 'bob_resurrect', 'maxence_selfharm_boost', 'tom_shadow_kill_boost',
             }.contains(me?.copiedEffect ?? me?.character?.abilityEffect) &&
-              !((me?.copiedEffect ?? me?.character?.abilityEffect) == 'store_damage_nils' && (me?.storedDamage ?? 0) < 1))
+              !((me?.copiedEffect ?? me?.character?.abilityEffect) == 'store_damage_nils' && (me?.storedDamage ?? 0) < 1) &&
+              me?.abilityLockedByUid == null)
               BHButton(
                 label: (me?.copiedEffect ?? me?.character?.abilityEffect) == 'store_damage_nils'
                   ? '📦 Déverser ${me?.storedDamage ?? 0} blessures stockées'

@@ -118,6 +118,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'counter_attack_passive', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
+  CharacterCard(id:'ines', name:'Inès', faction:Faction.hunter, hp:10, icon:'🧙‍♀️',
+    ability:'Unique: choisissez un joueur — tant qu\'Inès est en vie, ce joueur ne peut plus utiliser sa capacité spéciale. Si Inès meurt, il peut de nouveau l\'utiliser.',
+    abilityEffect:'lock_ability_while_alive', abilityRepeatable:false,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
     // ══════════ SHADOWS (20) ══════════
 
   CharacterCard(id:'agathe', name:'Agathe', faction:Faction.shadow, hp:9, icon:'🧛‍♀️',

@@ -1150,6 +1150,14 @@ class SoloController extends ChangeNotifier {
         }
         s.phase = GamePhase.move; notifyListeners(); return;
 
+      case 'lock_ability_while_alive':
+        if (target == null) { s.pendingTargetAction = 'ability_ines'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
+        target.abilityLockedByUid = p.uid;
+        p.abilityUsed = true;
+        s.pendingTargetAction = null;
+        _log('🔒 ${p.name} verrouille la capacité de ${target.name} tant qu\'elle est en vie', cls: 'player');
+        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+
       case 'set_wounds5':
         if (target == null) { s.pendingTargetAction = 'ability_set5'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
         final before = target.wounds;
@@ -2480,6 +2488,7 @@ class SoloController extends ChangeNotifier {
     'damage2_choice','damage2_then_heal3','set_wounds5','steal_equip_choice',
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors',
+    'lock_ability_while_alive',
   ].contains(eff);
 
   // Liste synchronisée avec le switch needsTarget de resolveCard() —

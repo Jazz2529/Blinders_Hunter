@@ -2561,7 +2561,8 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                 ctrl.humanReveal(); setState(() {});
               }),
           if (me.revealed && !me.abilityUsed && !isAutoPassive &&
-              !(effChar.abilityEffect == 'store_damage_nils' && me.storedDamage < 1))
+              !(effChar.abilityEffect == 'store_damage_nils' && me.storedDamage < 1) &&
+              me.abilityLockedByUid == null)
             BHButton(
               label: effChar.abilityEffect == 'store_damage_nils'
                   ? '📦 Déverser ${me.storedDamage} blessures stockées'
@@ -2574,6 +2575,10 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
           if (me.revealed && me.abilityUsed && !effChar.abilityRepeatable)
             Padding(padding: const EdgeInsets.only(bottom: 8),
               child: Text('Capacité utilisée pour cette partie.',
+                style: body(12, c: kTextSub))),
+          if (me.revealed && !me.abilityUsed && me.abilityLockedByUid != null)
+            Padding(padding: const EdgeInsets.only(bottom: 8),
+              child: Text('🔒 Votre capacité est verrouillée par Inès.',
                 style: body(12, c: kTextSub))),
           BHButton(label: 'Passer → Déplacement',
             onTap: () { ctrl.humanSkipAbility(); setState(() {}); }, outlined: true),
@@ -3106,6 +3111,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'ability_hong_yi')     title = '⚡ Hong Yi — Cible (8 mutuels)';
     if (context == 'ability_carapatte')   title = '🐢 Carapatte — Cible (D6 lifesteal)';
     if (context == 'ability_set5')        title = '📍 Marion — Choisissez un joueur (placé à 5 blessures)';
+    if (context == 'ability_ines')        title = '🔒 Inès — Choisissez le joueur dont vous verrouillez la capacité';
     if (context == 'ability_damien')      title = '🍸 Damien — Choisissez qui servir';
     if (context == 'ability_tommy')       title = '🎭 Tommy — Copier le pouvoir de qui ?';
     if (context == 'ability_oceane')      title = '🌊 Océane — Qui exclure du soin ?';
@@ -3508,6 +3514,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'self1_trigger_terrain', 'draw_light', 'draw_dark', 'peek_reorder_deck',
       'casino_bet', 'swap_zones', 'd4_bonus_attack', 'store_damage_nils', 'steal_max_hp',
       'move_adjacent_choice', 'oscar_xp_spend', 'luc_ignite', 'baptiste_revive',
+      'lock_ability_while_alive',
     };
     if (selfManaged.contains(eff)) {
       ctrl.humanUseAbility();
