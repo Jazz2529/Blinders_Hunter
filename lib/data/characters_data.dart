@@ -5,7 +5,6 @@ import '../services/persistence.dart';
 import 'cosmetics_data.dart';
 
 const Map<String, String> kRevealQuotes = {
- 
   'albane': "[Your time ends now]",
   'amelia': "[Light ! Guide my hand]",
   'artcade': "[You wish to be struck by lightning ?]",
@@ -40,10 +39,6 @@ const Map<String, String> kRevealQuotes = {
   'marin': "[Time to bring the Heat]",
   'peio': "[The earth itself is my ally !]",
   'julien': "[Do you smell something burning ?]",
-  'bob': "[Kill me once, shame on you. Kill me twice...]",
-  'luc': "[Cold to the touch, warm once I'm through with you]",
-  'maxence': "[Every drop I bleed, you'll bleed twice as much]",
-  'tom': "[One down. My arm just got stronger]",
   'cambou': "[Time may pass, but the dream is eternal]",
   'leo': "[It is too late you cannot stop Me]",
   'rat_rouen': "[I will cut you down to my Size]",

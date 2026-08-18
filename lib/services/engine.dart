@@ -1706,7 +1706,12 @@ class GameEngine with AbilityEngine {
           recalcPassives(killer);
         }
       }
-      p.deathPassiveProcessed = true; // marque ce mort comme "passif traité"
+      // Ne marque "passif traité" QUE si le joueur est encore mort à la fin
+      // de cette itération — sinon ça écrasait la réinitialisation faite
+      // par Bob (ressuscité) ou par la cible de Baptiste (ramenée à la vie)
+      // PLUS HAUT dans cette même boucle, les empêchant de redéclencher
+      // leurs propres passifs de mort lors d'un décès ultérieur.
+      if (!p.alive) p.deathPassiveProcessed = true;
     }
   }
 
