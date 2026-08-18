@@ -98,6 +98,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'set_wounds5',
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
+  CharacterCard(id:'meg', name:'Meg', faction:Faction.hunter, hp:12, icon:'🐺',
+    ability:'Unique: choisissez une forme — Offensive (+1 blessure infligée) ou Défensive (-1 blessure reçue). Elle alterne automatiquement entre les deux formes au début de chacun de vos tours suivants.',
+    abilityEffect:'meg_shapeshift', abilityRepeatable:false,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
+
   CharacterCard(id:'oceane', name:'Océane', faction:Faction.hunter, hp:12, icon:'🌊',
     ability:'Unique: choisissez un joueur à exclure, lancez le D4, tous les autres joueurs se soignent du résultat',
     abilityEffect:'d4_heal_neighbors',

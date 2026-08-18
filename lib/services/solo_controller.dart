@@ -581,6 +581,11 @@ class SoloController extends ChangeNotifier {
             if (rewards.isNotEmpty) jeanneChooseReward(rewards.first);
           }
         }
+      } else if (log == 'meg_choice') {
+        // Meg (bot) : choix aléatoire de la forme initiale
+        final form = _rng.nextBool() ? 'offense' : 'defense';
+        final resolveLog = _eg.applyAbility(bot, state!.players, state!.terrainLayout, extra: form);
+        _log(resolveLog);
       } else if (log != 'cible_requise') {
         _log(log);
       }
@@ -1898,6 +1903,19 @@ class SoloController extends ChangeNotifier {
     p.abilityUsed = false; // répétable
     state!.pendingTargetAction = null;
     _log('💚 ${p.name} se soigne de 1 blessure', cls: 'player');
+    state!.phase = GamePhase.move; notifyListeners();
+  }
+
+  /// Meg : choix initial (une seule fois) de la forme Offensive ou Défensive.
+  /// Bascule ensuite automatiquement chaque tour via applyStartOfTurnPassives.
+  void humanMegChooseForm(String form) {
+    final p = state!.current;
+    p.megForm = form;
+    p.abilityUsed = true; // unique — le choix initial ne se fait qu'une fois
+    state!.pendingTargetAction = null;
+    _log(form == 'offense'
+        ? '🐺 ${p.name} choisit la forme Offensive (+1 blessure infligée)'
+        : '🐺 ${p.name} choisit la forme Défensive (-1 blessure reçue)', cls: 'player');
     state!.phase = GamePhase.move; notifyListeners();
   }
 

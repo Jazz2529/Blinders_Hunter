@@ -2546,6 +2546,26 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
               ]),
               const SizedBox(height: 4),
               Text(effChar.ability, style: body(12)),
+              if (effChar.abilityEffect == 'meg_shapeshift' && me.megForm != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: (me.megForm == 'offense' ? kRed : kGreen).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: (me.megForm == 'offense' ? kRed : kGreen).withValues(alpha: 0.5))),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(me.megForm == 'offense' ? '⚔️' : '🛡️', style: const TextStyle(fontSize: 14)),
+                      const SizedBox(width: 6),
+                      Text(
+                        me.megForm == 'offense'
+                            ? 'Forme actuelle : Offensive (+1 infligé)'
+                            : 'Forme actuelle : Défensive (-1 reçu)',
+                        style: cinzel(11, c: me.megForm == 'offense' ? kRed : kGreen)),
+                    ]),
+                  ),
+                ),
             ]),
           ),
           // Équipements actifs
@@ -3422,6 +3442,31 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     );
   }
 
+  void _showMegChoiceDialog() {
+    showDialog(context: context, builder: (dctx) => AlertDialog(
+      backgroundColor: kBg2,
+      title: Text('🐺 Meg — Choisissez votre forme', style: cinzel(16, c: kGold2)),
+      content: Text('Cette forme alternera automatiquement au début de chacun de vos tours suivants.',
+        style: body(13)),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(dctx);
+            ctrl.humanMegChooseForm('offense'); setState(() {});
+          },
+          child: Text('⚔️ Offensive (+1 infligé)', style: cinzel(12, c: kRed)),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(dctx);
+            ctrl.humanMegChooseForm('defense'); setState(() {});
+          },
+          child: Text('🛡️ Défensive (-1 reçu)', style: cinzel(12, c: kGreen)),
+        ),
+      ],
+    ));
+  }
+
   void _showJulienChoice() {
     showDialog(context: context, builder: (dctx) => AlertDialog(
       backgroundColor: kBg2,
@@ -3502,6 +3547,11 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     // Hailey : ouvre le sélecteur de pouvoir Hunter à copier (3 au hasard)
     if (eff == 'hailey_copy_hunter') {
       _showHaileyChoiceDialog();
+      return;
+    }
+    // Meg : ouvre le choix entre forme Offensive et forme Défensive
+    if (eff == 'meg_shapeshift') {
+      _showMegChoiceDialog();
       return;
     }
     // Toutes ces capacités gèrent elles-mêmes leur transition de phase à

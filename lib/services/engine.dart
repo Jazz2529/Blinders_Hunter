@@ -358,6 +358,14 @@ class GameEngine with AbilityEngine {
         return '🥷 ${actor.name} subit 2 et soigne ${target.name} de 3';
 
       // ── Inès : verrouille la capacité d'un joueur tant qu'elle est en vie ──
+      // ── Meg : choisit une forme (Offensive/Défensive), alterne ensuite seule ──
+      case 'meg_shapeshift':
+        if (extra == null) return 'meg_choice'; // signal : afficher le choix des 2 formes
+        actor.megForm = extra;
+        return extra == 'offense'
+            ? '🐺 ${actor.name} choisit la forme Offensive (+1 blessure infligée)'
+            : '🐺 ${actor.name} choisit la forme Défensive (-1 blessure reçue)';
+
       case 'lock_ability_while_alive':
         if (target == null) return 'cible_requise';
         target.abilityLockedByUid = actor.uid;
@@ -987,6 +995,8 @@ class GameEngine with AbilityEngine {
     // Luc/Peintre passive +1 dmg
     final atkEff = attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '';
     if (atkEff == 'ines_plus1_atk' && attacker.revealed) dmg += 1;
+    // Meg : forme Offensive active → +1 dégât infligé
+    if (atkEff == 'meg_shapeshift' && attacker.megForm == 'offense' && dmg > 0) dmg += 1;
     // Théo Homard +1 dmg si révélé
     if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'revealed_plus1_dmg') dmg += 1;
     // Felipe Pompims dernier Hunter +2
@@ -1056,6 +1066,8 @@ class GameEngine with AbilityEngine {
     if ((target.copiedEffect ?? target.character?.abilityEffect ?? '') == 'reduce_all_by1') dmg = max(0, dmg - 1);
     // Inès passive: -1 reçu
     if ((target.copiedEffect ?? target.character?.abilityEffect ?? '') == 'ines_minus1_recv' && target.revealed) dmg = max(0, dmg - 1);
+    // Meg : forme Défensive active → -1 dégât reçu
+    if ((target.copiedEffect ?? target.character?.abilityEffect ?? '') == 'meg_shapeshift' && target.megForm == 'defense') dmg = max(0, dmg - 1);
     // Shieldtarget (Vlad Princesse)
     // handled in controller
 
@@ -2242,6 +2254,14 @@ class GameEngine with AbilityEngine {
     if (eff == 'heal_per_equip_eot' && p.equipment.isNotEmpty) {
       applyHeal(p, p.equipment.length);
       logs.add('🏺 Fijacked soigné de \${p.equipment.length}');
+    }
+    // Meg : si une forme a déjà été choisie, elle bascule automatiquement
+    // (Offensive ↔ Défensive) au début de chacun de ses tours suivants.
+    if (eff == 'meg_shapeshift' && p.megForm != null) {
+      p.megForm = p.megForm == 'offense' ? 'defense' : 'offense';
+      logs.add(p.megForm == 'offense'
+          ? '🐺 ${p.name} bascule en forme Offensive (+1 blessure infligée)'
+          : '🐺 ${p.name} bascule en forme Défensive (-1 blessure reçue)');
     }
     // (ancien passif Hailey retiré — personnage remplacé par Scott)
     // Augustin: soigne 2 si dé = 7 — géré dans humanMove

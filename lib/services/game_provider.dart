@@ -913,6 +913,18 @@ class GameProvider extends ChangeNotifier {
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
   }
 
+  /// Meg : choix initial (une seule fois) de la forme Offensive ou Défensive.
+  /// Bascule ensuite automatiquement chaque tour via applyStartOfTurnPassives.
+  Future<void> megChooseForm(String form) async {
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout, extra: form);
+    actor.abilityUsed = true;
+    _eg.applyDeathPassives(all);
+    await _commitAll(all, log);
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+  }
+
   /// Baptiste étape 1 : cible choisie (un joueur mort) — passe à l'étape
   /// "montant à sacrifier" plutôt que de résoudre directement.
   Future<void> baptisteChooseTarget(Player target) async {
@@ -1033,6 +1045,12 @@ class GameProvider extends ChangeNotifier {
       // Oscar : ouvre l'écran de choix (Eau/Plante/Feu) — résolu ensuite
       // via oscarChoice(), pas ici (aucun target n'a encore été choisi).
       await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: 'oscar_choice');
+      return;
+    }
+    if (log == 'meg_choice') {
+      // Meg : ouvre l'écran de choix (Offensive/Défensive) — résolu ensuite
+      // via megChooseForm(), pas ici (aucun target n'a encore été choisi).
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: 'meg_choice');
       return;
     }
     if (log.startsWith('tommy_copied:')) {

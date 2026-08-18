@@ -137,6 +137,7 @@ const Map<String, String> kCharacterImages = {
   'maxime': 'assets/images/characters/maxime.png',
   'victor': 'assets/images/characters/victor.png',
   'meiko': 'assets/images/characters/meiko.png',
+  'meg': 'assets/images/characters/meg.png',
   'mimic': 'assets/images/characters/mimic.png',
   'monkey': 'assets/images/characters/monkey_raph.png',
   'mr_casino': 'assets/images/characters/mr_casino.png',

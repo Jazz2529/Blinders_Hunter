@@ -1379,6 +1379,26 @@ class _ActionPanelState extends State<_ActionPanel> {
                     : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'casino_bet'
                       ? () { setState(() => _casinoActive = true); gp.useAbility(); }
                       : () => _act(gp.useAbility)),
+            if ((me?.copiedEffect ?? me?.character?.abilityEffect) == 'meg_shapeshift' && me?.megForm != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: (me?.megForm == 'offense' ? kRed : kGreen).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: (me?.megForm == 'offense' ? kRed : kGreen).withValues(alpha: 0.5))),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(me?.megForm == 'offense' ? '⚔️' : '🛡️', style: const TextStyle(fontSize: 14)),
+                    const SizedBox(width: 6),
+                    Text(
+                      me?.megForm == 'offense'
+                          ? 'Forme actuelle : Offensive (+1 infligé)'
+                          : 'Forme actuelle : Défensive (-1 reçu)',
+                      style: cinzel(11, c: me?.megForm == 'offense' ? kRed : kGreen)),
+                  ]),
+                ),
+              ),
           ],
           BHButton(label:'Passer → Déplacement',onTap:()=>_act(gp.skipAbility),outlined:true),
         ];
@@ -1485,6 +1505,13 @@ class _ActionPanelState extends State<_ActionPanel> {
         if (pta == 'oscar_choice') {
           if (gp.isMyTurn) return [_MultiOscarChoiceWidget(gp: gp)];
           return [Text('🧪 ${gp.currentPlayer?.name ?? "Oscar"} choisit comment dépenser son XP…',
+            style: cinzel(13, c: kGold))];
+        }
+        // Meg : afficher l'écran de choix (Offensive/Défensive) — seulement
+        // au joueur concerné, les autres attendent.
+        if (pta == 'meg_choice') {
+          if (gp.isMyTurn) return [_MultiMegChoiceWidget(gp: gp)];
+          return [Text('🐺 ${gp.currentPlayer?.name ?? "Meg"} choisit sa forme…',
             style: cinzel(13, c: kGold))];
         }
         // Baptiste : afficher le sélecteur de montant à sacrifier —
@@ -2783,6 +2810,31 @@ class _MultiBaptisteAmountWidgetState extends State<_MultiBaptisteAmountWidget> 
         const SizedBox(height: 14),
         BHButton(label: 'Confirmer le sacrifice', danger: true,
           onTap: () => widget.gp.baptisteConfirmAmount(_amount!)),
+      ]),
+    );
+  }
+}
+
+class _MultiMegChoiceWidget extends StatelessWidget {
+  final GameProvider gp;
+  const _MultiMegChoiceWidget({required this.gp});
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: surfaceDecor(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('🐺 Meg — Choisissez votre forme', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
+        const SizedBox(height: 4),
+        Text('Cette forme alternera automatiquement au début de chacun de vos tours suivants.',
+          style: body(12, c: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 12),
+        BHButton(label: '⚔️ Offensive (+1 infligé)', gold: true,
+          onTap: () => gp.megChooseForm('offense')),
+        const SizedBox(height: 8),
+        BHButton(label: '🛡️ Défensive (-1 reçu)', outlined: true,
+          onTap: () => gp.megChooseForm('defense')),
       ]),
     );
   }

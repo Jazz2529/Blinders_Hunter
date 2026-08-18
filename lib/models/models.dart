@@ -201,6 +201,7 @@ class Player {
   List<String> privatelyKnownBy; // uids des joueurs qui connaissent secrètement l'identité de CE joueur (Vision Suprême) — reveal permanent, mais visible seulement d'eux
   bool marinDagueVoicePlayed = false; // Marin : voice line dague déjà jouée cette partie (une seule fois)
   String? abilityLockedByUid; // Inès : uid de l'Inès qui a verrouillé la capacité de ce joueur, null si non verrouillé
+  String? megForm; // Meg : 'offense' (+1 infligé) ou 'defense' (-1 reçu), null si pas encore choisie
   int damageTakenThisTurn; // remis à 0 au début de CHAQUE tour (Jason: perd son déguisement à 5+)
   List<GameCard> equipment;
 
@@ -277,6 +278,7 @@ class Player {
     this.marinDagueVoicePlayed = false,
     this.forcedToAttackNextTurn = false,
     this.abilityLockedByUid,
+    this.megForm,
     List<GameCard>? equipment,
   }) : equipment = equipment ?? [],
        remiEquipmentChoices = remiEquipmentChoices ?? [],
@@ -336,6 +338,7 @@ class Player {
     'forcedToAttackNextTurn': forcedToAttackNextTurn,
     'marinDagueVoicePlayed': marinDagueVoicePlayed,
     'abilityLockedByUid': abilityLockedByUid,
+    'megForm': megForm,
     'equipment': equipment.map((e) => e.toJson()).toList(),
   };
 
@@ -416,6 +419,7 @@ class Player {
     forcedToAttackNextTurn: (j['forcedToAttackNextTurn'] as bool?) ?? false,
     marinDagueVoicePlayed: (j['marinDagueVoicePlayed'] as bool?) ?? false,
     abilityLockedByUid: j['abilityLockedByUid'] as String?,
+    megForm: j['megForm'] as String?,
     equipment: ((j['equipment'] as List?) ?? [])
         .map((e) => GameCard.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(),
