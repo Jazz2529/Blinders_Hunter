@@ -110,12 +110,24 @@ const List<CosmeticItem> kCosmeticsCatalog = [
   // ── Jetons — ce sont des jetons AUTONOMES, ajoutés à la liste des choix
   // disponibles dans le sélecteur (pas liés à un personnage précis, donc
   // pas de targetId) ────────────────────────────────────────────────────
-  CosmeticItem(id: 'token_Loot', name: 'Loot',
+  CosmeticItem(id: 'token_bloom', name: 'Bloom',
     category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🟡',
-    imagePath: 'assets/images/tokens/loot.png'),
-  CosmeticItem(id: 'token_cypher', name: 'Cypher',
+    imagePath: 'assets/images/tokens/bloom.png'),
+  CosmeticItem(id: 'token_flora', name: 'Flora',
     category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🟢',
-    imagePath: 'assets/images/tokens/cypher.png'),
+    imagePath: 'assets/images/tokens/flora.png'),
+  CosmeticItem(id: 'token_layla', name: 'Layla',
+    category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🟡',
+    imagePath: 'assets/images/tokens/layla.png'),
+  CosmeticItem(id: 'token_musa', name: 'Musa',
+    category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🟢',
+    imagePath: 'assets/images/tokens/musa.png'),  
+  CosmeticItem(id: 'token_stella', name: 'Stella',
+    category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🟡',
+    imagePath: 'assets/images/tokens/stella.png'),
+  CosmeticItem(id: 'token_tecna', name: 'Tecna',
+    category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🟢',
+    imagePath: 'assets/images/tokens/tecna.png'),   
   CosmeticItem(id: 'token_Manabu', name: 'Manabu',
     category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🔴',
     imagePath: 'assets/images/tokens/manabu.png'),
@@ -149,6 +161,9 @@ const List<CosmeticItem> kCosmeticsCatalog = [
   CosmeticItem(id: 'token_Bersek', name: 'Berserk',
     category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🔍',
     imagePath: 'assets/images/tokens/berserk.png'),
+  CosmeticItem(id: 'token_jace', name: 'Jace',
+    category: CosmeticCategory.token, cost: 70, fallbackEmoji: '🟡',
+    imagePath: 'assets/images/tokens/jace.png'),
  
   // ── Terrains (targetId = effect du terrain, même convention que
   // terrainImagePath() déjà utilisée dans le jeu : 'vision', 'lumiere',
