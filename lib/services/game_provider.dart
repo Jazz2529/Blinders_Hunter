@@ -157,7 +157,7 @@ class GameProvider extends ChangeNotifier {
   bool _abilityNeedsTarget(String eff) => [
     'damage2_choice','damage2_then_heal3','set_wounds5','steal_equip_choice',
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
-    'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors','luc_ignite',
+    'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors','luc_ignite','baptiste_revive',
   ].contains(eff);
 
   bool _cardNeedsTarget(String eff) => [
@@ -175,7 +175,7 @@ class GameProvider extends ChangeNotifier {
   // rester bloqué au milieu d'un flux conçu pour une vraie interface.
   bool _isComplexBotUnsafeAbility(String eff) => const {
     'casino_bet', 'swap_zones', 'choose_all_dice', 'bonus_turns',
-    'elaia_peek', 'copy_ability', 'oscar_xp_spend',
+    'elaia_peek', 'copy_ability', 'oscar_xp_spend', 'baptiste_revive',
   }.contains(eff);
 
   void _recordMultiResult(Map<String, dynamic>? result) {
@@ -911,6 +911,48 @@ class GameProvider extends ChangeNotifier {
     _eg.applyDeathPassives(all);
     await _commitAll(all, log);
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+  }
+
+  /// Baptiste étape 1 : cible choisie (un joueur mort) — passe à l'étape
+  /// "montant à sacrifier" plutôt que de résoudre directement.
+  Future<void> baptisteChooseTarget(Player target) async {
+    await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+        pendingTargetAction: 'baptiste_amount', baptisteTargetUid: target.uid);
+  }
+
+  /// Baptiste étape 2 : montant confirmé — résout la résurrection.
+  Future<void> baptisteConfirmAmount(int amount) async {
+    final targetUid = gameState?.baptisteTargetUid;
+    if (targetUid == null) {
+      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+      return;
+    }
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final tgt = all.where((p) => p.uid == targetUid).firstOrNull;
+    if (tgt == null) {
+      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
+          baptisteTargetUid: '__clear__');
+      return;
+    }
+    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout, target: tgt, extra: '$amount');
+    actor.abilityUsed = true;
+    _eg.applyDeathPassives(all);
+    await _commitAll(all, log);
+    if (!actor.alive) {
+      // Sacrifice total : Baptiste vient de mourir en ramenant l'autre à
+      // la vie — vérifie la victoire, puis passe au joueur suivant.
+      final ended = await _checkWin(all, justDiedId: actor.uid);
+      if (ended) return;
+      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
+          baptisteTargetUid: '__clear__');
+      await endTurn(actingUid: actor.uid);
+      return;
+    }
+    final ended = await _checkWin(all);
+    if (ended) return;
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
+        baptisteTargetUid: '__clear__');
   }
 
   /// Albane : marque abilityUsed après avoir choisi son lancer.

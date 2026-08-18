@@ -873,6 +873,70 @@ class _LootChoiceWidget extends StatelessWidget {
 }
 // ═══════════════════════════════════════════════════════════
 // ─── Oscar : écran de choix Eau/Plante/Feu ───────────────────────────────
+// ─── Baptiste : sélection du montant à sacrifier ─────────────────────────
+class _BaptisteAmountWidget extends StatefulWidget {
+  final SoloController ctrl;
+  const _BaptisteAmountWidget({required this.ctrl});
+  @override State<_BaptisteAmountWidget> createState() => _BaptisteAmountWidgetState();
+}
+
+class _BaptisteAmountWidgetState extends State<_BaptisteAmountWidget> {
+  late int _amount;
+
+  @override
+  void initState() {
+    super.initState();
+    _amount = widget.ctrl.baptisteMaxSelfDmg.clamp(1, 999);
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final maxAmount = widget.ctrl.baptisteMaxSelfDmg;
+    final p = widget.ctrl.state!.current;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: surfaceDecor(),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text('✝️ Baptiste — Sacrifice', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
+        const SizedBox(height: 6),
+        Text('Tes PV restants : $maxAmount / ${p.wounds + maxAmount}',
+          style: body(12, c: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 14),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          IconButton(
+            icon: const Icon(Icons.remove_circle, color: kRed),
+            onPressed: _amount > 1 ? () => setState(() => _amount--) : null,
+          ),
+          Container(
+            width: 70, alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: kBg3, borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: kGold, width: 2)),
+            child: Text('$_amount', style: cinzel(22, c: kGold2, fw: FontWeight.w900)),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add_circle, color: kGreen),
+            onPressed: _amount < maxAmount ? () => setState(() => _amount++) : null,
+          ),
+        ]),
+        const SizedBox(height: 6),
+        Text('Le joueur reviendra avec $_amount blessure${_amount > 1 ? "s" : ""}\nde moins que son maximum de vie',
+          style: body(11, c: kTextDim), textAlign: TextAlign.center),
+        const SizedBox(height: 14),
+        BHButton(label: 'Confirmer le sacrifice', danger: true,
+          onTap: () => widget.ctrl.humanBaptisteAmount(_amount)),
+        const SizedBox(height: 8),
+        BHButton(label: 'Annuler', outlined: true, onTap: () {
+          widget.ctrl.state!.pendingTargetAction = null;
+          widget.ctrl.state!.phase = GamePhase.ability;
+          widget.ctrl.notifyListeners();
+        }),
+      ]),
+    );
+  }
+}
+
 class _OscarChoiceWidget extends StatelessWidget {
   final SoloController ctrl;
   const _OscarChoiceWidget({required this.ctrl});
@@ -2690,6 +2754,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         if (s.pendingTargetAction == 'fifi_dice_picker') return [_FifiDiceWidget(ctrl: ctrl)];
         if (s.pendingTargetAction == 'captain_ricard_counter') return [_CaptainRicardWidget(ctrl: ctrl)];
         if (s.pendingTargetAction == 'oscar_choice') return [_OscarChoiceWidget(ctrl: ctrl)];
+        if (s.pendingTargetAction == 'baptiste_amount') return [_BaptisteAmountWidget(ctrl: ctrl)];
         return _buildInlineTargetList(ctx);
 
       // ── ATTAQUE ───────────────────────────────────────────
@@ -2940,6 +3005,10 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'ability_set5') {
       targets = s.players.where((p) => p.alive).toList();
     }
+    // Baptiste : ne peut cibler QUE des joueurs morts, pour les ramener à la vie
+    if (context == 'baptiste_target') {
+      targets = s.players.where((p) => !p.alive).toList();
+    }
 
     // Richard II : sélection d'une zone à échanger avec la sienne
     if (context == 'swap_zone_pick1' || context == 'swap_zone_pick2') {
@@ -3040,6 +3109,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'ability_oceane')      title = '🌊 Océane — Qui exclure du soin ?';
     if (context == 'ability_nils')        title = '📦 Nils — Déverser ${me.storedDamage} blessures stockées sur qui ?';
     if (context == 'oscar_water_target')  title = '💧 Oscar — Voler un équipement à qui ?';
+    if (context == 'baptiste_target')     title = '✝️ Baptiste — Quel joueur mort ramener à la vie ?';
     if (context == 'ability_agathe')      title = '🧛 Agathe — Voler 1 PV MAX à qui ?';
     if (context == 'ability_raph_heal')   title = '🥷 Raph (Soleil Levant) — Choisissez qui soigner de 3 (vous subissez 2)';
     if (context == 'ability_tristan')     title = '🔄 Tristan — Choisissez un joueur (échange un équipement au hasard)';
@@ -3139,6 +3209,8 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       ctrl.humanApplyTerrainTarget(target.uid);
     } else if (context == 'oscar_water_target') {
       ctrl.humanOscarWaterTarget(target);
+    } else if (context == 'baptiste_target') {
+      ctrl.humanUseAbility(target: target);
     } else if (context == 'terrain_steal') {
       ctrl.state!.pendingTargetAction = 'terrain_steal';
       ctrl.humanApplyTerrainTarget(target.uid);
@@ -3369,7 +3441,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'terrain_max_aoe', 'damien_serve', 'copy_ability',
       'self1_trigger_terrain', 'draw_light', 'draw_dark', 'peek_reorder_deck',
       'casino_bet', 'swap_zones', 'd4_bonus_attack', 'store_damage_nils', 'steal_max_hp',
-      'move_adjacent_choice', 'oscar_xp_spend', 'luc_ignite',
+      'move_adjacent_choice', 'oscar_xp_spend', 'luc_ignite', 'baptiste_revive',
     };
     if (selfManaged.contains(eff)) {
       ctrl.humanUseAbility();

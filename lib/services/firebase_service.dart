@@ -435,6 +435,7 @@ class FirebaseService {
     String? elaiaCard2Id,
     Map<String, List<String>>? forcedDeckQueue,
     Map<String, List<String>>? deckPiles,
+    String? baptisteTargetUid,
     String? damienTargetUid,
     String? lootKillerUid,
     List<String>? lootDeadQueue,
@@ -506,6 +507,9 @@ class FirebaseService {
     if (elaiaCard2Id != null) updates['elaiaCard2Id'] = elaiaCard2Id;
     if (forcedDeckQueue != null) updates['forcedDeckQueue'] = forcedDeckQueue;
     if (deckPiles != null) updates['deckPiles'] = deckPiles;
+    if (baptisteTargetUid != null) {
+      updates['baptisteTargetUid'] = baptisteTargetUid == '__clear__' ? null : baptisteTargetUid;
+    }
     if (damienTargetUid != null) updates['damienTargetUid'] = damienTargetUid;
     if (lootKillerUid != null) {
       updates['lootKillerUid'] = lootKillerUid == '__clear__' ? null : lootKillerUid;

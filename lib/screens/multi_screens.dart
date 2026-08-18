@@ -1486,6 +1486,13 @@ class _ActionPanelState extends State<_ActionPanel> {
           return [Text('🧪 ${gp.currentPlayer?.name ?? "Oscar"} choisit comment dépenser son XP…',
             style: cinzel(13, c: kGold))];
         }
+        // Baptiste : afficher le sélecteur de montant à sacrifier —
+        // seulement au joueur concerné, les autres attendent.
+        if (pta == 'baptiste_amount') {
+          if (gp.isMyTurn) return [_MultiBaptisteAmountWidget(gp: gp)];
+          return [Text('✝️ ${gp.currentPlayer?.name ?? "Baptiste"} choisit son sacrifice…',
+            style: cinzel(13, c: kGold))];
+        }
         // Mr Casino : afficher le widget de pari (seulement à Mr Casino)
         if (pta == 'casino_bet') {
           if (gp.isMyTurn) return [_MultiCasinoWidget(gp: gp)];
@@ -1518,11 +1525,15 @@ class _ActionPanelState extends State<_ActionPanel> {
           all = gp.players.values.where((p) => p.alive && p.uid != gp.myUid &&
               p.revealed && p.character != null &&
               !GameEngine.uncopyableAbilities.contains(p.character!.abilityEffect)).toList();
+        } else if (pta == 'baptiste_target') {
+          // Baptiste : ne peut cibler QUE des joueurs morts, pour les ramener à la vie
+          all = gp.players.values.where((p) => !p.alive).toList();
         } else {
           all = gp.players.values.where((p)=>p.alive&&p.uid!=gp.myUid).toList();
         }
         String title = 'Choisissez une cible';
         if (pta == 'terrain_damage9') title = '🏹 Clairière — 2 blessures à la cible';
+        if (pta == 'baptiste_target') title = '✝️ Baptiste — Quel joueur mort ramener à la vie ?';
         if (pta == 'terrain_steal')   title = '🗼 Tour du Voleur — voler un équipement';
         if (pta == 'set_wounds5')     title = '📍 Marion — placer à 5 blessures';
         if (pta == 'damage2_then_heal3') title = '🥷 Raph — soigner de 3 (vous subissez 2)';
@@ -1622,6 +1633,8 @@ class _ActionPanelState extends State<_ActionPanel> {
                 await gp.hongYiApplyAbility(t);
               } else if (pta == 'oscar_water_target') {
                 await gp.oscarChoice('water', target: t);
+              } else if (pta == 'baptiste_target') {
+                await gp.baptisteChooseTarget(t);
               } else if (pta == 'store_damage_nils') {
                 await gp.useAbility(target: t);
               } else if (pta == 'steal_max_hp') {
@@ -2712,6 +2725,68 @@ class _StatusBanner extends StatelessWidget {
 }
 
 // ─── Oscar : écran de choix Eau/Plante/Feu (multijoueur) ─────────────────
+// ─── Baptiste : sélection du montant à sacrifier (multijoueur) ──────────
+class _MultiBaptisteAmountWidget extends StatefulWidget {
+  final GameProvider gp;
+  const _MultiBaptisteAmountWidget({required this.gp});
+  @override State<_MultiBaptisteAmountWidget> createState() => _MultiBaptisteAmountWidgetState();
+}
+
+class _MultiBaptisteAmountWidgetState extends State<_MultiBaptisteAmountWidget> {
+  int? _amount;
+
+  int get _maxAmount {
+    final me = widget.gp.me;
+    if (me?.character == null) return 1;
+    final maxHp = me!.character!.hp + me.maxHpModifier;
+    return (maxHp - me.wounds).clamp(1, 999);
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final maxAmount = _maxAmount;
+    _amount ??= maxAmount;
+    if (_amount! > maxAmount) _amount = maxAmount;
+    final me = widget.gp.me;
+    final maxHp = (me?.character?.hp ?? 0) + (me?.maxHpModifier ?? 0);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: surfaceDecor(),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text('✝️ Baptiste — Sacrifice', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
+        const SizedBox(height: 6),
+        Text('Tes PV restants : $maxAmount / $maxHp',
+          style: body(12, c: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 14),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          IconButton(
+            icon: const Icon(Icons.remove_circle, color: kRed),
+            onPressed: _amount! > 1 ? () => setState(() => _amount = _amount! - 1) : null,
+          ),
+          Container(
+            width: 70, alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: kBg3, borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: kGold, width: 2)),
+            child: Text('${_amount!}', style: cinzel(22, c: kGold2, fw: FontWeight.w900)),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add_circle, color: kGreen),
+            onPressed: _amount! < maxAmount ? () => setState(() => _amount = _amount! + 1) : null,
+          ),
+        ]),
+        const SizedBox(height: 6),
+        Text('Le joueur reviendra avec ${_amount!} blessure${_amount! > 1 ? "s" : ""}\nde moins que son maximum de vie',
+          style: body(11, c: kTextDim), textAlign: TextAlign.center),
+        const SizedBox(height: 14),
+        BHButton(label: 'Confirmer le sacrifice', danger: true,
+          onTap: () => widget.gp.baptisteConfirmAmount(_amount!)),
+      ]),
+    );
+  }
+}
+
 class _MultiOscarChoiceWidget extends StatelessWidget {
   final GameProvider gp;
   const _MultiOscarChoiceWidget({required this.gp});

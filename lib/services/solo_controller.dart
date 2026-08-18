@@ -285,6 +285,7 @@ class SoloController extends ChangeNotifier {
   final AiBrain   _ai = AiBrain();
   final Random     _rng = Random();
   Map<String, Map<String, dynamic>> _currentSnapshot = {};
+  String? _baptisteTargetUid; // Baptiste : mémorise la cible choisie entre l'étape "cible" et l'étape "montant"
 
   // Quand l'utilisateur quitte l'écran de jeu en pleine partie, la boucle
   // asynchrone des bots (_playBot, faite de multiples "await
@@ -1659,6 +1660,16 @@ class SoloController extends ChangeNotifier {
         s.pendingTargetAction = 'oscar_choice';
         s.phase = GamePhase.chooseTarget; notifyListeners(); return;
 
+      // ── Baptiste : cible choisie (un mort) → demande le montant à sacrifier ──
+      case 'baptiste_revive':
+        if (target == null) {
+          s.pendingTargetAction = 'baptiste_target';
+          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+        }
+        _baptisteTargetUid = target.uid;
+        s.pendingTargetAction = 'baptiste_amount';
+        notifyListeners(); return;
+
       // ── Default: délègue au moteur (toutes les capacités non listées ci-dessus) ──
       default:
         final res = _eg.applyAbilityFull(p, s.players, s.terrainLayout, target: target);
@@ -1726,6 +1737,40 @@ class SoloController extends ChangeNotifier {
     }
     s.pendingTargetAction = null;
     s.phase = GamePhase.move;
+    notifyListeners();
+  }
+
+  /// Baptiste : PV restants actuels — plafond du montant qu'il peut
+  /// s'infliger pour cette résurrection.
+  int get baptisteMaxSelfDmg {
+    final p = state!.current;
+    return _eg.effectiveMaxHp(p) - p.wounds;
+  }
+
+  /// Baptiste : résout la résurrection une fois le montant choisi.
+  void humanBaptisteAmount(int amount) {
+    final p = state!.current;
+    final s = state!;
+    final target = s.players.where((pp) => pp.uid == _baptisteTargetUid).firstOrNull;
+    if (target == null) {
+      s.pendingTargetAction = null; s.phase = GamePhase.move; notifyListeners(); return;
+    }
+    final log = _eg.applyAbility(p, s.players, s.terrainLayout, target: target, extra: '$amount');
+    _log(log, cls: 'player');
+    p.abilityUsed = true; // unique
+    _baptisteTargetUid = null;
+    s.pendingTargetAction = null;
+    _eg.applyDeathPassives(s.players);
+    if (!p.alive) {
+      // Sacrifice total : Baptiste vient de mourir en ramenant l'autre à
+      // la vie — passe directement au joueur suivant.
+      _checkWin(justDiedId: p.uid);
+      if (!s.isOver) humanEndTurn();
+      notifyListeners();
+      return;
+    }
+    _checkWin();
+    if (!s.isOver) { s.phase = GamePhase.move; }
     notifyListeners();
   }
 

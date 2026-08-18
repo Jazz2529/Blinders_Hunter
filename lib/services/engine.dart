@@ -496,6 +496,26 @@ class GameEngine with AbilityEngine {
         actor.zoneIndex = chosen;
         return 'christine_moved:$chosen';
 
+      // ── Baptiste : se sacrifie pour ramener un joueur mort à la vie ──
+      case 'baptiste_revive':
+        if (target == null) return 'cible_requise';
+        if (target.alive) return 'baptiste_must_be_dead'; // sécurité : cible invalide
+        if (extra == null) return 'baptiste_choose_amount'; // signal : demander le montant
+        final maxSelfDmg = effectiveMaxHp(actor) - actor.wounds; // ses PV restants
+        if (maxSelfDmg <= 0) return 'baptiste_no_hp_left';
+        final requested = int.tryParse(extra) ?? 0;
+        final selfDmg = requested.clamp(1, maxSelfDmg);
+        actor.wounds += selfDmg;
+        if (actor.wounds >= effectiveMaxHp(actor)) {
+          actor.alive = false;
+          actor.killedByUid = actor.uid; // sacrifice total, personne d'autre ne l'a tué
+        }
+        final tMax = effectiveMaxHp(target);
+        target.wounds = (tMax - selfDmg).clamp(0, tMax);
+        target.alive = true;
+        target.deathPassiveProcessed = false; // pourra redéclencher ses propres passifs de mort à l'avenir
+        return '✝️ ${actor.name} s\'inflige $selfDmg blessures pour ramener ${target.name} à la vie (${target.wounds}/$tMax blessures) !';
+
       // ── Luc : met le feu à un joueur de son choix ──
       case 'luc_ignite':
         if (target == null) return 'cible_requise';

@@ -484,6 +484,10 @@ class GameState {
   // Pile réelle par deck : liste mélangée des IDs restant à piocher. Se
   // remplit et se mélange automatiquement dès qu'elle est vide.
   final Map<String, List<String>> deckPiles;
+  // Baptiste : mémorise la cible (un joueur mort) choisie entre l'étape
+  // "cible" et l'étape "montant à sacrifier" — nécessaire en multijoueur
+  // pour que le montant se résolve correctement chez le bon client.
+  final String? baptisteTargetUid;
 
   const GameState({
     required this.roomId,
@@ -538,6 +542,7 @@ class GameState {
     this.publicRevealTimestamp,
     this.forcedDeckQueue = const {},
     this.deckPiles = const {},
+    this.baptisteTargetUid,
   });
 
   Map<String, dynamic> toJson() => {
@@ -591,6 +596,7 @@ class GameState {
     'publicRevealTimestamp': publicRevealTimestamp,
     'forcedDeckQueue': forcedDeckQueue,
     'deckPiles': deckPiles,
+    'baptisteTargetUid': baptisteTargetUid,
   };
 
   factory GameState.fromJson(Map<String, dynamic> j) => GameState(
@@ -663,6 +669,7 @@ class GameState {
         ? Map<String, List<String>>.from((j['deckPiles'] as Map).map(
             (k, v) => MapEntry(k as String, List<String>.from(v as List))))
         : const {},
+    baptisteTargetUid: j['baptisteTargetUid'] as String?,
   );
 }
 

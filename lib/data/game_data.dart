@@ -63,6 +63,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'felipe_passive', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'), 
 
+  CharacterCard(id:'baptiste', name:'Baptiste', faction:Faction.hunter, hp:11, icon:'✝️',
+    ability:'Unique: infligez-vous jusqu\'à X blessures (dans la limite de vos PV restants) pour ramener à la vie un joueur mort, qui revient avec autant de blessures que vous vous êtes infligées.',
+    abilityEffect:'baptiste_revive', abilityRepeatable:false,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
   CharacterCard(id:'fijacked', name:'Fijacked', faction:Faction.hunter, hp:11, icon:'🏺',
     ability:'Passif révélé: au début de votre tour, soignez 1 blessure par équipement possédé',
     abilityEffect:'heal_per_equip_eot', abilityRepeatable:true,
