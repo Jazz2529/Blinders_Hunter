@@ -33,6 +33,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'death_heal_allies', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
+  CharacterCard(id:'baptiste', name:'Baptiste', faction:Faction.hunter, hp:11, icon:'✝️',
+    ability:'Unique: infligez-vous jusqu\'à X blessures (dans la limite de vos PV restants) pour ramener à la vie un joueur mort, qui revient avec autant de blessures que vous vous êtes infligées.',
+    abilityEffect:'baptiste_revive', abilityRepeatable:false,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
+
   CharacterCard(id:'carla', name:'Carla', faction:Faction.hunter, hp:11, icon:'🎗️',
     ability:'Passif révélé: si vous attaquez un Hunter révélé, il est soigné du même montant au lieu d\'être blessé',
     abilityEffect:'heal_hunter_on_attack', abilityRepeatable:true,
@@ -63,16 +68,6 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'felipe_passive', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'), 
 
-  CharacterCard(id:'baptiste', name:'Baptiste', faction:Faction.hunter, hp:11, icon:'✝️',
-    ability:'Unique: infligez-vous jusqu\'à X blessures (dans la limite de vos PV restants) pour ramener à la vie un joueur mort, qui revient avec autant de blessures que vous vous êtes infligées.',
-    abilityEffect:'baptiste_revive', abilityRepeatable:false,
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
-
-  CharacterCard(id:'hailey', name:'Hailey', faction:Faction.hunter, hp:12, icon:'📖',
-    ability:'Unique: 3 Hunters non joués cette partie sont tirés au hasard — copiez le pouvoir de celui de votre choix parmi les 3.',
-    abilityEffect:'hailey_copy_hunter', abilityRepeatable:false,
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
-
   CharacterCard(id:'fijacked', name:'Fijacked', faction:Faction.hunter, hp:11, icon:'🏺',
     ability:'Passif révélé: au début de votre tour, soignez 1 blessure par équipement possédé',
     abilityEffect:'heal_per_equip_eot', abilityRepeatable:true,
@@ -82,6 +77,16 @@ const List<CharacterCard> kAllCharacters = [
     ability:'Passif: ne peut pas attaquer, mais attaque automatiquement chaque fois qu\'un Hunter révélé attaque',
     abilityEffect:'gege_passive', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
+  CharacterCard(id:'hailey', name:'Hailey', faction:Faction.hunter, hp:12, icon:'📖',
+    ability:'Unique: 3 Hunters non joués cette partie sont tirés au hasard — copiez le pouvoir de celui de votre choix parmi les 3.',
+    abilityEffect:'hailey_copy_hunter', abilityRepeatable:false,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'), 
+
+  CharacterCard(id:'ines', name:'Inès', faction:Faction.hunter, hp:10, icon:'🧙‍♀️',
+    ability:'Unique: choisissez un joueur — tant qu\'Inès est en vie, ce joueur ne peut plus utiliser sa capacité spéciale. Si Inès meurt, il peut de nouveau l\'utiliser.',
+    abilityEffect:'lock_ability_while_alive', abilityRepeatable:false,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
 
   CharacterCard(id:'louna', name:'Louna', faction:Faction.hunter, hp:14, icon:'🐱',
     ability:'Unique: devenez insensible aux blessures pendant 1 tour entier',
@@ -118,10 +123,7 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'counter_attack_passive', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
-  CharacterCard(id:'ines', name:'Inès', faction:Faction.hunter, hp:10, icon:'🧙‍♀️',
-    ability:'Unique: choisissez un joueur — tant qu\'Inès est en vie, ce joueur ne peut plus utiliser sa capacité spéciale. Si Inès meurt, il peut de nouveau l\'utiliser.',
-    abilityEffect:'lock_ability_while_alive', abilityRepeatable:false,
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+  
 
     // ══════════ SHADOWS (20) ══════════
 
@@ -134,6 +136,11 @@ const List<CharacterCard> kAllCharacters = [
     ability:'Passif révélé: les cartes Ténèbres vous soignent au lieu de vous blesser',
     abilityEffect:'tenebres_heal_instead', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'bob', name:'Bob', faction:Faction.shadow, hp:5, icon:'⛓️',
+    ability:'Passif: chaque fois que vous mourriez, vous revenez à la vie avec 1 PV MAX de moins (5 → 4 → 3…) — jusqu\'à ce que ce total atteigne 0, où vous mourez alors définitivement.',
+    abilityEffect:'bob_resurrect', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
 
   CharacterCard(id:'damien', name:'Damien', faction:Faction.shadow, hp:12, icon:'🍸',
     ability:'Unique, au début du tour: choisissez un joueur et servez-lui soit un alcool fort (4 blessures instantanées) soit un poison (3 blessures au début de chacun de ses 2 prochains tours, 6 au total)',
@@ -163,32 +170,17 @@ const List<CharacterCard> kAllCharacters = [
   CharacterCard(id:'julien', name:'Julien', faction:Faction.shadow, hp:11, icon:'😈',
     ability:'Répétable: infligez 2 blessures à un joueur de votre choix, ou soignez-vous de 1 blessure',
     abilityEffect:'damage2_or_heal1', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'bob', name:'Bob', faction:Faction.shadow, hp:5, icon:'⛓️',
-    ability:'Passif: chaque fois que vous mourriez, vous revenez à la vie avec 1 PV MAX de moins (5 → 4 → 3…) — jusqu\'à ce que ce total atteigne 0, où vous mourez alors définitivement.',
-    abilityEffect:'bob_resurrect', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'luc', name:'Luc', faction:Faction.shadow, hp:11, icon:'🔥',
-    ability:'Répétable: mettez le feu à un joueur de votre choix — pendant 2 tours, il perd 2 PV au début de son tour, mais ses attaques infligent 1 blessure de plus.',
-    abilityEffect:'luc_ignite', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'maxence', name:'Maxence', faction:Faction.shadow, hp:12, icon:'🩸',
-    ability:'Passif révélé: chaque attaque vous inflige 1 blessure, mais lui inflige 2 dégâts de plus.',
-    abilityEffect:'maxence_selfharm_boost', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
-
-  CharacterCard(id:'tom', name:'Tom', faction:Faction.shadow, hp:14, icon:'💀',
-    ability:'Passif: chaque fois que vous éliminez un Shadow, vous gagnez 2 PV MAX et +2 dégâts permanents à vos attaques.',
-    abilityEffect:'tom_shadow_kill_boost', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
 
   CharacterCard(id:'louise', name:'Louise', faction:Faction.shadow, hp:10, icon:'💢',
     ability:'Passif: si votre attaque inflige 0 blessure → infligez 4. Sinon infligez 1 de plus',
     abilityEffect:'zero_wound_power', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'luc', name:'Luc', faction:Faction.shadow, hp:11, icon:'🔥',
+    ability:'Répétable: mettez le feu à un joueur de votre choix — pendant 2 tours, il perd 2 PV au début de son tour, mais ses attaques infligent 1 blessure de plus.',
+    abilityEffect:'luc_ignite', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
 
   CharacterCard(id:'marin', name:'Marin', faction:Faction.shadow, hp:10, icon:'🗡️',
     ability:'Répétable: infligez 3 blessures à un joueur de votre choix et donnez-lui votre dague (+1 dégât pour lui à ses attaques)',
@@ -199,6 +191,11 @@ const List<CharacterCard> kAllCharacters = [
     ability:'Passif: à partir de sa 3ème attaque, toutes ses attaques infligent 2 blessures de plus (permanent)',
     abilityEffect:'third_attack_bonus', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'maxence', name:'Maxence', faction:Faction.shadow, hp:12, icon:'🩸',
+    ability:'Passif révélé: chaque attaque vous inflige 1 blessure, mais lui inflige 2 dégâts de plus.',
+    abilityEffect:'maxence_selfharm_boost', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
 
   CharacterCard(id:'monkey', name:'Monkey Raph', faction:Faction.shadow, hp:11, icon:'🐒',
     ability:'Répétable: piochez une carte Ténèbres visible de tous',
@@ -235,6 +232,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'no_attack_buff', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
+  CharacterCard(id:'tom', name:'Tom', faction:Faction.shadow, hp:14, icon:'💀',
+    ability:'Passif: chaque fois que vous éliminez un Shadow, vous gagnez 2 PV MAX et +2 dégâts permanents à vos attaques.',
+    abilityEffect:'tom_shadow_kill_boost', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
+
   CharacterCard(id:'travert', name:'Travert', faction:Faction.shadow, hp:12, icon:'🎲',
     ability:'Unique: choisissez un joueur et lancez le D6 — lui infligez le résultat en blessures',
     abilityEffect:'d6_global_attack',
@@ -257,31 +259,15 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'d6_lifesteal',
     winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),
 
-  CharacterCard(id:'jason', name:'Jason', faction:Faction.neutral, hp:12, icon:'🦎',
-    ability:'Passif: insensible aux cartes Vision. À sa révélation, choisit un Hunter et un Shadow en jeu, et affiche le reveal de l\'un des deux au choix.',
-    abilityEffect:'chameleon_passive', abilityRepeatable:true,
-    winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),
-
-  CharacterCard(id:'oscar', name:'Oscar', faction:Faction.neutral, hp:13, icon:'🧪',
-    ability:'Répétable: une fois révélé, cumule 1 XP par blessure infligée en attaque. Au début de son tour, peut dépenser son XP au choix — 💧 Eau (3xp): vole un équipement au joueur de son choix — 🌿 Plante (2xp): se soigne de 2 blessures — 🔥 Feu (4xp): +2 dégâts à sa prochaine attaque ce tour',
-    abilityEffect:'oscar_xp_spend', abilityRepeatable:true,
-    winCondition:'Atteindre 13 XP cumulée', winEffect:'oscar_xp13'),
-
   CharacterCard(id:'fanny', name:'Fanny', faction:Faction.neutral, hp:12, icon:'🎭',
     ability:'Aucun pouvoir tant que vous n\'avez éliminé personne — si vous éliminez un joueur, vous volez sa carte ENTIÈRE (camp, pouvoir, condition de victoire). Vous devenez alors ce personnage.',
     abilityEffect:'fanny_none', abilityRepeatable:false,
-    winCondition:'Aucune tant que vous n\'avez éliminé personne', winEffect:'fanny_none'),
+    winCondition:'Aucune tant que vous n\'avez éliminé personne', winEffect:'fanny_none'),  
 
-  CharacterCard(id:'victor', name:'Victor', faction:Faction.neutral, hp:13, icon:'💘',
-    ability:'Passif révélé: une fois révélé, chaque attaque augmente de 20% la barre de charme du joueur attaqué, et de 10% celle de tous les joueurs sur votre zone. À 100%, un joueur ne peut plus vous attaquer. Vous seul voyez ces barres.',
-    abilityEffect:'victor_charm', abilityRepeatable:true,
-    winCondition:'Avoir charmé 2 joueurs à 100%', winEffect:'victor_charm2'),
-
-  CharacterCard(id:'maxime', name:'Maxime', faction:Faction.neutral, hp:11, icon:'🗡️',
-    ability:'Passif: votre première attaque après vous être révélé inflige le double de blessures.',
-    abilityEffect:'maxime_double_first', abilityRepeatable:true,
-    winCondition:'Éliminer le premier joueur à vous avoir infligé des blessures cette partie',
-    winEffect:'maxime_kill_first_attacker'),
+  CharacterCard(id:'jason', name:'Jason', faction:Faction.neutral, hp:12, icon:'🦎',
+    ability:'Passif: insensible aux cartes Vision. À sa révélation, choisit un Hunter et un Shadow en jeu, et affiche le reveal de l\'un des deux au choix.',
+    abilityEffect:'chameleon_passive', abilityRepeatable:true,
+    winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),  
 
   CharacterCard(id:'leo', name:'Léo', faction:Faction.neutral, hp:12, icon:'💀',
     ability:'Unique: lancez le D4 et infligez ce résultat à tout le monde (vous inclus)',
@@ -292,6 +278,17 @@ const List<CharacterCard> kAllCharacters = [
     ability:'Passif : si le joueur attaqué a 13 PV ou plus, vous attaquez 2 fois (lancez les dés 2 fois, dégâts additionnés)',
     abilityEffect:'double_attack_if_tanky', abilityRepeatable:true,
     winCondition:'Éliminer un joueur avec 13 PV ou plus', winEffect:'kill_hp13plus'),
+
+  CharacterCard(id:'maxime', name:'Maxime', faction:Faction.neutral, hp:11, icon:'🗡️',
+    ability:'Passif: votre première attaque après vous être révélé inflige le double de blessures.',
+    abilityEffect:'maxime_double_first', abilityRepeatable:true,
+    winCondition:'Éliminer le premier joueur à vous avoir infligé des blessures cette partie',
+    winEffect:'maxime_kill_first_attacker'),  
+
+  CharacterCard(id:'oscar', name:'Oscar', faction:Faction.neutral, hp:13, icon:'🧪',
+    ability:'Répétable: une fois révélé, cumule 1 XP par blessure infligée en attaque. Au début de son tour, peut dépenser son XP au choix — 💧 Eau (3xp): vole un équipement au joueur de son choix — 🌿 Plante (2xp): se soigne de 2 blessures — 🔥 Feu (4xp): +2 dégâts à sa prochaine attaque ce tour',
+    abilityEffect:'oscar_xp_spend', abilityRepeatable:true,
+    winCondition:'Atteindre 13 XP cumulée', winEffect:'oscar_xp13'),  
 
   CharacterCard(id:'rat_rouen', name:"Rat d'Rouen", faction:Faction.neutral, hp:10, icon:'🐀',
     ability:'Passif: vous vous soignez de 1 blessure chaque fois que l\'une de VOS attaques inflige des blessures',
@@ -308,6 +305,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'swap_equipment', abilityRepeatable:true,
     winCondition:'Posséder 3 équipements de la même couleur (Lumière ou Ténèbres)',
     winEffect:'three_same_color_equip'),
+
+  CharacterCard(id:'victor', name:'Victor', faction:Faction.neutral, hp:13, icon:'💘',
+    ability:'Passif révélé: une fois révélé, chaque attaque augmente de 20% la barre de charme du joueur attaqué, et de 10% celle de tous les joueurs sur votre zone. À 100%, un joueur ne peut plus vous attaquer. Vous seul voyez ces barres.',
+    abilityEffect:'victor_charm', abilityRepeatable:true,
+    winCondition:'Avoir charmé 2 joueurs à 100%', winEffect:'victor_charm2'),  
 
   
 ];
