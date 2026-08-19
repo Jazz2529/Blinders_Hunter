@@ -1378,7 +1378,9 @@ class _ActionPanelState extends State<_ActionPanel> {
                     ? () => _showRemiCraftDialog(ctx)
                     : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'casino_bet'
                       ? () { setState(() => _casinoActive = true); gp.useAbility(); }
-                      : () => _act(gp.useAbility)),
+                      : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'hailey_copy_hunter'
+                        ? () => gp.haileyOpenChoice()
+                        : () => _act(gp.useAbility)),
             if ((me?.copiedEffect ?? me?.character?.abilityEffect) == 'meg_shapeshift' && me?.megForm != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -1512,6 +1514,13 @@ class _ActionPanelState extends State<_ActionPanel> {
         if (pta == 'meg_choice') {
           if (gp.isMyTurn) return [_MultiMegChoiceWidget(gp: gp)];
           return [Text('🐺 ${gp.currentPlayer?.name ?? "Meg"} choisit sa forme…',
+            style: cinzel(13, c: kGold))];
+        }
+        // Hailey : afficher les 3 Hunters proposés — seulement au joueur
+        // concerné, les autres attendent.
+        if (pta == 'hailey_choice') {
+          if (gp.isMyTurn) return [_MultiHaileyChoiceWidget(gp: gp)];
+          return [Text('📖 ${gp.currentPlayer?.name ?? "Hailey"} choisit un pouvoir à copier…',
             style: cinzel(13, c: kGold))];
         }
         // Baptiste : afficher le sélecteur de montant à sacrifier —
@@ -2810,6 +2819,55 @@ class _MultiBaptisteAmountWidgetState extends State<_MultiBaptisteAmountWidget> 
         const SizedBox(height: 14),
         BHButton(label: 'Confirmer le sacrifice', danger: true,
           onTap: () => widget.gp.baptisteConfirmAmount(_amount!)),
+      ]),
+    );
+  }
+}
+
+class _MultiHaileyChoiceWidget extends StatelessWidget {
+  final GameProvider gp;
+  const _MultiHaileyChoiceWidget({required this.gp});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final offeredIds = gp.gameState?.haileyOffered ?? const [];
+    final offered = offeredIds
+        .map((id) => kAllCharacters.where((c) => c.id == id).firstOrNull)
+        .whereType<CharacterCard>()
+        .toList();
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: surfaceDecor(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('📖 Hailey — Copier le pouvoir de qui ?', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
+        const SizedBox(height: 4),
+        Text('Ce choix est définitif — 3 Hunters non joués cette partie.',
+          style: body(12, c: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 12),
+        if (offered.isEmpty)
+          Padding(padding: const EdgeInsets.all(20),
+            child: Text('Aucun Hunter disponible à copier cette partie.',
+              style: body(12, c: kTextDim), textAlign: TextAlign.center)),
+        ...offered.map((c) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: GestureDetector(
+            onTap: () => gp.haileyChoice(c.id),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: kBg3, borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: kGold.withValues(alpha: 0.5))),
+              child: Row(children: [
+                Text(c.icon, style: const TextStyle(fontSize: 24)),
+                const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(c.name, style: cinzel(13, c: kGold2, fw: FontWeight.w700)),
+                  Text(c.ability, style: body(11, c: kTextSub)),
+                ])),
+              ]),
+            ),
+          ),
+        )),
       ]),
     );
   }

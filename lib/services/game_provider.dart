@@ -176,6 +176,7 @@ class GameProvider extends ChangeNotifier {
   bool _isComplexBotUnsafeAbility(String eff) => const {
     'casino_bet', 'swap_zones', 'choose_all_dice', 'bonus_turns',
     'elaia_peek', 'copy_ability', 'oscar_xp_spend', 'baptiste_revive',
+    'hailey_copy_hunter', 'meg_shapeshift',
   }.contains(eff);
 
   void _recordMultiResult(Map<String, dynamic>? result) {
@@ -581,6 +582,34 @@ class GameProvider extends ChangeNotifier {
   Future<void> startGame()      => _fb.startGame(roomId!);
 
   // ─── Actions de jeu ──────────────────────
+
+  /// Hailey : tire 3 Hunters non joués (tirage persisté pour que tous les
+  /// clients voient les 3 mêmes options, comme builderOffered pour Clémence)
+  /// et ouvre l'écran de choix.
+  Future<void> haileyOpenChoice() async {
+    final all = _mutableAll();
+    final offered = haileyDraw3(all).map((c) => c.id).toList();
+    await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+        pendingTargetAction: 'hailey_choice', haileyOffered: offered);
+  }
+
+  /// Hailey : résout le choix — copie l'effet du Hunter sélectionné dans
+  /// copiedEffect (même mécanisme que Tommy). Ne touche PAS abilityUsed :
+  /// copier un pouvoir n'est pas l'utiliser, c'est la résolution du pouvoir
+  /// copié lui-même, plus tard, qui marquera abilityUsed=true.
+  Future<void> haileyChoice(String characterId) async {
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final chosen = kAllCharacters.where((c) => c.id == characterId).firstOrNull;
+    if (chosen == null) {
+      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, haileyOffered: const []);
+      return;
+    }
+    actor.copiedEffect = chosen.abilityEffect;
+    await _commitAll(all, '📖 ${actor.name} copie le pouvoir de ${chosen.name} : ${chosen.ability}');
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, haileyOffered: const []);
+  }
+
   Future<void> revealSelf() async {
     final p = _mutableMe();
     p.revealed = true;
@@ -1240,11 +1269,11 @@ class GameProvider extends ChangeNotifier {
     final t = all.firstWhere((p) => p.uid == target.uid, orElse: () => target);
 
     if (pta == 'terrain_damage9') {
-      _eg.applyDamage(t, 2, isTerrain9Dmg: true);
+      final dmg9 = _eg.applyDamage(t, 2, isTerrain9Dmg: true);
+      _eg.applyMaximeFirstAttacker(actor, t, dmg9); // Maxime : ce dégât compte comme une "attaque" pour sa condition de victoire
       if (!t.alive) t.killedByUid = actor.uid; // sinon aucun butin possible
       _eg.applyDeathPassives(all);
-      await _commitAll(all, '🏹 ${actor.name} inflige 2 blessures à ${t.name}');
-      await _checkWin(all, justDiedId: t.alive ? null : t.uid);
+      await _commitAll(all, '🏹 ${actor.name} inflige $dmg9 blessures à ${t.name}');
     } else if (pta == 'terrain_steal') {
       if (t.equipment.isNotEmpty) {
         final e = t.equipment.removeAt(0);

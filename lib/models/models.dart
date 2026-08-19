@@ -461,6 +461,7 @@ class GameState {
   final String? builderEffect1;
   final String? builderEffect2;
   final List<String> builderOffered;     // 3 effets proposés au tour courant
+  final List<String> haileyOffered;      // Hailey : 3 Hunters non joués proposés au tour courant
   // Jeanne (Prophétesse)
   final String? markedPlayerUid;  // uid du joueur marqué (visible de tous)
   final String? jeanneReward;     // récompense secrète (visible seulement de Jeanne)
@@ -526,6 +527,7 @@ class GameState {
     this.builderEffect1,
     this.builderEffect2,
     this.builderOffered = const [],
+    this.haileyOffered = const [],
     this.markedPlayerUid,
     this.jeanneReward,
     this.jeanneUid,
@@ -580,6 +582,7 @@ class GameState {
     'builderEffect1': builderEffect1,
     'builderEffect2': builderEffect2,
     'builderOffered': builderOffered,
+    'haileyOffered': haileyOffered,
     'markedPlayerUid': markedPlayerUid,
     'jeanneReward': jeanneReward,
     'jeanneUid': jeanneUid,
@@ -647,6 +650,7 @@ class GameState {
     builderEffect1: j['builderEffect1'] as String?,
     builderEffect2: j['builderEffect2'] as String?,
     builderOffered: List<String>.from((j['builderOffered'] as List?) ?? []),
+    haileyOffered: List<String>.from((j['haileyOffered'] as List?) ?? []),
     markedPlayerUid: j['markedPlayerUid'] as String?,
     jeanneReward: j['jeanneReward'] as String?,
     jeanneStep: (j['jeanneStep'] as int?) ?? 0,

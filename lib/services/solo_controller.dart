@@ -2134,6 +2134,7 @@ class SoloController extends ChangeNotifier {
     final target = state!.players.firstWhere((p) => p.uid == targetId);
     if (action == 'terrain_damage9') {
       final dmg9 = _eg.applyDamage(target, 2, isTerrain9Dmg: true);
+      _eg.applyMaximeFirstAttacker(state!.current, target, dmg9); // Maxime : ce dégât compte comme une "attaque" pour sa condition de victoire
       _log('🏹 Terrain 9 — tu infliges $dmg9 à ${target.name}', cls: 'player');
       if (!target.alive) target.killedByUid = state!.current.uid; // sinon aucun butin possible
       _eg.applyDeathPassives(state!.players); // sinon Fanny (et autres passifs de mort) ne se déclenchent jamais sur ce kill
@@ -2150,7 +2151,9 @@ class SoloController extends ChangeNotifier {
         _log('🗼 ${target.name} ne possède aucun équipement', cls: 'player');
       }
     }
-    state!.pendingTargetAction = null; state!.phase = _postCardPhase(); notifyListeners();
+    state!.pendingTargetAction = null;
+    if (!state!.isOver) { state!.phase = _postCardPhase(); }
+    notifyListeners();
   }
 
   void humanChooseTarget(String targetId) {

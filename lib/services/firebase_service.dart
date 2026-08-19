@@ -416,6 +416,7 @@ class FirebaseService {
     String? builderEffect1,
     String? builderEffect2,
     List<String>? builderOffered,
+    List<String>? haileyOffered,
     String? markedPlayerUid,
     String? jeanneReward,
     String? jeanneUid,
@@ -488,6 +489,7 @@ class FirebaseService {
     if (builderEffect1 != null) updates['builderEffect1'] = builderEffect1;
     if (builderEffect2 != null) updates['builderEffect2'] = builderEffect2;
     if (builderOffered != null) updates['builderOffered'] = builderOffered;
+    if (haileyOffered != null) updates['haileyOffered'] = haileyOffered;
     if (markedPlayerUid != null) updates['markedPlayerUid'] = markedPlayerUid;
     if (jeanneReward != null) updates['jeanneReward'] = jeanneReward;
     if (jeanneUid != null) updates['jeanneUid'] = jeanneUid;
