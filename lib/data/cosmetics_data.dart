@@ -46,7 +46,7 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     imagePath: 'assets/images/characters/amelia-animal.png'), 
 
   CosmeticItem(id: 'art_cade-enf', name: 'Artcade - Baby',
-    category: CosmeticCategory.character, targetId: 'art_cade', cost: 150,
+    category: CosmeticCategory.character, targetId: 'artcade', cost: 150,
     imagePath: 'assets/images/characters/art-enf.png'),
 
   CosmeticItem(id: 'augustin-enf', name: 'Augustin - Baby',
@@ -86,12 +86,12 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     imagePath: 'assets/images/characters/christine-sh.png'),
 
   CosmeticItem(id: 'clemence-tarot', name: 'Clemence - II.The High Priestess',
-    category: CosmeticCategory.character, targetId: 'carla', cost: 150,
-    imagePath: 'assets/images/characters/clemence-sh.png'),
+    category: CosmeticCategory.character, targetId: 'clemence', cost: 150,
+    imagePath: 'assets/images/characters/clemence-tarot.png'),
 
   CosmeticItem(id: 'damien-sh', name: 'Damien - XIV.Temperance',
     category: CosmeticCategory.character, targetId: 'damien', cost: 150,
-    imagePath: 'assets/images/characters/damien-sh.png'), 
+    imagePath: 'assets/images/characters/damien-tarot.png'), 
 
   CosmeticItem(id: 'elaia-enf', name: 'Elaia - Baby',
     category: CosmeticCategory.character, targetId: 'elaia', cost: 150,
@@ -114,7 +114,7 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     imagePath: 'assets/images/characters/felipe-tarot.png'), 
 
   CosmeticItem(id: 'fifi-sh', name: 'Fifi - Theatre',
-    category: CosmeticCategory.character, targetId: 'fifi', cost: 150,
+    category: CosmeticCategory.character, targetId: 'fifi_shadow', cost: 150,
     imagePath: 'assets/images/characters/fifi-sh.png'),
 
   CosmeticItem(id: 'fijacked-enf', name: 'Fijacked - Baby',
@@ -122,7 +122,7 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     imagePath: 'assets/images/characters/fijacked-enf.png'), 
 
   CosmeticItem(id: 'gege-tarot', name: 'Gege - XVIII.The Moon',
-    category: CosmeticCategory.character, targetId: 'gege_le_fantome', cost: 150,
+    category: CosmeticCategory.character, targetId: 'gege', cost: 150,
     imagePath: 'assets/images/characters/gege-tarot.png'),   
     
   CosmeticItem(id: 'hailey-sh', name: 'Hailey - Theatre',
@@ -174,7 +174,7 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     imagePath: 'assets/images/characters/marin-sh.png'), 
 
   CosmeticItem(id: 'marion-sh', name: 'Marion - Theatre',
-    category: CosmeticCategory.character, targetId: 'Marion', cost: 150,
+    category: CosmeticCategory.character, targetId: 'marion', cost: 150,
     imagePath: 'assets/images/characters/marion-sh.png'),  
 
   CosmeticItem(id: 'mathieu-animal', name: 'Mathieu - Baby',
@@ -226,11 +226,11 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     imagePath: 'assets/images/characters/pirate-animal.png'),  
 
   CosmeticItem(id: 'raph-tarot', name: 'Raph - IX.The Hermit',
-    category: CosmeticCategory.character, targetId: 'raph_du_soleil_levant', cost: 150,
+    category: CosmeticCategory.character, targetId: 'raph_soleil', cost: 150,
     imagePath: 'assets/images/characters/raph-tarot.png'),  
 
   CosmeticItem(id: 'rat-tarot', name: 'Rat - XV.The Devil',
-    category: CosmeticCategory.character, targetId: 'rat', cost: 150,
+    category: CosmeticCategory.character, targetId: 'rat_rouen', cost: 150,
     imagePath: 'assets/images/characters/rat-tarot.png'),  
 
   CosmeticItem(id: 'remi-sh', name: 'Remi - Theatre',
@@ -238,7 +238,7 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     imagePath: 'assets/images/characters/remi-sh.png'),
 
   CosmeticItem(id: 'richard-tarot', name: 'Richard II - I.The Magician',
-    category: CosmeticCategory.character, targetId: 'richard_ii', cost: 150,
+    category: CosmeticCategory.character, targetId: 'richard2', cost: 150,
     imagePath: 'assets/images/characters/richard-tarot.png'), 
 
   CosmeticItem(id: 'scott-sh', name: 'Scott - Theatre',

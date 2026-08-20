@@ -652,7 +652,10 @@ class SoloController extends ChangeNotifier {
       final t = _ai.bestTarget(bot, state!.players, difficulty, context: 'steal');
       if (t != null && t.equipment.isNotEmpty) {
         final e = t.equipment.removeAt(_rng.nextInt(t.equipment.length));
-        bot.equipment.add(e); _log('🗼 ${bot.name} vole "${e.name}" à ${t.name}');
+        bot.equipment.add(e);
+        _eg.equipPassivePublic(bot, e);
+        _eg.recalcPassives(t); // sinon la victime garde à tort les passifs de l'objet volé (ex: Sniper)
+        _log('🗼 ${bot.name} vole "${e.name}" à ${t.name}');
       }
     }
     if (state!.pendingCard != null) {
@@ -1408,6 +1411,7 @@ class SoloController extends ChangeNotifier {
         if (p.equipment.isEmpty) { _log('Marin — pas d\'équipement à donner', cls: 'player'); break; }
         final item = p.equipment.removeAt(0); target.equipment.add(item);
         _eg.equipPassivePublic(target, item);
+        _eg.recalcPassives(p); // sinon Marin garde à tort le passif de l'objet qu'il vient de donner
         _eg.applyDamage(target, 2);
         _log('💰 Marin donne "${item.name}" à ${target.name} et inflige 2', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
@@ -1931,6 +1935,7 @@ class SoloController extends ChangeNotifier {
       final item = dead.equipment.removeAt(equipIndex);
       killer.equipment.add(item);
       _eg.equipPassivePublic(killer, item);
+      _eg.recalcPassives(dead); // au cas où il ressuscite (Bob) avec un passif d'objet qu'il n'a plus
       _log('🎒 ${killer.name} récupère "${item.name}" sur ${dead.name}', cls: 'player');
     }
     s.lootDeadQueue.removeAt(0);

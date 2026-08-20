@@ -745,6 +745,7 @@ class GameProvider extends ChangeNotifier {
       final item = dead.equipment.removeAt(equipIndex);
       killer.equipment.add(item);
       _eg.equipPassivePublic(killer, item);
+      _eg.recalcPassives(dead); // au cas où il ressuscite (Bob) avec un passif d'objet qu'il n'a plus
       log = '🎒 ${killer.name} récupère "${item.name}" sur ${dead.name}';
     }
     await _commitAll(all, log);
