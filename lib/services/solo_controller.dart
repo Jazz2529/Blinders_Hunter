@@ -551,8 +551,10 @@ class SoloController extends ChangeNotifier {
         final String resolveLog;
         if (remainingHp <= 4) {
           resolveLog = _eg.damienServeAlcohol(bot, target);
+          state!.abilityOverlay = 'damien_alcohol';
         } else {
           resolveLog = _eg.damienServePoison(bot, target);
+          state!.abilityOverlay = 'damien_poison';
         }
         _log(resolveLog);
       } else if (log.startsWith('tommy_copied:')) {
@@ -592,6 +594,7 @@ class SoloController extends ChangeNotifier {
         // Meg (bot) : choix aléatoire de la forme initiale
         final form = _rng.nextBool() ? 'offense' : 'defense';
         final resolveLog = _eg.applyAbility(bot, state!.players, state!.terrainLayout, extra: form);
+        state!.abilityOverlay = form == 'offense' ? 'meg_offense' : 'meg_defense';
         _log(resolveLog);
       } else if (log != 'cible_requise') {
         _log(log);
@@ -835,6 +838,7 @@ class SoloController extends ChangeNotifier {
     s.jeanneStep = 0;
     s.builderOffered = [];
     s.phase = GamePhase.move;
+    s.abilityOverlay = 'jeanne_mark';
     _log('🔮 ${jeanne.name} marque un joueur — récompense secrète posée !', cls: 'player');
     notifyListeners();
   }
@@ -1024,6 +1028,7 @@ class SoloController extends ChangeNotifier {
         p.storedDamage = 0;
         p.abilityUsed = false; // répétable — se redéclenchera dès que du stock s'accumule à nouveau
         s.pendingTargetAction = null; // sans ça, l'écran de choix de cible pouvait réapparaître
+        s.abilityOverlay = 'nils_release';
         _log('📦 ${p.name} déverse $storedN blessures stockées sur ${target.name} ($dealtN reçues) !', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
         if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
@@ -1047,6 +1052,7 @@ class SoloController extends ChangeNotifier {
         }
         p.abilityUsed = false; // répétable (tant que < 5)
         s.pendingTargetAction = null;
+        s.abilityOverlay = 'agathe_drain';
         _log('🧛 ${p.name} vole 1 PV MAX à ${target.name} (elle: ${_eg.effectiveMaxHp(p)} PV max, lui: ${_eg.effectiveMaxHp(target)} PV max)', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
         if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
@@ -1145,6 +1151,7 @@ class SoloController extends ChangeNotifier {
         p.copiedEffect = target.character!.abilityEffect;
         p.abilityUsed = !target.character!.abilityRepeatable;
         s.pendingTargetAction = null;
+        s.abilityOverlay = 'tommy_copy';
         _log('🎭 ${p.name} copie le pouvoir de ${target.name} : ${target.character!.ability}', cls: 'player');
         // Tommy utilise sa capacité alors que Richard II est révélé
         if (_eg.checkTommyRichardInteraction(s.players)) {
@@ -1404,6 +1411,7 @@ class SoloController extends ChangeNotifier {
           s.phase = GamePhase.move; notifyListeners(); return;
         }
         s.bonusTurnsRemaining = deadCount;
+        s.abilityOverlay = 'ninja_shadow';
         _log('🥷 Ninja active son pouvoir — $deadCount tour(s) bonus !', cls: 'player');
         s.phase = GamePhase.move; notifyListeners(); return;
 
@@ -1411,6 +1419,7 @@ class SoloController extends ChangeNotifier {
       case 'damage2_or_heal1':
         if (target == null) { s.pendingTargetAction = 'ability_julien'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
         _eg.applyDamage(target, 2);
+        s.abilityOverlay = 'julien_attack';
         _log('🍳 Julien inflige 2 à ${target.name}', cls: 'player');
         _checkWin(justDiedId: target.alive ? null : target.uid);
         if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
@@ -1603,6 +1612,7 @@ class SoloController extends ChangeNotifier {
 
       case 'choose_all_dice':
         s.fifiGoldenTurn = true; p.abilityUsed = true;
+        s.abilityOverlay = 'fifi_golden';
         _log('🍀 Fifi — tour parfait ! Choisissez vos valeurs de dés', cls: 'player');
         s.pendingTargetAction = 'fifi_dice_picker';
         s.phase = GamePhase.chooseTarget; notifyListeners(); return;
@@ -1665,6 +1675,7 @@ class SoloController extends ChangeNotifier {
         final res = _eg.applyAbilityFull(p, s.players, s.terrainLayout, target: target);
         final logSwap = res['log'] as String? ?? '';
         if (logSwap.isNotEmpty) _log(logSwap, cls: 'player');
+        if (!logSwap.contains('échange impossible')) s.abilityOverlay = 'tristan_swap';
         s.pendingTargetAction = null;
         _checkWin();
         if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
@@ -1679,6 +1690,7 @@ class SoloController extends ChangeNotifier {
         final logMarin = resMarin['log'] as String? ?? '';
         if (logMarin.isNotEmpty) _log(logMarin, cls: 'player');
         s.pendingTargetAction = null;
+        s.abilityOverlay = 'marin_dagger';
         _checkWin();
         if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
@@ -1705,13 +1717,14 @@ class SoloController extends ChangeNotifier {
         // Spéciaux fréquents
         if (special == 'draw_dark')  { s.peioReturnToMove = true; humanDrawCard(DeckType.tenebres); return; }
         if (special == 'draw_light') { s.peioReturnToMove = true; s.abilityOverlay = 'elise_light'; humanDrawCard(DeckType.lumiere); return; }
-        if (special == 'trigger_terrain') { humanApplyTerrainEffect(); return; }
+        if (special == 'trigger_terrain') { s.abilityOverlay = 'peio_terrain'; humanApplyTerrainEffect(); return; }
         if (special == 'skip_move')       { s.skipMovement = true; s.phase = GamePhase.zoneEffect; notifyListeners(); return; }
         if (special == 'skip_turn')       { s.phase = GamePhase.attack; notifyListeners(); return; }
         if (res['needsTarget'] == true && target == null) {
           s.pendingTargetAction = 'ability_default_$eff';
           s.phase = GamePhase.chooseTarget; notifyListeners(); return;
         }
+        if (eff == 'luc_ignite' && target != null) s.abilityOverlay = 'luc_ignite';
         if (log.isNotEmpty) _log(log, cls: 'player');
     }
 
@@ -1745,6 +1758,7 @@ class SoloController extends ChangeNotifier {
     } else {
       _log(log, cls: 'player');
       p.abilityUsed = true; // répétable, mais 1 dépense par tour
+      s.abilityOverlay = choice == 'plant' ? 'oscar_plant' : 'oscar_fire';
     }
     s.pendingTargetAction = null;
     s.phase = GamePhase.move;
@@ -1761,6 +1775,7 @@ class SoloController extends ChangeNotifier {
     } else {
       _log(log, cls: 'player');
       p.abilityUsed = true;
+      s.abilityOverlay = 'oscar_water';
     }
     s.pendingTargetAction = null;
     s.phase = GamePhase.move;
@@ -1843,6 +1858,7 @@ class SoloController extends ChangeNotifier {
     final log = _eg.damienServeAlcohol(actor, target);
     _log(log, cls: 'player');
     s.damienTargetUid = null;
+    s.abilityOverlay = 'damien_alcohol';
     _checkWin(justDiedId: target.alive ? null : target.uid);
     if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners();
   }
@@ -1856,6 +1872,7 @@ class SoloController extends ChangeNotifier {
     final log = _eg.damienServePoison(actor, target);
     _log(log, cls: 'player');
     s.damienTargetUid = null;
+    s.abilityOverlay = 'damien_poison';
     s.phase = GamePhase.move; notifyListeners();
   }
 
@@ -1920,6 +1937,7 @@ class SoloController extends ChangeNotifier {
     _eg.applyHeal(p, 1);
     p.abilityUsed = false; // répétable
     state!.pendingTargetAction = null;
+    state!.abilityOverlay = 'julien_heal';
     _log('💚 ${p.name} se soigne de 1 blessure', cls: 'player');
     state!.phase = GamePhase.move; notifyListeners();
   }
@@ -1931,6 +1949,7 @@ class SoloController extends ChangeNotifier {
     p.megForm = form;
     p.abilityUsed = true; // unique — le choix initial ne se fait qu'une fois
     state!.pendingTargetAction = null;
+    state!.abilityOverlay = form == 'offense' ? 'meg_offense' : 'meg_defense';
     _log(form == 'offense'
         ? '🐺 ${p.name} choisit la forme Offensive (+1 blessure infligée)'
         : '🐺 ${p.name} choisit la forme Défensive (-1 blessure reçue)', cls: 'player');

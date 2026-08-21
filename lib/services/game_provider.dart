@@ -347,6 +347,7 @@ class GameProvider extends ChangeNotifier {
         } else if (abLog == 'trigger_terrain') {
           _eg.applyDeathPassives(all);
           await _commitAll(all, "🧌 ${bot.name} subit 1 blessure → réactive l'effet du terrain");
+          await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack, abilityOverlay: 'peio_terrain');
           await _botApplyTerrainEffect(botUid);
           all = _mutableAll();
           bot = all.where((p) => p.uid == botUid).firstOrNull;
@@ -734,7 +735,7 @@ class GameProvider extends ChangeNotifier {
     await _commitAll(all, log);
     final endedDamien = await _checkWin(all, justDiedId: target.alive ? null : target.uid);
     if (endedDamien) return;
-    await _fb.setPhase(roomId!, GamePhase.ability, clearPending: true);
+    await _fb.setPhase(roomId!, GamePhase.ability, clearPending: true, abilityOverlay: 'damien_alcohol');
   }
 
   /// Damien : sert le poison — 3 dégâts/tour pendant 2 tours.
@@ -745,7 +746,7 @@ class GameProvider extends ChangeNotifier {
     final target = all.firstWhere((p) => p.uid == targetUid, orElse: () => actor);
     final log = _eg.damienServePoison(actor, target);
     await _commitAll(all, log);
-    await _fb.setPhase(roomId!, GamePhase.ability, clearPending: true);
+    await _fb.setPhase(roomId!, GamePhase.ability, clearPending: true, abilityOverlay: 'damien_poison');
   }
 
   /// Butin : récupère l'équipement choisi sur le cadavre (premier de la file).
@@ -801,7 +802,7 @@ class GameProvider extends ChangeNotifier {
       // continuer (bouger/attaquer) alors qu'il est mort.
       await endTurn();
     } else {
-      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, abilityOverlay: 'casino_lose');
     }
   }
 
@@ -815,7 +816,7 @@ class GameProvider extends ChangeNotifier {
     await _commitAll(all, '🎰 Mr Casino inflige 3 blessures à ${t.name} !');
     final endedCasino = await _checkWin(all, justDiedId: t.alive ? null : t.uid);
     if (endedCasino) return;
-    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, abilityOverlay: 'casino_win');
   }
 
 
@@ -847,7 +848,7 @@ class GameProvider extends ChangeNotifier {
     me.abilityUsed = true;
     await _commitAll(all, '🔮 ${me.name} marque un joueur — récompense secrète posée !');
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
-        jeanneReward: reward, jeanneUid: myUid, builderOffered: []);
+        jeanneReward: reward, jeanneUid: myUid, builderOffered: [], abilityOverlay: 'jeanne_mark');
   }
   Future<void> _clemenceResolve(String e1, String e2, Player? target) async {
     final all = _mutableAll();
@@ -904,6 +905,11 @@ class GameProvider extends ChangeNotifier {
     'heal_per_equip_eot': 'fijacked_city',
     'shield3': 'louna_shield',
     'lock_ability_while_alive': 'ines_lock',
+    'steal_max_hp': 'agathe_drain',
+    'luc_ignite': 'luc_ignite',
+    'damage3_give_dague': 'marin_dagger',
+    'store_damage_nils': 'nils_release',
+    'swap_equipment': 'tristan_swap',
   };
 
   /// Extrait le résultat d'un dé depuis un log de type "...D4(3)..." ou "...D6(5)..."
@@ -958,7 +964,8 @@ class GameProvider extends ChangeNotifier {
     actor.abilityUsed = true;
     _eg.applyDeathPassives(all);
     await _commitAll(all, log);
-    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+    final ovOscar = choice == 'water' ? 'oscar_water' : choice == 'plant' ? 'oscar_plant' : 'oscar_fire';
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, abilityOverlay: ovOscar);
   }
 
   /// Meg : choix initial (une seule fois) de la forme Offensive ou Défensive.
@@ -970,7 +977,8 @@ class GameProvider extends ChangeNotifier {
     actor.abilityUsed = true;
     _eg.applyDeathPassives(all);
     await _commitAll(all, log);
-    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
+        abilityOverlay: form == 'offense' ? 'meg_offense' : 'meg_defense');
   }
 
   /// Christine : résout le choix de zone adjacente — se déplace directement.
@@ -1137,15 +1145,15 @@ class GameProvider extends ChangeNotifier {
       if (actor.copiedEffect == 'builder_power') {
         final offered = _eg.builderDraw3();
         await _fb.setPhase(roomId!, GamePhase.ability,
-            builderStep: 1, builderOffered: offered);
+            builderStep: 1, builderOffered: offered, abilityOverlay: 'tommy_copy');
         return;
       }
       if (actor.copiedEffect == 'prophete_mark') {
         await _fb.setPhase(roomId!, GamePhase.chooseTarget,
-            pendingTargetAction: 'jeanne_mark_target', jeanneUid: actor.uid);
+            pendingTargetAction: 'jeanne_mark_target', jeanneUid: actor.uid, abilityOverlay: 'tommy_copy');
         return;
       }
-      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, abilityOverlay: 'tommy_copy');
       return;
     }
     if (log == 'casino_bet') {
@@ -1169,7 +1177,7 @@ class GameProvider extends ChangeNotifier {
       // Fifi : afficher le sélecteur de dés avant d'appliquer
       await _commitAll(all, '🍀 Fifi active son pouvoir — choisissez vos dés !');
       await _fb.setPhase(roomId!, GamePhase.ability,
-          pendingTargetAction: 'fifi_dice_picker');
+          pendingTargetAction: 'fifi_dice_picker', abilityOverlay: 'fifi_golden');
       return;
     }
     if (log == 'bonus_turns_zero') {
@@ -1180,7 +1188,7 @@ class GameProvider extends ChangeNotifier {
     if (log.startsWith('bonus_turns:')) {
       final deadCount = int.tryParse(log.split(':')[1]) ?? 0;
       await _commitAll(all, '🥷 Ninja active son pouvoir — $deadCount tour(s) bonus !');
-      await _fb.setPhase(roomId!, GamePhase.move, bonusTurnsRemaining: deadCount);
+      await _fb.setPhase(roomId!, GamePhase.move, bonusTurnsRemaining: deadCount, abilityOverlay: 'ninja_shadow');
       return;
     }
     if (log == 'cible_requise') {
@@ -1208,7 +1216,7 @@ class GameProvider extends ChangeNotifier {
     }
     if (log == 'trigger_terrain') {
       await _commitAll(all, "🧌 ${actor.name} subit 1 blessure → réactive l'effet du terrain");
-      await _fb.setPhase(roomId!, gameState!.phase, peioReturnToMove: true);
+      await _fb.setPhase(roomId!, gameState!.phase, peioReturnToMove: true, abilityOverlay: 'peio_terrain');
       await applyTerrainEffect();
       return;
     }
@@ -1222,7 +1230,13 @@ class GameProvider extends ChangeNotifier {
       audio.playInteractionVoice(_eg.travertInteraction(all).key);
     }
 
-    final overlay = _abilityOverlays[actor.copiedEffect ?? actor.character?.abilityEffect ?? ''];
+    final overlay = log.contains('déjà au maximum')
+        ? null // Agathe déjà à +5 PV max : aucun effet, pas d'animation
+        : log.contains('échange impossible')
+          ? null // Tristan : échange impossible (équipement manquant), pas d'animation
+          : (actor.copiedEffect ?? actor.character?.abilityEffect) == 'damage2_or_heal1'
+            ? (log.contains('se soigne de 1 blessure') ? 'julien_heal' : 'julien_attack')
+            : _abilityOverlays[actor.copiedEffect ?? actor.character?.abilityEffect ?? ''];
     final dice = _extractDiceFromLog(log);
     // Si l'acteur est mort en utilisant sa capacité (ex: Raph), passer au tour suivant
     if (!actor.alive) {

@@ -2433,6 +2433,1256 @@ class InesLockState extends State<InesLockOverlay>
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// MEG — transformation de loup, silhouette qui se fend en deux moitiés
+// (Offensive rouge / Défensive bleue selon le choix)
+// ═══════════════════════════════════════════════════════════════════
+class MegFormOverlay extends StatefulWidget {
+  final bool isOffense;
+  final VoidCallback onDone;
+  const MegFormOverlay({required this.isOffense, required this.onDone});
+  @override State<MegFormOverlay> createState() => MegFormState();
+}
+
+class MegFormState extends State<MegFormOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _split, _flash;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1800));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 14),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 56),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    _split = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.1, 0.55, curve: Curves.easeOutCubic)));
+    _flash = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.45, 0.6, curve: Curves.easeOut)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    final color = widget.isOffense ? const Color(0xFFE57373) : const Color(0xFF64B5F6);
+    final icon = widget.isOffense ? '⚔️' : '🛡️';
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(color: Colors.black45),
+          // Flash au moment de la bascule
+          if (_flash.value > 0)
+            Opacity(opacity: (_flash.value * (1 - _flash.value) * 4).clamp(0.0, 1.0),
+              child: Container(color: color.withValues(alpha: 0.35))),
+          // Silhouette de loup qui se scinde en 2 (gauche/droite s'écartent)
+          Positioned(left: size.width * 0.5 - 40 - 30 * _split.value, top: size.height * 0.34,
+            child: Text('🐺', style: TextStyle(fontSize: 60,
+              shadows: [Shadow(color: color.withValues(alpha: _split.value), blurRadius: 16)]))),
+          Positioned(left: 0, right: 0, top: size.height * 0.36,
+            child: Center(child: Transform.translate(
+              offset: Offset(60 * _split.value, 0),
+              child: Text(icon, style: TextStyle(fontSize: 34 + 10 * _split.value,
+                shadows: [Shadow(color: color, blurRadius: 18 * _split.value)])),
+            ))),
+          Positioned(left: 0, right: 0, top: size.height * 0.55,
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color)),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('🐺 MEG', style: cinzel(16, c: color, fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text(widget.isOffense
+                    ? 'Bascule en forme Offensive (+1 infligé)'
+                    : 'Bascule en forme Défensive (-1 reçu)',
+                  style: body(12, c: Colors.white)),
+              ])))),
+        ]),
+      ))),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// AGATHE — une énergie violette de vie migre de la cible vers elle
+// ═══════════════════════════════════════════════════════════════════
+class AgatheDrainOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const AgatheDrainOverlay({required this.onDone});
+  @override State<AgatheDrainOverlay> createState() => AgatheDrainState();
+}
+
+class AgatheDrainState extends State<AgatheDrainOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _ac, _fadeAc;
+  late Animation<double> _opacity;
+  final List<Particle> _wisps = [];
+  final _rng = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 60))
+      ..addListener(() => setState(() {}))
+      ..repeat();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 2000));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 14),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 56),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+
+    // Volutes qui partent de la droite (cible) vers la gauche (Agathe)
+    for (int i = 0; i < 18; i++) {
+      _wisps.add(Particle(
+        x: 0.62 + _rng.nextDouble() * 0.20,
+        y: 0.40 + (_rng.nextDouble() - 0.5) * 0.16,
+        speed: 0.006 + _rng.nextDouble() * 0.008,
+        emoji: ['💜','🩸','✨'][_rng.nextInt(3)],
+        size: 12 + _rng.nextDouble() * 12,
+        drift: 0,
+        rot: 0,
+      ));
+    }
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _ac.dispose(); _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    for (final p in _wisps) {
+      p.x -= p.speed; // migrent vers la gauche (Agathe)
+      if (p.x < 0.30) { p.x = 0.62 + _rng.nextDouble() * 0.20; p.y = 0.40 + (_rng.nextDouble() - 0.5) * 0.16; }
+    }
+    final size = MediaQuery.of(ctx).size;
+    return Positioned.fill(child: IgnorePointer(child: Opacity(
+      opacity: _opacity.value.clamp(0.0, 1.0),
+      child: Stack(children: [
+        Container(color: Colors.black45),
+        Positioned(left: size.width * 0.22, top: size.height * 0.34,
+          child: const Text('🧛‍♀️', style: TextStyle(fontSize: 48))),
+        Positioned(left: size.width * 0.68, top: size.height * 0.36,
+          child: Text('😵', style: TextStyle(fontSize: 40,
+            color: Colors.white.withValues(alpha: 0.7)))),
+        ..._wisps.map((p) => Positioned(
+          left: p.x * size.width,
+          top:  p.y * size.height,
+          child: Text(p.emoji, style: TextStyle(fontSize: p.size,
+            shadows: [Shadow(color: const Color(0xFFAB47BC).withValues(alpha: 0.7), blurRadius: 8)])))),
+        Positioned(left: 0, right: 0, top: size.height * 0.55,
+          child: Center(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFAB47BC))),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('🧛‍♀️ AGATHE', style: cinzel(16, c: const Color(0xFFCE93D8),
+                fw: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('Vole 1 PV MAX à sa cible',
+                style: body(12, c: Colors.white)),
+            ])))),
+      ]),
+    )));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DAMIEN — sert un verre : éclat ambré (alcool) ou fumée verte (poison)
+// ═══════════════════════════════════════════════════════════════════
+class DamienServeOverlay extends StatefulWidget {
+  final bool isPoison;
+  final VoidCallback onDone;
+  const DamienServeOverlay({required this.isPoison, required this.onDone});
+  @override State<DamienServeOverlay> createState() => DamienServeState();
+}
+
+class DamienServeState extends State<DamienServeOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _ac, _fadeAc;
+  late Animation<double> _opacity, _tip;
+  final List<Particle> _wisps = [];
+  final _rng = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 60))
+      ..addListener(() => setState(() {}))
+      ..repeat();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 2000));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 14),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 56),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    // Le verre se penche pour verser
+    _tip = Tween<double>(begin: 0, end: -0.6).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.1, 0.4, curve: Curves.easeOut)));
+
+    final emojis = widget.isPoison ? ['☠️','🟢','💚'] : ['✨','🥃','💛'];
+    for (int i = 0; i < 16; i++) {
+      _wisps.add(Particle(
+        x: 0.5, y: 0.44,
+        speed: 0.005 + _rng.nextDouble() * 0.007,
+        emoji: emojis[_rng.nextInt(emojis.length)],
+        size: 14 + _rng.nextDouble() * 12,
+        drift: (_rng.nextDouble() - 0.5) * 0.006,
+        rot: 0,
+      ));
+    }
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _ac.dispose(); _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    for (final p in _wisps) {
+      p.y -= p.speed;
+      p.x += p.drift;
+      if (p.y < 0.15) { p.y = 0.44; p.x = 0.5; }
+    }
+    final size = MediaQuery.of(ctx).size;
+    final color = widget.isPoison ? const Color(0xFF66BB6A) : const Color(0xFFFFB300);
+    return Positioned.fill(child: IgnorePointer(child: Opacity(
+      opacity: _opacity.value.clamp(0.0, 1.0),
+      child: Stack(children: [
+        Container(color: Colors.black45),
+        Positioned(left: size.width * 0.5 - 24, top: size.height * 0.32,
+          child: Transform.rotate(angle: _tip.value,
+            child: const Text('🍸', style: TextStyle(fontSize: 48)))),
+        ..._wisps.map((p) => Positioned(
+          left: p.x * size.width,
+          top:  p.y * size.height,
+          child: Text(p.emoji, style: TextStyle(fontSize: p.size,
+            shadows: [Shadow(color: color.withValues(alpha: 0.7), blurRadius: 8)])))),
+        Positioned(left: 0, right: 0, top: size.height * 0.55,
+          child: Center(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('🍸 DAMIEN', style: cinzel(16, c: color, fw: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text(widget.isPoison
+                  ? 'Sert un poison — 3 dégâts sur 2 tours'
+                  : 'Sert un alcool fort — 4 dégâts instantanés',
+                style: body(12, c: Colors.white)),
+            ])))),
+      ]),
+    )));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FIFI — un trèfle scintille, pluie de dés dorés
+// ═══════════════════════════════════════════════════════════════════
+class FifiGoldenOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const FifiGoldenOverlay({required this.onDone});
+  @override State<FifiGoldenOverlay> createState() => FifiGoldenState();
+}
+
+class FifiGoldenState extends State<FifiGoldenOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _ac, _fadeAc;
+  late Animation<double> _opacity;
+  final List<Particle> _dice = [];
+  final _rng = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 60))
+      ..addListener(() => setState(() {}))
+      ..repeat();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1800));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 55),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+
+    const emojis = ['🎲','✨','🍀'];
+    for (int i = 0; i < 22; i++) {
+      _dice.add(Particle(
+        x: _rng.nextDouble(),
+        y: -_rng.nextDouble() * 0.6,
+        speed: 0.006 + _rng.nextDouble() * 0.008,
+        emoji: emojis[_rng.nextInt(emojis.length)],
+        size: 18 + _rng.nextDouble() * 16,
+        drift: (_rng.nextDouble() - 0.5) * 0.001,
+        rot: _rng.nextDouble() * 3.14,
+      ));
+    }
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _ac.dispose(); _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    for (final p in _dice) {
+      p.y += p.speed;
+      p.x += p.drift;
+      p.rot += 0.03;
+      if (p.y > 1.1) { p.y = -0.05; p.x = _rng.nextDouble(); }
+    }
+    final size = MediaQuery.of(ctx).size;
+    return Positioned.fill(child: IgnorePointer(child: Opacity(
+      opacity: _opacity.value.clamp(0.0, 1.0),
+      child: Stack(children: [
+        Container(decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFFFFD54F).withValues(alpha: 0.14),
+            Colors.transparent,
+          ]))),
+        ..._dice.map((p) => Positioned(
+          left: p.x * size.width,
+          top:  p.y * size.height,
+          child: Transform.rotate(angle: p.rot,
+            child: Text(p.emoji, style: TextStyle(fontSize: p.size))))),
+        Positioned(left: 0, right: 0, top: size.height * 0.42,
+          child: Center(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFFD54F))),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('🍀 FIFI', style: cinzel(16, c: const Color(0xFFFFE082),
+                fw: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('Tour parfait — tous les dés au maximum !',
+                style: body(12, c: Colors.white)),
+            ])))),
+      ]),
+    )));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// JEANNE — un œil mystique s'ouvre, un symbole de marque scelle
+// le destin d'une cible
+// ═══════════════════════════════════════════════════════════════════
+class JeanneMarkOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const JeanneMarkOverlay({required this.onDone});
+  @override State<JeanneMarkOverlay> createState() => JeanneMarkState();
+}
+
+class JeanneMarkState extends State<JeanneMarkOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _seal, _spin;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 2000));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 14),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 56),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    _seal = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.15, 0.55, curve: Curves.easeOutBack)));
+    _spin = Tween<double>(begin: 0, end: 2 * pi).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0, 0.6, curve: Curves.easeOut)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(color: Colors.black45),
+          Positioned(left: 0, right: 0, top: size.height * 0.28,
+            child: Center(child: Transform.rotate(angle: _spin.value,
+              child: Text('🔮', style: TextStyle(fontSize: 60,
+                shadows: [Shadow(color: const Color(0xFF7E57C2).withValues(alpha: 0.8), blurRadius: 22)]))))),
+          Positioned(left: 0, right: 0, top: size.height * 0.46,
+            child: Center(child: Transform.scale(scale: _seal.value,
+              child: Text('✦', style: TextStyle(fontSize: 46,
+                color: const Color(0xFFCE93D8).withValues(alpha: _seal.value)))))),
+          Positioned(left: 0, right: 0, top: size.height * 0.58,
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF7E57C2))),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('🔮 JEANNE', style: cinzel(16, c: const Color(0xFFB39DDB),
+                  fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Marque une cible — récompense secrète scellée',
+                  style: body(12, c: Colors.white)),
+              ])))),
+        ]),
+      ))),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// JULIEN — diablotin farceur : flammes (attaque) ou aura apaisante (soin)
+// ═══════════════════════════════════════════════════════════════════
+class JulienOverlay extends StatefulWidget {
+  final bool isAttack;
+  final VoidCallback onDone;
+  const JulienOverlay({required this.isAttack, required this.onDone});
+  @override State<JulienOverlay> createState() => JulienState();
+}
+
+class JulienState extends State<JulienOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _ac, _fadeAc;
+  late Animation<double> _opacity;
+  final List<Particle> _fx = [];
+  final _rng = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 60))
+      ..addListener(() => setState(() {}))
+      ..repeat();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1600));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 55),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+
+    final emojis = widget.isAttack ? ['🔥','😈','💢'] : ['💚','✨','😌'];
+    for (int i = 0; i < 14; i++) {
+      _fx.add(Particle(
+        x: 0.5 + (_rng.nextDouble() - 0.5) * 0.5,
+        y: widget.isAttack ? 1.0 + _rng.nextDouble() * 0.3 : 0.55,
+        speed: 0.006 + _rng.nextDouble() * 0.008,
+        emoji: emojis[_rng.nextInt(emojis.length)],
+        size: 16 + _rng.nextDouble() * 14,
+        drift: (_rng.nextDouble() - 0.5) * 0.002,
+        rot: 0,
+      ));
+    }
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _ac.dispose(); _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    for (final p in _fx) {
+      if (widget.isAttack) { p.y -= p.speed; if (p.y < 0.2) p.y = 1.05; }
+      else { p.y -= p.speed * 0.4; if (p.y < 0.25) p.y = 0.55; }
+      p.x += p.drift;
+    }
+    final size = MediaQuery.of(ctx).size;
+    final color = widget.isAttack ? const Color(0xFFEF5350) : const Color(0xFF66BB6A);
+    return Positioned.fill(child: IgnorePointer(child: Opacity(
+      opacity: _opacity.value.clamp(0.0, 1.0),
+      child: Stack(children: [
+        Container(color: Colors.black38),
+        Positioned(left: 0, right: 0, top: size.height * 0.32,
+          child: Center(child: Text('😈', style: TextStyle(fontSize: 48,
+            shadows: [Shadow(color: color.withValues(alpha: 0.7), blurRadius: 16)])))),
+        ..._fx.map((p) => Positioned(
+          left: p.x * size.width,
+          top:  p.y * size.height,
+          child: Text(p.emoji, style: TextStyle(fontSize: p.size)))),
+        Positioned(left: 0, right: 0, top: size.height * 0.55,
+          child: Center(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('😈 JULIEN', style: cinzel(16, c: color, fw: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text(widget.isAttack ? 'Inflige 2 blessures' : 'Se soigne de 1 blessure',
+                style: body(12, c: Colors.white)),
+            ])))),
+      ]),
+    )));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// LUC — flammes qui enveloppent la cible
+// ═══════════════════════════════════════════════════════════════════
+class LucIgniteOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const LucIgniteOverlay({required this.onDone});
+  @override State<LucIgniteOverlay> createState() => LucIgniteState();
+}
+
+class LucIgniteState extends State<LucIgniteOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _ac, _fadeAc;
+  late Animation<double> _opacity;
+  final List<Particle> _flames = [];
+  final _rng = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 60))
+      ..addListener(() => setState(() {}))
+      ..repeat();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1800));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 55),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+
+    const emojis = ['🔥','🔥','✨'];
+    for (int i = 0; i < 22; i++) {
+      _flames.add(Particle(
+        x: 0.5 + (_rng.nextDouble() - 0.5) * 0.30,
+        y: 0.65 + _rng.nextDouble() * 0.15,
+        speed: 0.008 + _rng.nextDouble() * 0.010,
+        emoji: emojis[_rng.nextInt(emojis.length)],
+        size: 16 + _rng.nextDouble() * 18,
+        drift: (_rng.nextDouble() - 0.5) * 0.003,
+        rot: 0,
+      ));
+    }
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _ac.dispose(); _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    for (final p in _flames) {
+      p.y -= p.speed;
+      p.x += p.drift;
+      if (p.y < 0.30) { p.y = 0.65 + _rng.nextDouble() * 0.15; p.x = 0.5 + (_rng.nextDouble() - 0.5) * 0.30; }
+    }
+    final size = MediaQuery.of(ctx).size;
+    return Positioned.fill(child: IgnorePointer(child: Opacity(
+      opacity: _opacity.value.clamp(0.0, 1.0),
+      child: Stack(children: [
+        Container(decoration: BoxDecoration(gradient: RadialGradient(
+          center: Alignment.center, radius: 0.7,
+          colors: [
+            const Color(0xFFFF7043).withValues(alpha: 0.18),
+            Colors.transparent,
+          ]))),
+        ..._flames.map((p) => Positioned(
+          left: p.x * size.width,
+          top:  p.y * size.height,
+          child: Text(p.emoji, style: TextStyle(fontSize: p.size)))),
+        Positioned(left: 0, right: 0, top: size.height * 0.35,
+          child: Center(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFF7043))),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('🔥 LUC', style: cinzel(16, c: const Color(0xFFFFAB91),
+                fw: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('Met le feu à sa cible — 2 tours',
+                style: body(12, c: Colors.white)),
+            ])))),
+      ]),
+    )));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MARIN — une dague vole et se plante, puis se transfère à la cible
+// ═══════════════════════════════════════════════════════════════════
+class MarinDaggerOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const MarinDaggerOverlay({required this.onDone});
+  @override State<MarinDaggerOverlay> createState() => MarinDaggerState();
+}
+
+class MarinDaggerState extends State<MarinDaggerOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _throw, _spin, _handoff;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1800));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 14),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 56),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    // La dague vole de gauche à droite (lancer)
+    _throw = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.1, 0.4, curve: Curves.easeIn)));
+    _spin = Tween<double>(begin: 0, end: 6 * pi).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.1, 0.4, curve: Curves.linear)));
+    // Puis elle "reste plantée" chez la cible (handoff visuel)
+    _handoff = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.45, 0.65, curve: Curves.easeOut)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    final daggerX = size.width * 0.25 + (size.width * 0.5) * _throw.value;
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(color: Colors.black45),
+          Positioned(left: size.width * 0.15, top: size.height * 0.36,
+            child: const Text('🗡️', style: TextStyle(fontSize: 40))),
+          Positioned(left: daggerX, top: size.height * 0.36,
+            child: Transform.rotate(angle: _spin.value,
+              child: const Text('🗡️', style: TextStyle(fontSize: 36)))),
+          Positioned(left: size.width * 0.72, top: size.height * 0.36,
+            child: Opacity(opacity: _handoff.value,
+              child: Text('🗡️', style: TextStyle(fontSize: 40,
+                shadows: [Shadow(color: const Color(0xFFB0BEC5).withValues(alpha: _handoff.value), blurRadius: 14)])))),
+          Positioned(left: 0, right: 0, top: size.height * 0.55,
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFB0BEC5))),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('🗡️ MARIN', style: cinzel(16, c: const Color(0xFFCFD8DC),
+                  fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Poignarde sa cible et lui cède sa dague',
+                  style: body(12, c: Colors.white)),
+              ])))),
+        ]),
+      ))),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MR CASINO — résultat du pari : pluie de pièces (victoire) ou
+// éclats rouges (défaite)
+// ═══════════════════════════════════════════════════════════════════
+class CasinoResultOverlay extends StatefulWidget {
+  final bool isWin;
+  final VoidCallback onDone;
+  const CasinoResultOverlay({required this.isWin, required this.onDone});
+  @override State<CasinoResultOverlay> createState() => CasinoResultState();
+}
+
+class CasinoResultState extends State<CasinoResultOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _ac, _fadeAc;
+  late Animation<double> _opacity;
+  final List<Particle> _fx = [];
+  final _rng = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 60))
+      ..addListener(() => setState(() {}))
+      ..repeat();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1800));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 55),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+
+    final emojis = widget.isWin ? ['🪙','✨','💰'] : ['💸','❌','😱'];
+    for (int i = 0; i < 20; i++) {
+      _fx.add(Particle(
+        x: _rng.nextDouble(),
+        y: -_rng.nextDouble() * 0.6,
+        speed: 0.006 + _rng.nextDouble() * 0.008,
+        emoji: emojis[_rng.nextInt(emojis.length)],
+        size: 16 + _rng.nextDouble() * 16,
+        drift: (_rng.nextDouble() - 0.5) * 0.001,
+        rot: _rng.nextDouble() * 3.14,
+      ));
+    }
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _ac.dispose(); _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    for (final p in _fx) {
+      p.y += p.speed;
+      p.rot += 0.03;
+      if (p.y > 1.1) { p.y = -0.05; p.x = _rng.nextDouble(); }
+    }
+    final size = MediaQuery.of(ctx).size;
+    final color = widget.isWin ? const Color(0xFFFFD700) : const Color(0xFFE53935);
+    return Positioned.fill(child: IgnorePointer(child: Opacity(
+      opacity: _opacity.value.clamp(0.0, 1.0),
+      child: Stack(children: [
+        Container(color: Colors.black45),
+        ..._fx.map((p) => Positioned(
+          left: p.x * size.width,
+          top:  p.y * size.height,
+          child: Transform.rotate(angle: p.rot,
+            child: Text(p.emoji, style: TextStyle(fontSize: p.size))))),
+        Positioned(left: 0, right: 0, top: size.height * 0.40,
+          child: Center(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('🎰 MR CASINO', style: cinzel(16, c: color, fw: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text(widget.isWin ? 'Pari gagné — inflige 3 blessures !' : 'Pari perdu — subit 2 blessures',
+                style: body(12, c: Colors.white)),
+            ])))),
+      ]),
+    )));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// NILS — une boîte explose et libère toute l'énergie stockée d'un coup
+// ═══════════════════════════════════════════════════════════════════
+class NilsReleaseOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const NilsReleaseOverlay({required this.onDone});
+  @override State<NilsReleaseOverlay> createState() => NilsReleaseState();
+}
+
+class NilsReleaseState extends State<NilsReleaseOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _burst, _boxScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1800));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 14),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 56),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    // La boîte tremble puis explose
+    _boxScale = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.15), weight: 40),
+      TweenSequenceItem(tween: Tween(begin: 1.15, end: 0.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 0.0), weight: 45),
+    ]).animate(CurvedAnimation(parent: _fadeAc, curve: const Interval(0.1, 0.5, curve: Curves.easeIn)));
+    _burst = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.35, 0.6, curve: Curves.easeOut)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(color: Colors.black45),
+          // Éclat radial au moment de l'explosion
+          if (_burst.value > 0)
+            Positioned(left: 0, right: 0, top: size.height * 0.36,
+              child: Center(child: Container(
+                width: 160 * _burst.value, height: 160 * _burst.value,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(colors: [
+                    const Color(0xFFFF8A65).withValues(alpha: (1 - _burst.value) * 0.7),
+                    Colors.transparent,
+                  ])),
+              ))),
+          if (_boxScale.value > 0)
+            Positioned(left: 0, right: 0, top: size.height * 0.34,
+              child: Center(child: Transform.scale(scale: _boxScale.value,
+                child: const Text('📦', style: TextStyle(fontSize: 54))))),
+          Positioned(left: 0, right: 0, top: size.height * 0.55,
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFF8A65))),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('📦 NILS', style: cinzel(16, c: const Color(0xFFFFAB91),
+                  fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Déverse tous les dégâts stockés !',
+                  style: body(12, c: Colors.white)),
+              ])))),
+        ]),
+      ))),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// NINJA — clones d'ombre qui se multiplient (tours bonus)
+// ═══════════════════════════════════════════════════════════════════
+class NinjaShadowOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const NinjaShadowOverlay({required this.onDone});
+  @override State<NinjaShadowOverlay> createState() => NinjaShadowState();
+}
+
+class NinjaShadowState extends State<NinjaShadowOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _multiply;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1800));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 14),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 56),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    _multiply = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.1, 0.5, curve: Curves.easeOutCubic)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(color: Colors.black45),
+          Positioned(left: size.width * 0.5 - 24, top: size.height * 0.34,
+            child: const Text('🥷', style: TextStyle(fontSize: 48))),
+          Positioned(left: size.width * 0.5 - 24 - 70 * _multiply.value, top: size.height * 0.34,
+            child: Opacity(opacity: 0.6 * _multiply.value,
+              child: const Text('🥷', style: TextStyle(fontSize: 40)))),
+          Positioned(left: size.width * 0.5 - 24 + 70 * _multiply.value, top: size.height * 0.34,
+            child: Opacity(opacity: 0.6 * _multiply.value,
+              child: const Text('🥷', style: TextStyle(fontSize: 40)))),
+          Positioned(left: size.width * 0.5 - 24 - 130 * _multiply.value, top: size.height * 0.34,
+            child: Opacity(opacity: 0.35 * _multiply.value,
+              child: const Text('🥷', style: TextStyle(fontSize: 32)))),
+          Positioned(left: size.width * 0.5 - 24 + 130 * _multiply.value, top: size.height * 0.34,
+            child: Opacity(opacity: 0.35 * _multiply.value,
+              child: const Text('🥷', style: TextStyle(fontSize: 32)))),
+          Positioned(left: 0, right: 0, top: size.height * 0.55,
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF9E9E9E))),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('🥷 NINJA', style: cinzel(16, c: const Color(0xFFE0E0E0),
+                  fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Rejoue plusieurs tours d\'affilée',
+                  style: body(12, c: Colors.white)),
+              ])))),
+        ]),
+      ))),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PEIO — se blesse lui-même, le terrain sous ses pieds se réactive
+// ═══════════════════════════════════════════════════════════════════
+class PeioTerrainOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const PeioTerrainOverlay({required this.onDone});
+  @override State<PeioTerrainOverlay> createState() => PeioTerrainState();
+}
+
+class PeioTerrainState extends State<PeioTerrainOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _pulse, _ring;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1600));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 55),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    _pulse = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.85), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 0.85, end: 1.0), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 40),
+    ]).animate(CurvedAnimation(parent: _fadeAc, curve: const Interval(0, 0.4, curve: Curves.easeInOut)));
+    // Anneau au sol qui s'étend (le terrain se réactive)
+    _ring = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.2, 0.55, curve: Curves.easeOut)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(color: Colors.black45),
+          if (_ring.value > 0)
+            Positioned(left: 0, right: 0, top: size.height * 0.48,
+              child: Center(child: Container(
+                width: 180 * _ring.value, height: 40 * _ring.value,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFF8D6E63)
+                      .withValues(alpha: (1 - _ring.value) * 0.9), width: 3)),
+              ))),
+          Positioned(left: 0, right: 0, top: size.height * 0.32,
+            child: Center(child: Transform.scale(scale: _pulse.value,
+              child: Text('🧌', style: TextStyle(fontSize: 52,
+                shadows: [Shadow(color: const Color(0xFFEF5350).withValues(alpha: 0.6), blurRadius: 14)]))))),
+          Positioned(left: 0, right: 0, top: size.height * 0.55,
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF8D6E63))),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('🧌 PEIO', style: cinzel(16, c: const Color(0xFFBCAAA4),
+                  fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Se blesse pour réactiver le terrain',
+                  style: body(12, c: Colors.white)),
+              ])))),
+        ]),
+      ))),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// OSCAR — dépense son XP : goutte d'eau, pousse végétale ou flamme
+// ═══════════════════════════════════════════════════════════════════
+class OscarElementOverlay extends StatefulWidget {
+  final String element; // 'water' | 'plant' | 'fire'
+  final VoidCallback onDone;
+  const OscarElementOverlay({required this.element, required this.onDone});
+  @override State<OscarElementOverlay> createState() => OscarElementState();
+}
+
+class OscarElementState extends State<OscarElementOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _ac, _fadeAc;
+  late Animation<double> _opacity;
+  final List<Particle> _fx = [];
+  final _rng = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 60))
+      ..addListener(() => setState(() {}))
+      ..repeat();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1800));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 55),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+
+    final emojis = switch (widget.element) {
+      'water' => ['💧','🫧','✨'],
+      'plant' => ['🌿','🍃','💚'],
+      _       => ['🔥','✨','💢'],
+    };
+    for (int i = 0; i < 18; i++) {
+      _fx.add(Particle(
+        x: 0.5 + (_rng.nextDouble() - 0.5) * 0.4,
+        y: widget.element == 'fire' ? 1.0 + _rng.nextDouble() * 0.3 : 0.44,
+        speed: 0.005 + _rng.nextDouble() * 0.007,
+        emoji: emojis[_rng.nextInt(emojis.length)],
+        size: 15 + _rng.nextDouble() * 14,
+        drift: (_rng.nextDouble() - 0.5) * 0.0015,
+        rot: 0,
+      ));
+    }
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _ac.dispose(); _fadeAc.dispose(); super.dispose(); }
+
+  String get _icon => switch (widget.element) { 'water' => '💧', 'plant' => '🌿', _ => '🔥' };
+  Color get _color => switch (widget.element) {
+    'water' => const Color(0xFF4FC3F7),
+    'plant' => const Color(0xFF81C784),
+    _       => const Color(0xFFFF8A65),
+  };
+  String get _label => switch (widget.element) {
+    'water' => 'Eau — vole un équipement',
+    'plant' => 'Plante — se soigne de 2',
+    _       => 'Feu — +2 dégâts à sa prochaine attaque',
+  };
+
+  @override
+  Widget build(BuildContext ctx) {
+    for (final p in _fx) {
+      if (widget.element == 'fire') { p.y -= p.speed; if (p.y < 0.2) p.y = 1.05; }
+      else { p.y -= p.speed * 0.5; if (p.y < 0.15) p.y = 0.44; }
+      p.x += p.drift;
+    }
+    final size = MediaQuery.of(ctx).size;
+    return Positioned.fill(child: IgnorePointer(child: Opacity(
+      opacity: _opacity.value.clamp(0.0, 1.0),
+      child: Stack(children: [
+        Container(color: Colors.black38),
+        Positioned(left: 0, right: 0, top: size.height * 0.30,
+          child: Center(child: Text(_icon, style: TextStyle(fontSize: 50,
+            shadows: [Shadow(color: _color.withValues(alpha: 0.7), blurRadius: 16)])))),
+        ..._fx.map((p) => Positioned(
+          left: p.x * size.width,
+          top:  p.y * size.height,
+          child: Text(p.emoji, style: TextStyle(fontSize: p.size)))),
+        Positioned(left: 0, right: 0, top: size.height * 0.55,
+          child: Center(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _color)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('🧪 OSCAR', style: cinzel(16, c: _color, fw: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text(_label, style: body(12, c: Colors.white)),
+            ])))),
+      ]),
+    )));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TOMMY — un masque de théâtre se reflète, imitation d'un pouvoir
+// ═══════════════════════════════════════════════════════════════════
+class TommyCopyOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const TommyCopyOverlay({required this.onDone});
+  @override State<TommyCopyOverlay> createState() => TommyCopyState();
+}
+
+class TommyCopyState extends State<TommyCopyOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _mirror;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1800));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 14),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 56),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    // Le reflet se sépare du masque original puis se stabilise
+    _mirror = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.1, 0.5, curve: Curves.easeOutBack)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(color: Colors.black45),
+          Positioned(left: size.width * 0.5 - 26, top: size.height * 0.34,
+            child: const Text('🎭', style: TextStyle(fontSize: 52))),
+          Positioned(left: size.width * 0.5 - 22 + 46 * _mirror.value, top: size.height * 0.34,
+            child: Opacity(opacity: _mirror.value,
+              child: Text('🎭', style: TextStyle(fontSize: 44,
+                shadows: [Shadow(color: const Color(0xFF64B5F6).withValues(alpha: _mirror.value), blurRadius: 18)])))),
+          Positioned(left: 0, right: 0, top: size.height * 0.55,
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF64B5F6))),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('🎭 TOMMY', style: cinzel(16, c: const Color(0xFF90CAF9),
+                  fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Copie le pouvoir d\'un joueur révélé',
+                  style: body(12, c: Colors.white)),
+              ])))),
+        ]),
+      ))),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TRISTAN — deux équipements tournoient et échangent leur position
+// ═══════════════════════════════════════════════════════════════════
+class TristanSwapOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const TristanSwapOverlay({required this.onDone});
+  @override State<TristanSwapOverlay> createState() => TristanSwapState();
+}
+
+class TristanSwapState extends State<TristanSwapOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _swap, _spin;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1800));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 14),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 56),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    _swap = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.15, 0.6, curve: Curves.easeInOutCubic)));
+    _spin = Tween<double>(begin: 0, end: 4 * pi).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.15, 0.6, curve: Curves.linear)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    final cx = size.width / 2;
+    // Les 2 objets décrivent un arc en s'échangeant, se croisant au milieu.
+    final leftX  = cx - 70 + 140 * _swap.value;
+    final rightX = cx + 70 - 140 * _swap.value;
+    final arcLift = sin(_swap.value * pi) * 26;
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(color: Colors.black45),
+          Positioned(left: leftX - 22, top: size.height * 0.36 - arcLift,
+            child: Transform.rotate(angle: _spin.value,
+              child: const Text('⚙️', style: TextStyle(fontSize: 40)))),
+          Positioned(left: rightX - 22, top: size.height * 0.36 - arcLift,
+            child: Transform.rotate(angle: -_spin.value,
+              child: const Text('🛡️', style: TextStyle(fontSize: 40)))),
+          Positioned(left: 0, right: 0, top: size.height * 0.55,
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF4DB6AC))),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('🔄 TRISTAN', style: cinzel(16, c: const Color(0xFF80CBC4),
+                  fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Échange un équipement avec sa cible',
+                  style: body(12, c: Colors.white)),
+              ])))),
+        ]),
+      ))),
+    );
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

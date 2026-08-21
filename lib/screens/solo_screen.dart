@@ -581,6 +581,111 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
             ctrl.state!.abilityOverlay = null;
             ctrl.notifyListeners();
           }),
+        if (overlay == 'meg_offense')
+          MegFormOverlay(isOffense: true, onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'meg_defense')
+          MegFormOverlay(isOffense: false, onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'agathe_drain')
+          AgatheDrainOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'damien_alcohol')
+          DamienServeOverlay(isPoison: false, onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'damien_poison')
+          DamienServeOverlay(isPoison: true, onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'fifi_golden')
+          FifiGoldenOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'jeanne_mark')
+          JeanneMarkOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'julien_attack')
+          JulienOverlay(isAttack: true, onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'julien_heal')
+          JulienOverlay(isAttack: false, onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'luc_ignite')
+          LucIgniteOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'marin_dagger')
+          MarinDaggerOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'casino_win')
+          CasinoResultOverlay(isWin: true, onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'casino_lose')
+          CasinoResultOverlay(isWin: false, onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'nils_release')
+          NilsReleaseOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'ninja_shadow')
+          NinjaShadowOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'peio_terrain')
+          PeioTerrainOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'oscar_water')
+          OscarElementOverlay(element: 'water', onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'oscar_plant')
+          OscarElementOverlay(element: 'plant', onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'oscar_fire')
+          OscarElementOverlay(element: 'fire', onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'tommy_copy')
+          TommyCopyOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'tristan_swap')
+          TristanSwapOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
       ]);
     },
   ));
@@ -1099,6 +1204,7 @@ class _CasinoWidgetState extends State<_CasinoWidget>
     } else {
       widget.ctrl.applyDamageToHuman(2, reason: '🎰 Casino — pari perdu');
       s.pendingTargetAction = null;
+      s.abilityOverlay = 'casino_lose';
       if (!s.current.alive) {
         // Il ne peut plus jouer son tour s'il vient de mourir — passer
         // immédiatement au joueur suivant au lieu de le laisser continuer
@@ -3296,6 +3402,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       ctrl.state!.pendingTargetAction = null;
       ctrl.applyDamageToPlayer(target.uid, 3);
       ctrl.logAbility('🎰 Mr Casino inflige 3 blessures à ${target.name} !');
+      ctrl.state!.abilityOverlay = 'casino_win';
       ctrl.state!.phase = GamePhase.move;
       ctrl.notifyListeners();
     } else if (context == 'voiture') {
