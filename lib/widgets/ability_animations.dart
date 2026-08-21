@@ -1874,3 +1874,169 @@ class ChristineMapState extends State<ChristineMapOverlay>
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// CLÉMENCE — étincelles de forge qui convergent, l'équipement personnalisé
+// prend forme
+// ═══════════════════════════════════════════════════════════════════
+class ClemenceForgeOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const ClemenceForgeOverlay({required this.onDone});
+  @override State<ClemenceForgeOverlay> createState() => ClemenceForgeState();
+}
+
+class ClemenceForgeState extends State<ClemenceForgeOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _ac, _fadeAc;
+  late Animation<double> _opacity;
+  final List<Particle> _sparks = [];
+  final _rng = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 60))
+      ..addListener(() => setState(() {}))
+      ..repeat();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 2200));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 12),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 58),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+
+    // Étincelles qui partent du centre vers l'extérieur (convergence inversée
+    // visuellement : elles jaillissent du point de forge).
+    for (int i = 0; i < 24; i++) {
+      final angle = _rng.nextDouble() * 2 * pi;
+      _sparks.add(Particle(
+        x: 0.5, y: 0.46,
+        speed: 0.006 + _rng.nextDouble() * 0.010,
+        emoji: ['✨','⚡','🔥'][_rng.nextInt(3)],
+        size: 14 + _rng.nextDouble() * 14,
+        drift: cos(angle) * (0.004 + _rng.nextDouble() * 0.006),
+        rot: angle,
+      ));
+    }
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _ac.dispose(); _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    for (final p in _sparks) {
+      p.x += p.drift;
+      p.y -= sin(p.rot) * p.speed;
+    }
+    final size = MediaQuery.of(ctx).size;
+    return Positioned.fill(child: IgnorePointer(child: Opacity(
+      opacity: _opacity.value.clamp(0.0, 1.0),
+      child: Stack(children: [
+        Container(color: Colors.black45),
+        ..._sparks.map((p) => Positioned(
+          left: p.x * size.width,
+          top:  p.y * size.height,
+          child: Text(p.emoji, style: TextStyle(fontSize: p.size)))),
+        Positioned(left: 0, right: 0, top: size.height * 0.42,
+          child: Center(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFFA726))),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('🎨 CLÉMENCE', style: cinzel(16, c: const Color(0xFFFFB74D),
+                fw: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('Son équipement sur-mesure prend forme',
+                style: body(12, c: Colors.white)),
+            ])))),
+      ]),
+    )));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ELAIA — un œil/orbe de voyance s'ouvre, 2 cartes flottent et
+// échangent leur position
+// ═══════════════════════════════════════════════════════════════════
+class ElaiaVisionOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const ElaiaVisionOverlay({required this.onDone});
+  @override State<ElaiaVisionOverlay> createState() => ElaiaVisionState();
+}
+
+class ElaiaVisionState extends State<ElaiaVisionOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _swap, _glow;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 2200));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 12),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 58),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    // Les 2 cartes échangent leur position horizontale (arc) entre 0.25 et 0.75
+    _swap = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.25, 0.75, curve: Curves.easeInOutBack)));
+    _glow = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0, 0.3, curve: Curves.easeOut)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    final cx = size.width / 2;
+    final cardY = size.height * 0.40;
+    // Position horizontale de chaque carte : arc qui se croisent au milieu.
+    final leftX  = cx - 60 + _swap.value * 120;
+    final rightX = cx + 60 - _swap.value * 120;
+    final arcLift = sin(_swap.value * pi) * 30; // les cartes montent en croisant
+
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(color: Colors.black45),
+          // Orbe central
+          Positioned(left: cx - 45, top: cardY - 90,
+            child: Text('🔮', style: TextStyle(fontSize: 70,
+              shadows: [Shadow(color: const Color(0xFFCE93D8).withValues(alpha: _glow.value),
+                blurRadius: 24 * _glow.value)]))),
+          Positioned(left: leftX - 24, top: cardY - arcLift,
+            child: const Text('🃏', style: TextStyle(fontSize: 40))),
+          Positioned(left: rightX - 24, top: cardY - arcLift,
+            child: const Text('🃏', style: TextStyle(fontSize: 40))),
+          Positioned(left: 0, right: 0, top: size.height * 0.58,
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFCE93D8))),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('🔮 ELAIA', style: cinzel(16, c: const Color(0xFFE1BEE7),
+                  fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Réorganise l\'ordre de la pioche',
+                  style: body(12, c: Colors.white)),
+              ])))),
+        ]),
+      ))),
+    );
+  }
+}
+
+
+

@@ -546,6 +546,16 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
             ctrl.state!.abilityOverlay = null;
             ctrl.notifyListeners();
           }),
+        if (overlay == 'clemence_forge')
+          ClemenceForgeOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'elaia_vision')
+          ElaiaVisionOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
       ]);
     },
   ));

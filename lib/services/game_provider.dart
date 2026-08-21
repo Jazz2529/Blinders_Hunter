@@ -705,7 +705,7 @@ class GameProvider extends ChangeNotifier {
     await _fb.addLog(roomId!,
         '🔮 ${me?.name ?? "Elaia"} a organisé la pile ${_deckLabel(deckName)}.');
     await _fb.setPhase(roomId!, GamePhase.ability,
-        elaiaStep: 0, forcedDeckQueue: queue);
+        elaiaStep: 0, forcedDeckQueue: queue, abilityOverlay: 'elaia_vision');
   }
 
   String _deckLabel(String d) => switch (d) {
@@ -864,7 +864,7 @@ class GameProvider extends ChangeNotifier {
     final endedBuilder = await _checkWin(all, justDiedId: tgt != null && !tgt.alive ? tgt.uid : null);
     if (endedBuilder) return;
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
-        builderStep: 0, builderOffered: const []);
+        builderStep: 0, builderOffered: const [], abilityOverlay: 'clemence_forge');
   }
 
 

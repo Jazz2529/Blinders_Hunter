@@ -588,6 +588,8 @@ class _GameScreenState extends State<GameScreen> {
         if (overlay == 'albane_clock')        AlbaneClockOverlay(onDone: clearOverlay),
         if (overlay == 'baleine_heal')        BaleineHealOverlay(onDone: clearOverlay),
         if (overlay == 'christine_map')       ChristineMapOverlay(onDone: clearOverlay),
+        if (overlay == 'clemence_forge')      ClemenceForgeOverlay(onDone: clearOverlay),
+        if (overlay == 'elaia_vision')        ElaiaVisionOverlay(onDone: clearOverlay),
         turnBanner,
         burningRope,
         revealQuoteBanner,

@@ -986,6 +986,7 @@ class SoloController extends ChangeNotifier {
     s.builderOffered = []; s.pendingTargetAction = null;
     s.phase = GamePhase.move;
     p.abilityUsed = true;
+    s.abilityOverlay = 'clemence_forge';
     _checkWin(justDiedId: target != null && !target.alive ? target.uid : null);
     notifyListeners();
   }
@@ -1822,6 +1823,7 @@ class SoloController extends ChangeNotifier {
     s.elaiaDeck = null;
     s.elaiaCard1Id = null;
     s.elaiaCard2Id = null;
+    s.abilityOverlay = 'elaia_vision';
     notifyListeners();
   }
 
