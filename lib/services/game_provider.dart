@@ -1571,12 +1571,19 @@ class GameProvider extends ChangeNotifier {
     // "attack" — c'est exactement ce qui empêchait l'écran de victoire de
     // s'afficher après un kill au bazooka.
     if (gameEnded) return;
+    // Baleine : quelqu'un qui vient de mourir dans cette attaque avait-il
+    // 'death_heal_allies' ? (couvre aussi le cas Bazooka, où plusieurs
+    // joueurs peuvent mourir en même temps).
+    final baleineJustDied = attacker.bazooka
+        ? all.any((x) => !x.alive && aliveBeforeUids.contains(x.uid) &&
+            (x.copiedEffect ?? x.character?.abilityEffect) == 'death_heal_allies')
+        : (!target.alive && (target.copiedEffect ?? target.character?.abilityEffect) == 'death_heal_allies');
     await _fb.setPhase(roomId!, GamePhase.attack, hasAttacked: true,
         lastDiceResult: d4 > 0 ? {'d4': d4, 'd6': d6, 'sum': baseDmg} : null,
         lastDiceLabel: d4 > 0 ? 'Attaque' : null,
         lastDiceTimestamp: d4 > 0 ? DateTime.now().millisecondsSinceEpoch : null,
         scottCounterDice: counterDice,
-        abilityOverlay: (gegeTriggered || gegeTriggered2) ? 'gege_ghost' : scottCountered ? 'scott_counter' : isMathieuThird ? 'mathieu_bullet' : null);
+        abilityOverlay: (gegeTriggered || gegeTriggered2) ? 'gege_ghost' : scottCountered ? 'scott_counter' : isMathieuThird ? 'mathieu_bullet' : baleineJustDied ? 'baleine_heal' : null);
   }
 
   /// Richard II : sélection d'une zone (étape 1 ou 2).

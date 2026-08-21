@@ -586,6 +586,7 @@ class _GameScreenState extends State<GameScreen> {
         if (overlay == 'marion_plants')       MarionPlantsOverlay(onDone: clearOverlay),
         if (overlay == 'amelia_light')        AmeliaLightOverlay(onDone: clearOverlay),
         if (overlay == 'albane_clock')        AlbaneClockOverlay(onDone: clearOverlay),
+        if (overlay == 'baleine_heal')        BaleineHealOverlay(onDone: clearOverlay),
         turnBanner,
         burningRope,
         revealQuoteBanner,

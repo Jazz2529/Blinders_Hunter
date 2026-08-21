@@ -2445,6 +2445,16 @@ class SoloController extends ChangeNotifier {
     if (state == null) return;
     // Baleine — soigne les Hunters révélés à sa mort (et tout autre passif de mort)
     _eg.applyDeathPassives(state!.players);
+    // Baleine : anime le moment où elle vient de mourir et de déclencher son
+    // soin — vérifié ici (point centralisé, appelé après TOUTE source de
+    // mort : attaque, terrain, carte) plutôt qu'à chaque appelant.
+    if (justDiedId != null) {
+      final maybeBaleine = state!.players.where((p) => p.uid == justDiedId).firstOrNull;
+      if (maybeBaleine != null &&
+          (maybeBaleine.copiedEffect ?? maybeBaleine.character?.abilityEffect) == 'death_heal_allies') {
+        state!.abilityOverlay = 'baleine_heal';
+      }
+    }
     // Jeanne — vérifie si le mort était la cible marquée et distribue la récompense
     if (justDiedId != null && state!.markedPlayerUid == justDiedId) {
       final dead = state!.players.firstWhere((p) => p.uid == justDiedId,

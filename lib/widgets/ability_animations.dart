@@ -1713,3 +1713,95 @@ class _AbilityDiceRollState extends State<AbilityDiceRoll>
     ));
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// BALEINE — à sa mort, des bulles et étoiles d'eau montent et soignent
+// tous les Hunters révélés
+// ═══════════════════════════════════════════════════════════════════
+class BaleineHealOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const BaleineHealOverlay({required this.onDone});
+  @override State<BaleineHealOverlay> createState() => BaleineHealState();
+}
+
+class BaleineHealState extends State<BaleineHealOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _ac, _fadeAc;
+  late Animation<double> _opacity;
+  final List<Particle> _bubbles = [];
+  final _rng = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 60))
+      ..addListener(() => setState(() {}))
+      ..repeat();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 2800));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 12),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 58),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+
+    const emojis = ['💧','✨','🫧','💙','⭐'];
+    for (int i = 0; i < 26; i++) {
+      _bubbles.add(Particle(
+        x: _rng.nextDouble(),
+        y: 1.0 + _rng.nextDouble() * 0.4, // partent du bas, montent (contrairement à Carapatte qui tombe)
+        speed: 0.003 + _rng.nextDouble() * 0.005,
+        emoji: emojis[_rng.nextInt(emojis.length)],
+        size: 16 + _rng.nextDouble() * 20,
+        drift: (_rng.nextDouble() - 0.5) * 0.0010,
+        rot: _rng.nextDouble() * 3.14,
+      ));
+    }
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _ac.dispose(); _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    for (final p in _bubbles) {
+      p.y -= p.speed; // montent au lieu de tomber
+      p.x += p.drift;
+      p.rot += 0.02;
+      if (p.y < -0.1) { p.y = 1.05; p.x = _rng.nextDouble(); }
+    }
+    final size = MediaQuery.of(ctx).size;
+    return Positioned.fill(child: IgnorePointer(child: Opacity(
+      opacity: _opacity.value.clamp(0.0, 1.0),
+      child: Stack(children: [
+        Container(decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.bottomCenter, end: Alignment.topCenter,
+          colors: [
+            const Color(0xFF4FC3F7).withValues(alpha: 0.14),
+            Colors.transparent,
+          ]))),
+        ..._bubbles.map((p) => Positioned(
+          left: p.x * size.width,
+          top:  p.y * size.height,
+          child: Transform.rotate(angle: p.rot,
+            child: Text(p.emoji, style: TextStyle(fontSize: p.size))))),
+        Positioned(left: 0, right: 0, top: size.height * 0.42,
+          child: Center(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF4FC3F7))),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('🐋 BALEINE', style: cinzel(16, c: const Color(0xFF81D4FA),
+                fw: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('Dernier souffle — les Hunters révélés sont soignés',
+                style: body(12, c: Colors.white)),
+            ])))),
+      ]),
+    )));
+  }
+}
+

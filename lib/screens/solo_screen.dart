@@ -536,6 +536,11 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
             ctrl.state!.abilityOverlay = null;
             ctrl.notifyListeners();
           }),
+        if (overlay == 'baleine_heal')
+          BaleineHealOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
       ]);
     },
   ));
