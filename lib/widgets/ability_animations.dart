@@ -3,7 +3,7 @@
 // Chaque widget affiche un effet visuel plein écran lié à une capacité de
 // personnage, puis appelle onDone() une fois l'animation terminée.
 
-import 'dart:math' show sin, cos, Random;
+import 'dart:math' show sin, cos, pi, Random;
 import 'package:flutter/material.dart';
 import '../widgets/theme.dart';
 
@@ -1802,6 +1802,75 @@ class BaleineHealState extends State<BaleineHealOverlay>
             ])))),
       ]),
     )));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CHRISTINE — une boussole/carte tourne puis se fige sur la direction
+// choisie, déplacement instantané
+// ═══════════════════════════════════════════════════════════════════
+class ChristineMapOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const ChristineMapOverlay({required this.onDone});
+  @override State<ChristineMapOverlay> createState() => ChristineMapState();
+}
+
+class ChristineMapState extends State<ChristineMapOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity;
+  late Animation<double> _spin;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1600));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 55),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    // La boussole tourne vite puis ralentit et se fige (courbe decelerate).
+    _spin = Tween<double>(begin: 0, end: 6 * pi).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0, 0.55, curve: Curves.decelerate)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Container(
+          color: Colors.black38,
+          child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Transform.rotate(
+              angle: _spin.value,
+              child: const Text('🧭', style: TextStyle(fontSize: 64)),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF66BB6A))),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('🗺️ CHRISTINE', style: cinzel(16, c: const Color(0xFF81C784),
+                  fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Se déplace directement vers sa destination',
+                  style: body(12, c: Colors.white)),
+              ]),
+            ),
+          ])),
+        ),
+      ))),
+    );
   }
 }
 

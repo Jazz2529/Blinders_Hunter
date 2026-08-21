@@ -317,8 +317,15 @@ class GameProvider extends ChangeNotifier {
       final needsTarget = _abilityNeedsTarget(eff);
       Player? target;
       if (needsTarget) target = _ai.bestTarget(bot, all, _botDifficulty, context: eff);
+      // Christine (bot) : tire une zone adjacente au hasard elle-même, puisque
+      // le moteur exige désormais un choix explicite (humain OU bot).
+      String? extraParam;
+      if (eff == 'move_adjacent_choice') {
+        final adjZones = kAdjacences[bot.zoneIndex];
+        extraParam = adjZones[Random().nextInt(adjZones.length)].toString();
+      }
       if (target != null || !needsTarget) {
-        final abLog = _eg.applyAbility(bot, all, layout, target: target);
+        final abLog = _eg.applyAbility(bot, all, layout, target: target, extra: extraParam);
         if (abLog == 'draw_dark' || abLog == 'draw_light') {
           _eg.applyDeathPassives(all);
           await _commitAll(all, '');
@@ -340,6 +347,16 @@ class GameProvider extends ChangeNotifier {
         } else if (abLog == 'trigger_terrain') {
           _eg.applyDeathPassives(all);
           await _commitAll(all, "🧌 ${bot.name} subit 1 blessure → réactive l'effet du terrain");
+          await _botApplyTerrainEffect(botUid);
+          all = _mutableAll();
+          bot = all.where((p) => p.uid == botUid).firstOrNull;
+          if (bot == null || !bot.alive) return;
+        } else if (abLog != null && abLog.startsWith('christine_moved:')) {
+          final movedZone = int.parse(abLog.split(':')[1]);
+          _eg.applyDeathPassives(all);
+          await _commitAll(all, '🗺️ ${bot.name} se déplace directement vers ${layout[movedZone].name}');
+          await _fb.setPhase(roomId!, GamePhase.attack, abilityOverlay: 'christine_map');
+          await Future.delayed(const Duration(milliseconds: 700));
           await _botApplyTerrainEffect(botUid);
           all = _mutableAll();
           bot = all.where((p) => p.uid == botUid).firstOrNull;
@@ -955,6 +972,22 @@ class GameProvider extends ChangeNotifier {
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
   }
 
+  /// Christine : résout le choix de zone adjacente — se déplace directement.
+  /// Comme pour Richard II / la Voiture de Clémence, la phase passe à
+  /// `zoneEffect` et c'est le joueur qui presse ensuite le bouton "Appliquer
+  /// l'effet du terrain" (pas d'auto-résolution ici).
+  Future<void> christineChooseZone(int zoneIdx) async {
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout, extra: zoneIdx.toString());
+    if (log == 'christine_zone_choice') return; // zone invalide, sécurité
+    actor.abilityUsed = true;
+    _eg.applyDeathPassives(all);
+    await _commitAll(all, '🗺️ ${actor.name} se déplace directement vers ${gameState!.terrainLayout[zoneIdx].name}');
+    await _fb.setPhase(roomId!, GamePhase.zoneEffect, clearPending: true,
+        richardActivateZone: zoneIdx, abilityOverlay: 'christine_map');
+  }
+
   /// Baptiste étape 1 : cible choisie (un joueur mort) — passe à l'étape
   /// "montant à sacrifier" plutôt que de résoudre directement.
   Future<void> baptisteChooseTarget(Player target) async {
@@ -1081,6 +1114,12 @@ class GameProvider extends ChangeNotifier {
       // Meg : ouvre l'écran de choix (Offensive/Défensive) — résolu ensuite
       // via megChooseForm(), pas ici (aucun target n'a encore été choisi).
       await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: 'meg_choice');
+      return;
+    }
+    if (log == 'christine_zone_choice') {
+      // Christine : ouvre l'écran de choix de zone adjacente — résolu ensuite
+      // via christineChooseZone(), pas ici (aucune zone n'a encore été choisie).
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: 'christine_zone_choice');
       return;
     }
     if (log.startsWith('tommy_copied:')) {

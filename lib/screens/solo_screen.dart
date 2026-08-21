@@ -541,6 +541,11 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
             ctrl.state!.abilityOverlay = null;
             ctrl.notifyListeners();
           }),
+        if (overlay == 'christine_map')
+          ChristineMapOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
       ]);
     },
   ));

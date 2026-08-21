@@ -500,7 +500,14 @@ class SoloController extends ChangeNotifier {
       } else if (needsTarget) {
         target = _ai.bestTarget(bot, state!.players, difficulty);
       }
-      final log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: target);
+      // Christine (bot) : tire une zone adjacente au hasard elle-même, puisque
+      // le moteur exige désormais un choix explicite (humain OU bot).
+      String? extraParam;
+      if (bot.character!.abilityEffect == 'move_adjacent_choice') {
+        final adjZones = kAdjacences[bot.zoneIndex];
+        extraParam = adjZones[_rng.nextInt(adjZones.length)].toString();
+      }
+      final log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: target, extra: extraParam);
       abilityLog = log;
       if (log == 'draw_dark' || log == 'draw_light') {
         // Monkey Raph / Élise : piocher ET résoudre immédiatement pour le bot
@@ -597,6 +604,7 @@ class SoloController extends ChangeNotifier {
     // Christine : déjà déplacée via son pouvoir — ne pas relancer les dés
     // de déplacement normal, elle a choisi sa zone directement.
     final skipNormalMove = abilityLog?.startsWith('christine_moved:') ?? false;
+    if (skipNormalMove) state!.abilityOverlay = 'christine_map';
     int zoneIdx = bot.zoneIndex; // déjà à jour si Christine a bougé
 
     // Déplacement
@@ -1970,6 +1978,7 @@ class SoloController extends ChangeNotifier {
     }
     p.zoneIndex = zoneIdx;
     s.pendingTargetAction = null;
+    s.abilityOverlay = 'christine_map';
     _log('🗺️ Christine se déplace directement vers ${s.terrainLayout[zoneIdx].name}', cls: 'player');
     humanApplyTerrainEffect(nextPhaseIfDefault: GamePhase.attack, zoneOverride: zoneIdx);
   }

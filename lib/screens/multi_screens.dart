@@ -587,6 +587,7 @@ class _GameScreenState extends State<GameScreen> {
         if (overlay == 'amelia_light')        AmeliaLightOverlay(onDone: clearOverlay),
         if (overlay == 'albane_clock')        AlbaneClockOverlay(onDone: clearOverlay),
         if (overlay == 'baleine_heal')        BaleineHealOverlay(onDone: clearOverlay),
+        if (overlay == 'christine_map')       ChristineMapOverlay(onDone: clearOverlay),
         turnBanner,
         burningRope,
         revealQuoteBanner,
@@ -1517,6 +1518,13 @@ class _ActionPanelState extends State<_ActionPanel> {
         if (pta == 'meg_choice') {
           if (gp.isMyTurn) return [_MultiMegChoiceWidget(gp: gp)];
           return [Text('🐺 ${gp.currentPlayer?.name ?? "Meg"} choisit sa forme…',
+            style: cinzel(13, c: kGold))];
+        }
+        // Christine : afficher les zones adjacentes proposées — seulement
+        // au joueur concerné, les autres attendent.
+        if (pta == 'christine_zone_choice') {
+          if (gp.isMyTurn) return [_MultiChristineZoneWidget(gp: gp)];
+          return [Text('🗺️ ${gp.currentPlayer?.name ?? "Christine"} choisit sa zone…',
             style: cinzel(13, c: kGold))];
         }
         // Hailey : afficher les 3 Hunters proposés — seulement au joueur
@@ -2871,6 +2879,40 @@ class _MultiHaileyChoiceWidget extends StatelessWidget {
             ),
           ),
         )),
+      ]),
+    );
+  }
+}
+
+class _MultiChristineZoneWidget extends StatelessWidget {
+  final GameProvider gp;
+  const _MultiChristineZoneWidget({required this.gp});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final myZoneIdx = gp.me?.zoneIndex ?? 0;
+    final adj = kAdjacences[myZoneIdx];
+    final layout = gp.gameState?.terrainLayout ?? const [];
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: surfaceDecor(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('🗺️ Christine — Choisissez votre prochain terrain', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
+        const SizedBox(height: 12),
+        ...adj.map((idx) {
+          final terrain = idx < layout.length ? layout[idx] : null;
+          final playersHere = (gp.gameState?.playerOrder ?? const [])
+              .map((uid) => gp.players[uid])
+              .where((p) => p != null && p.alive && p.zoneIndex == idx)
+              .map((p) => p!.token).join(' ');
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: BHButton(
+              label: 'Zone ${idx + 1} — ${terrain?.icon ?? ""} ${terrain?.name ?? ""}${playersHere.isNotEmpty ? "  ($playersHere)" : ""}',
+              onTap: () => gp.christineChooseZone(idx),
+            ),
+          );
+        }),
       ]),
     );
   }

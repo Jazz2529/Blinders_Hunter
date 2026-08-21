@@ -513,14 +513,16 @@ class GameEngine with AbilityEngine {
         ));
         return '🛠️ ${actor.name} fabrique son équipement personnalisé';
 
-      // ── Christine (bot) : choisit une zone adjacente au hasard, s'y
-      // déplace directement — le contrôleur (bot) gère l'activation du
-      // terrain et la suite du tour, ce case ne fait QUE le déplacement.
+      // ── Christine : choisit une zone adjacente (humain) ou zone fournie
+      // par l'appelant (bot — voir solo_controller.dart / game_provider.dart
+      // qui tirent un adjacent au hasard et le passent via `extra`).
       case 'move_adjacent_choice':
         final adjZones = kAdjacences[actor.zoneIndex];
-        final chosen = adjZones[_rng.nextInt(adjZones.length)];
-        actor.zoneIndex = chosen;
-        return 'christine_moved:$chosen';
+        if (extra == null) return 'christine_zone_choice'; // signal : ouvrir le sélecteur de zone
+        final chosenZone = int.tryParse(extra);
+        if (chosenZone == null || !adjZones.contains(chosenZone)) return 'christine_zone_choice';
+        actor.zoneIndex = chosenZone;
+        return 'christine_moved:$chosenZone';
 
       // ── Baptiste : se sacrifie pour ramener un joueur mort à la vie ──
       case 'baptiste_revive':
