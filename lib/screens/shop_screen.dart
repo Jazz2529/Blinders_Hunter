@@ -2,6 +2,7 @@
 // Boutique — dépenser l'or gagné en partie pour débloquer des illustrations
 // alternatives (personnages, jetons, terrains).
 
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import '../widgets/theme.dart';
@@ -9,6 +10,9 @@ import '../data/cosmetics_data.dart';
 import '../data/characters_data.dart';
 import '../data/game_data.dart';
 import '../services/persistence.dart';
+
+const int kChestCost = 100;
+const int kChestItemCount = 2;
 
 class ShopScreen extends StatefulWidget {
   const ShopScreen({super.key});
@@ -60,6 +64,36 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
     _refresh();
   }
 
+  /// Coffre Mystère : 100 or → 2 cosmétiques aléatoires parmi ceux que le
+  /// joueur ne possède pas encore (toutes catégories confondues). S'il en
+  /// reste moins de 2, en donne autant que possible. Affiche un petit
+  /// écran de révélation une fois l'achat effectué.
+  void _openChest() {
+    final remaining = kCosmeticsCatalog.where((c) => !owned.contains(c.id)).toList();
+    if (remaining.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tu as déjà tout débloqué — plus rien à trouver dans le coffre !')));
+      return;
+    }
+    if (!Prefs.spendGold(kChestCost)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Pas assez d\'or — il te manque ${kChestCost - gold} 🪙'),
+          backgroundColor: kRed));
+      return;
+    }
+    remaining.shuffle(Random());
+    final won = remaining.take(kChestItemCount).toList();
+    for (final item in won) {
+      Prefs.unlockCosmetic(item.id);
+      if (item.category != CosmeticCategory.token) {
+        Prefs.equipCosmetic(item.slotKey, item.id);
+      }
+    }
+    _refresh();
+    showDialog(context: context, barrierColor: Colors.black.withValues(alpha: 0.88),
+      builder: (dctx) => _ChestRevealDialog(items: won));
+  }
+
   @override
   Widget build(BuildContext ctx) {
     return Scaffold(
@@ -102,14 +136,17 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tab,
-        children: [
-          _grid(CosmeticCategory.character),
-          _grid(CosmeticCategory.token),
-          _grid(CosmeticCategory.terrain),
-        ],
-      ),
+      body: Column(children: [
+        _ChestBanner(gold: gold, onOpen: _openChest),
+        Expanded(child: TabBarView(
+          controller: _tab,
+          children: [
+            _grid(CosmeticCategory.character),
+            _grid(CosmeticCategory.token),
+            _grid(CosmeticCategory.terrain),
+          ],
+        )),
+      ]),
     );
   }
 
@@ -221,3 +258,195 @@ class _ShopCard extends StatelessWidget {
     );
   }
 }
+
+// ─── Bandeau Coffre Mystère ─────────────────────────────────────────────────
+// Affiché au-dessus des 3 onglets (Personnages/Jetons/Terrains) puisqu'un
+// coffre peut donner un objet de N'IMPORTE quelle catégorie.
+class _ChestBanner extends StatelessWidget {
+  final int gold;
+  final VoidCallback onOpen;
+  const _ChestBanner({required this.gold, required this.onOpen});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final canAfford = gold >= kChestCost;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [
+          kGold.withValues(alpha: 0.18), kBg2,
+        ], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kGold, width: 1.5),
+      ),
+      child: Row(children: [
+        Text('🎁', style: const TextStyle(fontSize: 32)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Coffre Mystère', style: cinzel(14, c: kGold2, fw: FontWeight.w900),
+              maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 2),
+            Text('$kChestItemCount cosmétiques aléatoires parmi ceux que tu n\'as pas encore',
+              style: body(10, c: kTextSub), maxLines: 2, overflow: TextOverflow.ellipsis),
+          ]),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 90,
+          child: BHButton(
+            label: '$kChestCost 🪙',
+            danger: !canAfford,
+            onTap: canAfford ? onOpen : null,
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ─── Révélation du contenu du coffre ────────────────────────────────────────
+class _ChestRevealDialog extends StatefulWidget {
+  final List<CosmeticItem> items;
+  const _ChestRevealDialog({required this.items});
+
+  @override
+  State<_ChestRevealDialog> createState() => _ChestRevealDialogState();
+}
+
+class _ChestRevealDialogState extends State<_ChestRevealDialog> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    // Timeline (0.0 → 1.0) :
+    //   0.00–0.45 : le coffre tremble (anticipation)
+    //   0.40–0.55 : éclat doré + le coffre "s'ouvre" (icône qui change)
+    //   0.50–1.00 : les objets apparaissent l'un après l'autre (décalés)
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))..forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  String _labelFor(CosmeticItem item) {
+    if (item.category == CosmeticCategory.character) {
+      return kAllCharacters.where((c) => c.id == item.targetId).firstOrNull?.name ?? item.targetId;
+    }
+    if (item.category == CosmeticCategory.terrain) {
+      return kAllTerrains.where((t) => t.effect == item.targetId).firstOrNull?.name ?? item.targetId;
+    }
+    return 'Jeton';
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    return GestureDetector(
+      onTap: () => Navigator.pop(ctx),
+      behavior: HitTestBehavior.opaque,
+      child: Center(
+        child: Container(
+          width: 340,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: kBg2, borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: kGold, width: 2)),
+          child: AnimatedBuilder(
+            animation: _ctrl,
+            builder: (_, __) {
+              final t = _ctrl.value;
+              final shakeT = (t / 0.45).clamp(0.0, 1.0);
+              final burstT = ((t - 0.40) / 0.15).clamp(0.0, 1.0);
+              final revealT = ((t - 0.50) / 0.50).clamp(0.0, 1.0);
+              final opened = t >= 0.45;
+
+              // Secousse : oscillation qui s'amortit à l'approche de l'ouverture.
+              final shakeAngle = shakeT < 1.0 ? sin(shakeT * pi * 6) * (1 - shakeT) * 0.18 : 0.0;
+
+              return Column(mainAxisSize: MainAxisSize.min, children: [
+                SizedBox(
+                  height: 90,
+                  child: Stack(alignment: Alignment.center, children: [
+                    // Éclat doré au moment de l'ouverture
+                    Opacity(
+                      opacity: burstT * (1 - burstT) * 4, // monte puis redescend vite
+                      child: Container(
+                        width: 140, height: 140,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(colors: [
+                            kGold.withValues(alpha: 0.55), kGold.withValues(alpha: 0),
+                          ]),
+                        ),
+                      ),
+                    ),
+                    Transform.rotate(
+                      angle: shakeAngle,
+                      child: Transform.scale(
+                        scale: 1.0 + burstT * 0.35,
+                        child: Text(opened ? '📦' : '🎁', style: const TextStyle(fontSize: 56)),
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 8),
+                Text(opened ? 'Coffre ouvert !' : 'Ouverture...',
+                  style: cinzel(18, c: kGold2, fw: FontWeight.w900)),
+                const SizedBox(height: 16),
+                if (widget.items.isEmpty)
+                  Opacity(opacity: revealT,
+                    child: Text('Aucun objet obtenu (déjà tout débloqué).', style: body(12, c: kTextDim)))
+                else ...List.generate(widget.items.length, (i) {
+                  final item = widget.items[i];
+                  // Décale l'apparition de chaque objet l'un après l'autre.
+                  final start = i * 0.4;
+                  final itemT = ((revealT - start) / (1 - start)).clamp(0.0, 1.0);
+                  return Opacity(
+                    opacity: itemT,
+                    child: Transform.scale(
+                      scale: 0.6 + 0.4 * Curves.easeOutBack.transform(itemT),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: kBg3, borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: kGold.withValues(alpha: 0.5))),
+                        child: Row(children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.asset(item.imagePath, width: 52, height: 52, fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 52, height: 52, color: kBg1,
+                                child: Center(child: Text('🖼️', style: TextStyle(color: kTextDim.withValues(alpha: 0.5))))),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(item.name, style: cinzel(12, c: kGold2, fw: FontWeight.w700)),
+                            if (item.category != CosmeticCategory.token)
+                              Text(_labelFor(item), style: body(10, c: kTextSub)),
+                          ])),
+                        ]),
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 8),
+                Opacity(
+                  opacity: revealT >= 1.0 ? 1.0 : 0.0,
+                  child: Text('Touche l\'écran pour fermer', style: body(11, c: kTextDim)),
+                ),
+              ]);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+

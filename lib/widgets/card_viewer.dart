@@ -11,7 +11,7 @@ import 'shine_effect.dart';
 /// panneau d'infos : nom, faction, PV, capacité et condition de victoire.
 /// Sur écran étroit (téléphone), l'illustration passe au-dessus du texte.
 /// Tap n'importe où pour fermer.
-Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride, int? oscarXpOverride, String? maximeTargetName}) {
+Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride, int? oscarXpOverride, String? maximeTargetName, String? megFormOverride}) {
   return showDialog(
     context: ctx,
     barrierColor: Colors.black.withValues(alpha: 0.88),
@@ -23,8 +23,8 @@ Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverr
         behavior: HitTestBehavior.opaque,
         child: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName)
-                   : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName),
+            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride)
+                   : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride),
             const SizedBox(height: 12),
             Text('Touche l\'écran pour fermer', style: body(12, c: kTextDim)),
           ]),
@@ -211,7 +211,8 @@ class _WideLayout extends StatelessWidget {
   final int? hpOverride;
   final int? oscarXpOverride;
   final String? maximeTargetName;
-  const _WideLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName});
+  final String? megFormOverride;
+  const _WideLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride});
 
   @override
   Widget build(BuildContext ctx) {
@@ -230,7 +231,7 @@ class _WideLayout extends StatelessWidget {
       SizedBox(width: 320,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: imgH),
-          child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName),
+          child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride),
         )),
     ]);
   }
@@ -243,7 +244,8 @@ class _NarrowLayout extends StatelessWidget {
   final int? hpOverride;
   final int? oscarXpOverride;
   final String? maximeTargetName;
-  const _NarrowLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName});
+  final String? megFormOverride;
+  const _NarrowLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride});
 
   @override
   Widget build(BuildContext ctx) {
@@ -260,7 +262,7 @@ class _NarrowLayout extends StatelessWidget {
       child: Column(children: [
         _CardImage(c: c, w: imgW, h: imgH),
         const SizedBox(height: 12),
-        Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName)),
+        Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride)),
       ]),
     );
   }
@@ -315,7 +317,8 @@ class _InfoPanel extends StatelessWidget {
   final int? hpOverride;
   final int? oscarXpOverride;
   final String? maximeTargetName;
-  const _InfoPanel({required this.c, required this.fc, this.hpOverride, this.oscarXpOverride, this.maximeTargetName});
+  final String? megFormOverride;
+  const _InfoPanel({required this.c, required this.fc, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride});
 
   @override
   Widget build(BuildContext ctx) {
@@ -378,6 +381,24 @@ class _InfoPanel extends StatelessWidget {
                     border: Border.all(color: kRed, width: 1.5)),
                   child: Text('🎯 Cible : $maximeTargetName',
                     style: cinzel(13, c: kRed, fw: FontWeight.w900)),
+                )),
+              ],
+              // Meg : forme actuelle (Offensive/Défensive) — info PUBLIQUE,
+              // visible de tous les joueurs dès qu'elle est révélée, contrairement
+              // à la cible de Maxime qui reste privée.
+              if (megFormOverride != null) ...[
+                const SizedBox(height: 8),
+                Center(child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: (megFormOverride == 'offense' ? kRed : kGreen).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: megFormOverride == 'offense' ? kRed : kGreen, width: 1.5)),
+                  child: Text(
+                    megFormOverride == 'offense'
+                        ? '⚔️ Forme actuelle : Offensive (+1 infligé)'
+                        : '🛡️ Forme actuelle : Défensive (-1 reçu)',
+                    style: cinzel(13, c: megFormOverride == 'offense' ? kRed : kGreen, fw: FontWeight.w900)),
                 )),
               ],
               const SizedBox(height: 16),

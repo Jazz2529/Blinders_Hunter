@@ -1957,7 +1957,8 @@ class _HpLeaderboard extends StatelessWidget {
       showFullCardDialog(ctx, displayChar, hpOverride: displayChar.hp + p.maxHpModifier,
         oscarXpOverride: displayChar.id == 'oscar' ? p.oscarXp : null,
         maximeTargetName: (isMe && displayChar.id == 'maxime')
-          ? (maximeTarget?.name ?? 'Personne pour le moment') : null).then((_) {
+          ? (maximeTarget?.name ?? 'Personne pour le moment') : null,
+        megFormOverride: displayChar.abilityEffect == 'meg_shapeshift' ? p.megForm : null).then((_) {
         if ((p.equipment.isNotEmpty || isNils) && ctx.mounted) _showEquipmentForSolo(ctx, p);
       });
     } else {

@@ -1054,14 +1054,22 @@ class GameEngine with AbilityEngine {
     // Tom : dégâts bonus PERMANENTS cumulés (+2 par Shadow éliminé).
     if (dmg > 0 && attacker.tomBonusDmg > 0) dmg += attacker.tomBonusDmg;
 
+    // Toge Sainte (porteur = attaquant) : vos propres attaques infligent 1
+    // blessure de moins — appliqué EN DERNIER, après TOUS les bonus
+    // d'attaque ci-dessus (dague, Meg forme Offensive, Mathieu, Tom, etc.),
+    // pour que le malus réduise bien le total final plutôt que d'être
+    // écrasé par un bonus qui s'appliquerait après lui.
+    if (attacker.sainteTunique) dmg = max(0, dmg - 1);
+
     // Protection cible
     if (target.invulnerable) return {'log': '🛡 ${target.name} est invulnérable — attaque bloquée'};
     if (target.fifiAutomneShield) {
       target.fifiAutomneShield = false;
       return {'log': "🍂 Fifi d'Automne annule l'attaque !"};
     }
-    // Sainte tunique cible: -1 reçu
-    if (target.sainteTunique) dmg = max(0, dmg - 1);
+    // Sainte tunique cible: -1 reçu — géré une seule fois dans applyDamage()
+    // (sinon la réduction s'appliquait deux fois pendant une attaque : ici
+    // ET à nouveau dans applyDamage, ce qui faisait -2 au lieu de -1).
     // Vache cible: -1 reçu
     if ((target.copiedEffect ?? target.character?.abilityEffect ?? '') == 'reduce_all_by1') dmg = max(0, dmg - 1);
     // Inès passive: -1 reçu
@@ -1261,10 +1269,10 @@ class GameEngine with AbilityEngine {
     }
     // Tom : dégâts bonus PERMANENTS cumulés (+2 par Shadow éliminé).
     if (dmg > 0 && attacker.tomBonusDmg > 0) dmg += attacker.tomBonusDmg;
-    // NOTE : la réduction de la Sainte Tunique se fait déjà correctement DANS
-    // applyDamage() en vérifiant le porteur qui SUBIT les dégâts (la cible),
-    // pas l'attaquant — une ligne ici vérifiait à tort la Tunique de
-    // l'ATTAQUANT. Supprimée (voir resolveAttackFull pour la même correction).
+    // Toge Sainte (porteur = attaquant) : vos propres attaques infligent 1
+    // blessure de moins — appliqué EN DERNIER, après tous les bonus
+    // d'attaque ci-dessus, comme dans resolveAttackFull.
+    if (attacker.sainteTunique) dmg = max(0, dmg - 1);
     // Fourrure de Chaussette : renvoie l'attaque sur l'attaquant lui-même
     if (target.equipment.any((e) => e.effect == 'mirror_damage') || target.mirrorDamage) {
       final reflected = applyDamage(attacker, dmg);

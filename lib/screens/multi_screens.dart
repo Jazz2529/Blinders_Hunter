@@ -887,7 +887,8 @@ class _PlayerRow extends StatelessWidget {
     return showFullCardDialog(ctx, shown, hpOverride: shown.hp + p.maxHpModifier,
       oscarXpOverride: shown.id == 'oscar' ? p.oscarXp : null,
       maximeTargetName: (isMe && shown.id == 'maxime')
-        ? (maximeTarget?.name ?? 'Personne pour le moment') : null);
+        ? (maximeTarget?.name ?? 'Personne pour le moment') : null,
+      megFormOverride: shown.abilityEffect == 'meg_shapeshift' ? p.megForm : null);
   }
 
   @override
@@ -1342,7 +1343,8 @@ class _ActionPanelState extends State<_ActionPanel> {
               if (ctx.mounted && gp.me?.character != null) {
                 showFullCardDialog(ctx, gp.me!.character!,
                   hpOverride: gp.me!.character!.hp + gp.me!.maxHpModifier,
-                  oscarXpOverride: gp.me!.character!.id == 'oscar' ? gp.me!.oscarXp : null);
+                  oscarXpOverride: gp.me!.character!.id == 'oscar' ? gp.me!.oscarXp : null,
+                  megFormOverride: gp.me!.character!.abilityEffect == 'meg_shapeshift' ? gp.me!.megForm : null);
               }
             }),
           if ((me?.copiedEffect ?? me?.character?.abilityEffect) == 'double_move_dice' && me?.revealed == true)
@@ -3337,7 +3339,8 @@ class _PlayerChip extends StatelessWidget {
           if ((p.revealed || !p.alive) && c != null) {
             final shownChip = disguisedCharChip ?? c;
             await showFullCardDialog(ctx, shownChip, hpOverride: displayMaxHp,
-              oscarXpOverride: shownChip.id == 'oscar' ? p.oscarXp : null);
+              oscarXpOverride: shownChip.id == 'oscar' ? p.oscarXp : null,
+              megFormOverride: shownChip.abilityEffect == 'meg_shapeshift' ? p.megForm : null);
           } else {
             await showMysteryCardDialog(ctx, p);
           }
