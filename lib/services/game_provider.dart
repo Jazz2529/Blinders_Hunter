@@ -624,7 +624,7 @@ class GameProvider extends ChangeNotifier {
     }
     actor.copiedEffect = chosen.abilityEffect;
     await _commitAll(all, '📖 ${actor.name} copie le pouvoir de ${chosen.name} : ${chosen.ability}');
-    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, haileyOffered: const []);
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, haileyOffered: const [], abilityOverlay: 'hailey_copy');
   }
 
   Future<void> revealSelf() async {
@@ -903,6 +903,7 @@ class GameProvider extends ChangeNotifier {
     'heal_on_same_terrain': 'augustin_wheat',
     'heal_per_equip_eot': 'fijacked_city',
     'shield3': 'louna_shield',
+    'lock_ability_while_alive': 'ines_lock',
   };
 
   /// Extrait le résultat d'un dé depuis un log de type "...D4(3)..." ou "...D6(5)..."
@@ -1020,14 +1021,14 @@ class GameProvider extends ChangeNotifier {
       final ended = await _checkWin(all, justDiedId: actor.uid);
       if (ended) return;
       await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
-          baptisteTargetUid: '__clear__');
+          baptisteTargetUid: '__clear__', abilityOverlay: 'baptiste_revive');
       await endTurn(actingUid: actor.uid);
       return;
     }
     final ended = await _checkWin(all);
     if (ended) return;
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
-        baptisteTargetUid: '__clear__');
+        baptisteTargetUid: '__clear__', abilityOverlay: 'baptiste_revive');
   }
 
   /// Albane : marque abilityUsed après avoir choisi son lancer.
@@ -1069,7 +1070,7 @@ class GameProvider extends ChangeNotifier {
       effect: 'remi_custom:$choice1,$choice2',
     ));
     await _commitAll(all, '🛠️ ${actor.name} fabrique son équipement personnalisé : "$label1" + "$label2"');
-    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, abilityOverlay: 'remi_craft');
   }
 
   Future<void> useAbility({Player? target}) async {
@@ -1087,7 +1088,7 @@ class GameProvider extends ChangeNotifier {
     }
     if (log == 'draw_light') {
       // Élise : retourner en déplacement après la carte
-      await _fb.setPhase(roomId!, gameState!.phase, peioReturnToMove: true);
+      await _fb.setPhase(roomId!, gameState!.phase, peioReturnToMove: true, abilityOverlay: 'elise_light');
       await drawCard(DeckType.lumiere);
       return;
     }

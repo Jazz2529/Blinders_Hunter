@@ -590,6 +590,11 @@ class _GameScreenState extends State<GameScreen> {
         if (overlay == 'christine_map')       ChristineMapOverlay(onDone: clearOverlay),
         if (overlay == 'clemence_forge')      ClemenceForgeOverlay(onDone: clearOverlay),
         if (overlay == 'elaia_vision')        ElaiaVisionOverlay(onDone: clearOverlay),
+        if (overlay == 'elise_light')         EliseLightOverlay(onDone: clearOverlay),
+        if (overlay == 'baptiste_revive')     BaptisteReviveOverlay(onDone: clearOverlay),
+        if (overlay == 'hailey_copy')         HaileyCopyOverlay(onDone: clearOverlay),
+        if (overlay == 'remi_craft')          RemiCraftOverlay(onDone: clearOverlay),
+        if (overlay == 'ines_lock')           InesLockOverlay(onDone: clearOverlay),
         turnBanner,
         burningRope,
         revealQuoteBanner,
@@ -1020,6 +1025,10 @@ class _PlayerRow extends StatelessWidget {
           // Luc : joueur en feu — visible de tous.
           if (p.alive && p.lucFireTurnsRemaining > 0)
             Text('🔥 ${p.lucFireTurnsRemaining}', style: cinzel(9, c: kRed, fw: FontWeight.w900)),
+          // Inès : capacité verrouillée — info PUBLIQUE, visible de tous
+          // tant que le verrou est actif (Inès en vie).
+          if (p.alive && p.abilityLockedByUid != null)
+            const Text('🔒', style: TextStyle(fontSize: 11)),
           // Victor : cœur visible UNIQUEMENT si c'est LUI (le joueur
           // connecté sur CET appareil) qui a charmé CE joueur à 100% —
           // strictement privé pour n'importe qui d'autre.
@@ -3431,6 +3440,10 @@ class _PlayerChip extends StatelessWidget {
             // Luc : joueur en feu — visible de tous.
             if (p.alive && p.lucFireTurnsRemaining > 0)
               Text('🔥${p.lucFireTurnsRemaining}', style: body(8, c: kRed)),
+            // Inès : capacité verrouillée — info PUBLIQUE, visible de tous
+            // tant que le verrou est actif (Inès en vie).
+            if (p.alive && p.abilityLockedByUid != null)
+              Text('🔒', style: body(9, c: kTextSub)),
             // Victor : cœur visible UNIQUEMENT si c'est LUI (le joueur
             // connecté sur CET appareil) qui a charmé CE joueur à 100%.
             Builder(builder: (_) {

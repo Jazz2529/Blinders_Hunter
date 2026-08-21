@@ -1172,6 +1172,7 @@ class SoloController extends ChangeNotifier {
         target.abilityLockedByUid = p.uid;
         p.abilityUsed = true;
         s.pendingTargetAction = null;
+        s.abilityOverlay = 'ines_lock';
         _log('🔒 ${p.name} verrouille la capacité de ${target.name} tant qu\'elle est en vie', cls: 'player');
         if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
@@ -1703,7 +1704,7 @@ class SoloController extends ChangeNotifier {
         final special = res['special'] as String?;
         // Spéciaux fréquents
         if (special == 'draw_dark')  { s.peioReturnToMove = true; humanDrawCard(DeckType.tenebres); return; }
-        if (special == 'draw_light') { s.peioReturnToMove = true; humanDrawCard(DeckType.lumiere); return; }
+        if (special == 'draw_light') { s.peioReturnToMove = true; s.abilityOverlay = 'elise_light'; humanDrawCard(DeckType.lumiere); return; }
         if (special == 'trigger_terrain') { humanApplyTerrainEffect(); return; }
         if (special == 'skip_move')       { s.skipMovement = true; s.phase = GamePhase.zoneEffect; notifyListeners(); return; }
         if (special == 'skip_turn')       { s.phase = GamePhase.attack; notifyListeners(); return; }
@@ -1786,6 +1787,7 @@ class SoloController extends ChangeNotifier {
     p.abilityUsed = true; // unique
     _baptisteTargetUid = null;
     s.pendingTargetAction = null;
+    s.abilityOverlay = 'baptiste_revive';
     _eg.applyDeathPassives(s.players);
     if (!p.alive) {
       // Sacrifice total : Baptiste vient de mourir en ramenant l'autre à
@@ -1883,6 +1885,7 @@ class SoloController extends ChangeNotifier {
       effect: 'remi_custom:$choice1,$choice2',
     ));
     state!.pendingTargetAction = null;
+    state!.abilityOverlay = 'remi_craft';
     _log('🛠️ ${p.name} fabrique son équipement personnalisé : "$label1" + "$label2"', cls: 'player');
     state!.phase = GamePhase.move; notifyListeners();
   }
@@ -1900,6 +1903,7 @@ class SoloController extends ChangeNotifier {
     // pas l'UTILISER. S'il s'agit d'un pouvoir unique, c'est la fonction qui
     // le RÉSOUT (ex: remiCraftEquipment) qui marquera abilityUsed=true, au
     // moment où Hailey l'active réellement — pas au moment où elle le copie.
+    state!.abilityOverlay = 'hailey_copy';
     _log('📖 ${p.name} copie le pouvoir de ${chosen.name} : ${chosen.ability}', cls: 'player');
     state!.phase = GamePhase.move; notifyListeners();
   }

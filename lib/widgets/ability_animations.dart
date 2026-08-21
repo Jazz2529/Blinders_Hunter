@@ -2038,5 +2038,405 @@ class ElaiaVisionState extends State<ElaiaVisionOverlay>
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// ÉLISE — un rayon de lumière sacrée descend, une carte Lumière
+// se matérialise
+// ═══════════════════════════════════════════════════════════════════
+class EliseLightOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const EliseLightOverlay({required this.onDone});
+  @override State<EliseLightOverlay> createState() => EliseLightState();
+}
+
+class EliseLightState extends State<EliseLightOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _beamHeight, _cardRise;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 1800));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 55),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    _beamHeight = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0, 0.4, curve: Curves.easeOut)));
+    _cardRise = Tween<double>(begin: 30, end: 0).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.3, 0.7, curve: Curves.easeOutBack)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    final cx = size.width / 2;
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(color: Colors.black45),
+          // Rayon vertical qui descend
+          Positioned(left: cx - 40, top: 0,
+            child: Container(width: 80, height: size.height * 0.5 * _beamHeight.value,
+              decoration: BoxDecoration(gradient: LinearGradient(
+                begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xFFFFF8E1).withValues(alpha: 0.0),
+                  const Color(0xFFFFF8E1).withValues(alpha: 0.55),
+                ])))),
+          Positioned(left: 0, right: 0, top: size.height * 0.30,
+            child: Center(child: Transform.translate(
+              offset: Offset(0, _cardRise.value),
+              child: const Text('🎴', style: TextStyle(fontSize: 56,
+                shadows: [Shadow(color: Color(0xFFFFF8E1), blurRadius: 20)])),
+            ))),
+          Positioned(left: 0, right: 0, top: size.height * 0.50,
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFFD54F))),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('⛪ ÉLISE', style: cinzel(16, c: const Color(0xFFFFE082),
+                  fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Pioche une carte Lumière',
+                  style: body(12, c: Colors.white)),
+              ])))),
+        ]),
+      ))),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BAPTISTE — croix qui saigne de lumière, une silhouette se relève
+// dans un halo blanc
+// ═══════════════════════════════════════════════════════════════════
+class BaptisteReviveOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const BaptisteReviveOverlay({required this.onDone});
+  @override State<BaptisteReviveOverlay> createState() => BaptisteReviveState();
+}
+
+class BaptisteReviveState extends State<BaptisteReviveOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _rise, _glow;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 2400));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 12),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 58),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    // La silhouette "se relève" (monte depuis le bas)
+    _rise = Tween<double>(begin: 40, end: 0).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.15, 0.6, curve: Curves.easeOutCubic)));
+    _glow = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0, 0.5, curve: Curves.easeIn)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(decoration: BoxDecoration(gradient: RadialGradient(
+            center: Alignment.center, radius: 0.9,
+            colors: [
+              Colors.white.withValues(alpha: 0.20 * _glow.value),
+              Colors.transparent,
+            ]))),
+          Positioned(left: 0, right: 0, top: size.height * 0.28,
+            child: Center(child: Text('✝️', style: TextStyle(fontSize: 46,
+              shadows: [Shadow(color: Colors.white.withValues(alpha: _glow.value), blurRadius: 22)])))),
+          Positioned(left: 0, right: 0, top: size.height * 0.42,
+            child: Center(child: Transform.translate(
+              offset: Offset(0, _rise.value),
+              child: Text('👤', style: TextStyle(fontSize: 52,
+                shadows: [Shadow(color: Colors.white.withValues(alpha: _glow.value * 0.8), blurRadius: 18)])),
+            ))),
+          Positioned(left: 0, right: 0, top: size.height * 0.58,
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white)),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('✝️ BAPTISTE', style: cinzel(16, c: Colors.white,
+                  fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Se sacrifice pour ramener un allié à la vie',
+                  style: body(12, c: Colors.white)),
+              ])))),
+        ]),
+      ))),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// HAILEY — un livre s'ouvre, des pages tourbillonnent puis se figent
+// ═══════════════════════════════════════════════════════════════════
+class HaileyCopyOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const HaileyCopyOverlay({required this.onDone});
+  @override State<HaileyCopyOverlay> createState() => HaileyCopyState();
+}
+
+class HaileyCopyState extends State<HaileyCopyOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _ac, _fadeAc;
+  late Animation<double> _opacity;
+  final List<Particle> _pages = [];
+  final _rng = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 60))
+      ..addListener(() => setState(() {}))
+      ..repeat();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 2000));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 55),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+
+    for (int i = 0; i < 14; i++) {
+      final angle = _rng.nextDouble() * 2 * pi;
+      _pages.add(Particle(
+        x: 0.5, y: 0.42,
+        speed: 0.008 + _rng.nextDouble() * 0.010,
+        emoji: '📄',
+        size: 16 + _rng.nextDouble() * 10,
+        drift: cos(angle) * (0.006 + _rng.nextDouble() * 0.006),
+        rot: angle,
+      ));
+    }
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _ac.dispose(); _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    for (final p in _pages) {
+      p.x += p.drift;
+      p.y -= sin(p.rot) * p.speed;
+    }
+    final size = MediaQuery.of(ctx).size;
+    return Positioned.fill(child: IgnorePointer(child: Opacity(
+      opacity: _opacity.value.clamp(0.0, 1.0),
+      child: Stack(children: [
+        Container(color: Colors.black45),
+        ..._pages.map((p) => Positioned(
+          left: p.x * size.width,
+          top:  p.y * size.height,
+          child: Text(p.emoji, style: TextStyle(fontSize: p.size,
+            shadows: [Shadow(color: const Color(0xFFB39DDB).withValues(alpha: 0.7), blurRadius: 8)])))),
+        Positioned(left: 0, right: 0, top: size.height * 0.35,
+          child: Center(child: Text('📖', style: TextStyle(fontSize: 60,
+            shadows: [Shadow(color: const Color(0xFFB39DDB), blurRadius: 20)])))),
+        Positioned(left: 0, right: 0, top: size.height * 0.55,
+          child: Center(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFB39DDB))),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('📖 HAILEY', style: cinzel(16, c: const Color(0xFFD1C4E9),
+                fw: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('Copie le pouvoir d\'un Hunter',
+                style: body(12, c: Colors.white)),
+            ])))),
+      ]),
+    )));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RÉMI — engrenages qui tournent et se combinent en un objet unique
+// ═══════════════════════════════════════════════════════════════════
+class RemiCraftOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const RemiCraftOverlay({required this.onDone});
+  @override State<RemiCraftOverlay> createState() => RemiCraftState();
+}
+
+class RemiCraftState extends State<RemiCraftOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _spin1, _spin2, _assemble;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 2200));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 12),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 58),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    _spin1 = Tween<double>(begin: 0, end: 4 * pi).animate(_fadeAc);
+    _spin2 = Tween<double>(begin: 0, end: -4 * pi).animate(_fadeAc);
+    // Les 2 engrenages se rapprochent puis un objet final apparaît.
+    _assemble = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.2, 0.6, curve: Curves.easeInOutCubic)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    final cx = size.width / 2;
+    final gap = 50 * (1 - _assemble.value);
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(color: Colors.black45),
+          Positioned(left: cx - 60 - gap, top: size.height * 0.36,
+            child: Transform.rotate(angle: _spin1.value,
+              child: const Text('⚙️', style: TextStyle(fontSize: 46)))),
+          Positioned(left: cx + 20 + gap, top: size.height * 0.36,
+            child: Transform.rotate(angle: _spin2.value,
+              child: const Text('⚙️', style: TextStyle(fontSize: 46)))),
+          if (_assemble.value > 0.85)
+            Positioned(left: 0, right: 0, top: size.height * 0.34,
+              child: Center(child: Text('🛠️', style: TextStyle(fontSize: 40,
+                shadows: [Shadow(color: const Color(0xFFFFB74D)
+                    .withValues(alpha: ((_assemble.value - 0.85) / 0.15).clamp(0.0, 1.0)), blurRadius: 18)])))),
+          Positioned(left: 0, right: 0, top: size.height * 0.55,
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFFB74D))),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('🛠️ RÉMI', style: cinzel(16, c: const Color(0xFFFFCC80),
+                  fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Fabrique son équipement sur-mesure',
+                  style: body(12, c: Colors.white)),
+              ])))),
+        ]),
+      ))),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// INÈS — des chaînes dorées s'enroulent et se verrouillent autour
+// d'un cadenas
+// ═══════════════════════════════════════════════════════════════════
+class InesLockOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const InesLockOverlay({required this.onDone});
+  @override State<InesLockOverlay> createState() => InesLockState();
+}
+
+class InesLockState extends State<InesLockOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _wrap, _shake;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 2000));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 14),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 56),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    // Les chaînes se resserrent (angle 0 → verrouillé)
+    _wrap = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.1, 0.55, curve: Curves.easeInOutCubic)));
+    // Petit tremblement au moment où ça se ferme
+    _shake = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.55, 0.65, curve: Curves.easeOut)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    final shakeOffset = sin(_shake.value * pi * 8) * (1 - _shake.value) * 4;
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(color: Colors.black45),
+          // Deux chaînes qui s'enroulent depuis les côtés vers le centre
+          Positioned(left: size.width * 0.5 - 140 * (1 - _wrap.value) - 130, top: size.height * 0.38,
+            child: Transform.rotate(angle: _wrap.value * pi * 1.5,
+              child: const Text('⛓️', style: TextStyle(fontSize: 40)))),
+          Positioned(left: size.width * 0.5 + 140 * (1 - _wrap.value) + 90, top: size.height * 0.38,
+            child: Transform.rotate(angle: -_wrap.value * pi * 1.5,
+              child: const Text('⛓️', style: TextStyle(fontSize: 40)))),
+          Positioned(left: 0, right: 0, top: size.height * 0.36,
+            child: Transform.translate(offset: Offset(shakeOffset, 0),
+              child: Center(child: Text('🔒', style: TextStyle(fontSize: 56,
+                shadows: [Shadow(color: const Color(0xFFFFD54F).withValues(alpha: _wrap.value), blurRadius: 20)]))))),
+          Positioned(left: 0, right: 0, top: size.height * 0.55,
+            child: Center(child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFFD54F))),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('🔒 INÈS', style: cinzel(16, c: const Color(0xFFFFE082),
+                  fw: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Verrouille la capacité de sa cible',
+                  style: body(12, c: Colors.white)),
+              ])))),
+        ]),
+      ))),
+    );
+  }
+}
+
+
+
+
+
+
 
 

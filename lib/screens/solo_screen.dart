@@ -556,6 +556,31 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
             ctrl.state!.abilityOverlay = null;
             ctrl.notifyListeners();
           }),
+        if (overlay == 'elise_light')
+          EliseLightOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'baptiste_revive')
+          BaptisteReviveOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'hailey_copy')
+          HaileyCopyOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'remi_craft')
+          RemiCraftOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
+        if (overlay == 'ines_lock')
+          InesLockOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
       ]);
     },
   ));
@@ -2197,6 +2222,10 @@ class _WoundsColumnState extends State<_WoundsColumn>
               Text('🔥 ${p.lucFireTurnsRemaining}',
                 style: const TextStyle(fontSize: 8, fontFamily: 'Cinzel',
                   fontWeight: FontWeight.w900, color: kRed)),
+            // Inès : capacité verrouillée — info PUBLIQUE, visible de tous
+            // tant que le verrou est actif (Inès en vie).
+            if (p.alive && p.abilityLockedByUid != null)
+              const Text('🔒', style: TextStyle(fontSize: 10)),
             // Victor : cœur affiché UNIQUEMENT si CE joueur est charmé à
             // 100% ET que la personne qui regarde l'écran est Victor lui-même
             // — cette info reste strictement privée pour tous les autres.
