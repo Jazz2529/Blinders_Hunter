@@ -583,6 +583,37 @@ class SoloController extends ChangeNotifier {
           state!.pendingRevealAnimation = bot.uid;
           audio.playReveal();
           _log('🃏 ${bot.name} révèle sa carte');
+          // Jeanne et Clémence : leur mécanisme se déclenche DÈS la
+          // révélation (pas via un bouton "capacité" plus tard) — sans ce
+          // branchement, humanReveal() ne concernant que le joueur humain,
+          // un bot jouant ces personnages ne déclenchait jamais son pouvoir.
+          if (bot.character?.abilityEffect == 'prophete_mark') {
+            state!.jeanneStep = 1;
+            state!.jeanneUid = bot.uid;
+            final markTarget = _ai.bestTarget(bot, state!.players, difficulty);
+            if (markTarget != null) {
+              jeanneChooseTarget(markTarget.uid);
+              final rewards = List<String>.from(state!.builderOffered);
+              if (rewards.isNotEmpty) jeanneChooseReward(rewards.first);
+            }
+          } else if (bot.character?.abilityEffect == 'builder_power') {
+            state!.builderStep = 1;
+            state!.builderEffect1 = null;
+            state!.builderEffect2 = null;
+            state!.builderOffered = _eg.builderDraw3();
+            // Choix simple pour le bot : garde le 1er effet proposé aux 2 étapes.
+            final firstOffer = List<String>.from(state!.builderOffered);
+            if (firstOffer.isNotEmpty) {
+              clemenceChooseEffect(firstOffer.first);
+              if (state!.builderStep == 2 && state!.builderOffered.isNotEmpty) {
+                clemenceChooseEffect(state!.builderOffered.first);
+              }
+              if (state!.builderStep == 3 && state!.pendingTargetAction == 'clemence_target') {
+                final t = _ai.bestTarget(bot, state!.players, difficulty);
+                if (t != null) clemenceApplyToTarget(t);
+              }
+            }
+          }
         }
       }
       final needsTarget = _abilityNeedsTarget(bot.character!.abilityEffect);

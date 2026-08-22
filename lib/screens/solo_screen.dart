@@ -2334,6 +2334,10 @@ class _WoundsColumnState extends State<_WoundsColumn>
             // tant que le verrou est actif (Inès en vie).
             if (p.alive && p.abilityLockedByUid != null)
               const Text('🔒', style: TextStyle(fontSize: 10)),
+            // Louna : bouclier actif — insensible aux blessures ce tour,
+            // info publique visible de tous comme le feu de Luc.
+            if (p.alive && p.shield)
+              const Text('🛡️', style: TextStyle(fontSize: 10)),
             // Victor : cœur affiché UNIQUEMENT si CE joueur est charmé à
             // 100% ET que la personne qui regarde l'écran est Victor lui-même
             // — cette info reste strictement privée pour tous les autres.

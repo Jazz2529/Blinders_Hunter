@@ -1052,6 +1052,9 @@ class _PlayerRow extends StatelessWidget {
           // tant que le verrou est actif (Inès en vie).
           if (p.alive && p.abilityLockedByUid != null)
             const Text('🔒', style: TextStyle(fontSize: 11)),
+          // Louna : bouclier actif — insensible aux blessures ce tour.
+          if (p.alive && p.shield)
+            const Text('🛡️', style: TextStyle(fontSize: 11)),
           // Victor : cœur visible UNIQUEMENT si c'est LUI (le joueur
           // connecté sur CET appareil) qui a charmé CE joueur à 100% —
           // strictement privé pour n'importe qui d'autre.
@@ -3495,6 +3498,9 @@ class _PlayerChip extends StatelessWidget {
             // tant que le verrou est actif (Inès en vie).
             if (p.alive && p.abilityLockedByUid != null)
               Text('🔒', style: body(9, c: kTextSub)),
+            // Louna : bouclier actif — insensible aux blessures ce tour.
+            if (p.alive && p.shield)
+              Text('🛡️', style: body(9, c: kTextSub)),
             // Victor : cœur visible UNIQUEMENT si c'est LUI (le joueur
             // connecté sur CET appareil) qui a charmé CE joueur à 100%.
             Builder(builder: (_) {

@@ -303,6 +303,40 @@ class GameProvider extends ChangeNotifier {
           bot.revealed = true;
           await _commitAll(all, '🃏 ${bot.name} révèle sa carte');
         }
+        // Jeanne et Clémence : leur mécanisme se déclenche DÈS la révélation
+        // (pas via un bouton "capacité" plus tard) — sans ce branchement, un
+        // bot jouant ces personnages ne déclenchait jamais son pouvoir.
+        if (eff == 'prophete_mark') {
+          final markTarget = _ai.bestTarget(bot, all, _botDifficulty);
+          if (markTarget != null) {
+            final rewards = _eg.jeanneDraw3();
+            final reward = rewards.isNotEmpty ? rewards.first : null;
+            bot.abilityUsed = true;
+            await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+                markedPlayerUid: markTarget.uid, jeanneReward: reward, jeanneUid: bot.uid);
+          }
+        } else if (eff == 'builder_power') {
+          final offered = _eg.builderDraw3();
+          if (offered.isNotEmpty) {
+            final e1 = offered.first;
+            final offered2 = _eg.builderDraw3(exclude: e1);
+            final e2 = offered2.isNotEmpty ? offered2.first : e1;
+            Player? bTarget;
+            if (_eg.builderNeedsTarget(e1) || _eg.builderNeedsTarget(e2)) {
+              bTarget = _ai.bestTarget(bot, all, _botDifficulty);
+            }
+            final log1 = _eg.applyBuilderEffect(e1, bot, bTarget, all, layout);
+            final t2 = (bTarget != null && !bTarget.alive && _eg.builderNeedsTarget(e2)) ? null : bTarget;
+            final log2 = _eg.applyBuilderEffect(e2, bot, t2, all, layout);
+            bot.abilityUsed = true;
+            _eg.applyDeathPassives(all);
+            await _commitAll(all, [log1, log2].where((l) => l.isNotEmpty).join(' | '));
+            final endedBuilder = await _checkWin(all,
+                justDiedId: bTarget != null && !bTarget.alive ? bTarget.uid : null);
+            if (endedBuilder) return;
+            await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack, abilityOverlay: 'clemence_forge');
+          }
+        }
         await Future.delayed(const Duration(milliseconds: 700));
         all = _mutableAll();
         bot = all.where((p) => p.uid == botUid).firstOrNull;
