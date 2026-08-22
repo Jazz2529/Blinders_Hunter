@@ -372,15 +372,15 @@ class GameEngine with AbilityEngine {
         return '🔒 ${actor.name} verrouille la capacité de ${target.name} tant qu\'elle est en vie';
 
       // ── Marion : place la cible à exactement 5 blessures (soin ou dégâts) ──
-      case 'set_wounds5':
+      case 'set_wounds7':
         if (target == null) return 'cible_requise';
         final before = target.wounds;
-        target.wounds = 5;
+        target.wounds = 7;
         if (target.wounds >= effectiveMaxHp(target)) target.alive = false;
-        final diff = 5 - before;
-        if (diff > 0) return '📍 ${actor.name} place ${target.name} à 5 blessures (subit $diff)';
-        if (diff < 0) return '📍 ${actor.name} place ${target.name} à 5 blessures (soigné de ${-diff})';
-        return '📍 ${actor.name} place ${target.name} à 5 blessures (déjà à 5)';
+        final diff = 7 - before;
+        if (diff > 0) return '📍 ${actor.name} place ${target.name} à 7 blessures (subit $diff)';
+        if (diff < 0) return '📍 ${actor.name} place ${target.name} à 7 blessures (soigné de ${-diff})';
+        return '📍 ${actor.name} place ${target.name} à 7 blessures (déjà à 7)';
 
       // ── Léo : D4 à TOUS les joueurs, lui inclus ──
       case 'd4_all':
@@ -586,7 +586,7 @@ class GameEngine with AbilityEngine {
         if (target == null) return 'cible_requise';
         final dealt = applyDamage(target, 8);
         if (!target.alive) target.killedByUid = actor.uid;
-        final selfDealt = applyDamage(actor, 4);
+        final selfDealt = applyDamage(actor, 5);
         return '⚡ ${actor.name} inflige $dealt à ${target.name} — et s\'inflige $selfDealt blessures en retour !';
 
       // ── Carapatte : D6 lifesteal, unique ──

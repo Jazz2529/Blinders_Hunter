@@ -130,12 +130,6 @@ class Prefs {
     _sp?.setInt('games_won_$characterName', current + 1);
   }
 
-  /// [DEBUG UNIQUEMENT] Ajoute une victoire factice à un personnage, sans
-  /// avoir à réellement jouer une partie — pour tester rapidement les
-  /// paliers d'effet brillant. Appelée uniquement depuis un contrôle
-  /// protégé par kDebugMode côté interface.
-  static void debugAddWin(String characterName) => _incrementGamesWon(characterName);
-
   // ── Or (monnaie de la boutique) ────────────────────────────────────────
   static int gold() => _sp?.getInt('gold') ?? 0;
 
@@ -184,5 +178,25 @@ class Prefs {
       eq[slotKey] = cosmeticId;
     }
     _sp?.setString('cosmetics_equipped', jsonEncode(eq));
+  }
+
+  // ── Réinitialisation complète de la progression ────────────────────────
+  /// Efface l'or, les cosmétiques (débloqués + équipés), l'historique de
+  /// parties et les statistiques par personnage (parties jouées/gagnées) —
+  /// remet le compte à zéro comme à la toute première installation.
+  /// Ne touche PAS aux réglages audio/affichage ni à une salle en cours de
+  /// reconnexion, qui ne sont pas des "progrès" de jeu.
+  static Future<void> resetProgress() async {
+    final sp = _sp;
+    if (sp == null) return;
+    await sp.remove('gold');
+    await sp.remove('cosmetics_owned');
+    await sp.remove('cosmetics_equipped');
+    await sp.remove('game_history');
+    final statKeys = sp.getKeys().where(
+        (k) => k.startsWith('games_played_') || k.startsWith('games_won_'));
+    for (final k in statKeys.toList()) {
+      await sp.remove(k);
+    }
   }
 }

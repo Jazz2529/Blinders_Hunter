@@ -94,8 +94,8 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
 
   CharacterCard(id:'marion', name:'Marion', faction:Faction.hunter, hp:13, icon:'🧝',
-    ability:'Unique: placez un joueur exactement à 5 blessures (soigne ou blesse)',
-    abilityEffect:'set_wounds5',
+    ability:'Unique: placez un joueur exactement à 7 blessures (soigne ou blesse)',
+    abilityEffect:'set_wounds7',
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
   CharacterCard(id:'meg', name:'Meg', faction:Faction.hunter, hp:12, icon:'🐺',
@@ -163,7 +163,7 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'hong_yi', name:'Hong Yi', faction:Faction.shadow, hp:8, icon:'⚡',
-    ability:'Unique: choisissez un joueur — lui infligez 8 blessures, et infligez-vous 4 blessures',
+    ability:'Unique: choisissez un joueur — lui infligez 8 blessures, et infligez-vous 5 blessures',
     abilityEffect:'terrain_max_aoe',
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
@@ -254,12 +254,12 @@ const List<CharacterCard> kAllCharacters = [
 
   // ══════════ NEUTRES (8) ══════════
 
-  CharacterCard(id:'cambou', name:'Cambou', faction:Faction.neutral, hp:14, icon:'🌙',
+  CharacterCard(id:'cambou', name:'Cambou', faction:Faction.neutral, hp:11, icon:'🌙',
     ability:'Unique: passez votre tour pour soigner toutes vos blessures et ne plus subir de blessures jusqu\'au prochain tour',
     abilityEffect:'full_heal_shield_turn', abilityRepeatable:false,
     winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),
 
-  CharacterCard(id:'carapatte', name:'Carapatte', faction:Faction.neutral, hp:13, icon:'🐢',
+  CharacterCard(id:'carapatte', name:'Carapatte', faction:Faction.neutral, hp:12, icon:'🐢',
     ability:'Unique: attaquez avec le D6 et soignez-vous d\'autant de blessures que vous infligez',
     abilityEffect:'d6_lifesteal',
     winCondition:'Être en vie à la fin de la partie', winEffect:'survive'),

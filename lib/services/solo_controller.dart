@@ -179,20 +179,104 @@ class AiBrain {
 
   // Décide si le bot joue sa capacité
   bool shouldUseAbility(Player bot, List<Player> all, List<Terrain> layout, AiDifficulty d) {
-    if (!bot.revealed) {
-      if (d == AiDifficulty.hard) return _isAbilityUseful(bot, all, layout);
-      return _roll(0.5);
+    if (bot.abilityUsed) return false;
+    if (d == AiDifficulty.easy) {
+      // Facile : comportement plus aléatoire, mais on évite quand même les
+      // activations totalement inutiles (ex: se soigner à pleins PV).
+      return _roll(0.5) && _isAbilityUseful(bot, all, layout);
     }
-    return !bot.abilityUsed && _roll(_probAbility(d));
+    // Normal/Difficile : la pertinence réelle prime désormais sur le simple
+    // hasard — avant, un bot révélé ignorait complètement _isAbilityUseful
+    // et se basait uniquement sur une probabilité, peu importe la situation.
+    return _isAbilityUseful(bot, all, layout) && _roll(_probAbility(d));
   }
 
   bool _isAbilityUseful(Player bot, List<Player> all, List<Terrain> layout) {
+    final othersAlive = all.any((p) => p.alive && p.uid != bot.uid);
     switch (bot.character!.abilityEffect) {
-      case 'full_heal': return bot.wounds > 0;
-      case 'shield3':   return bot.wounds > 0;
-      case 'd4_all':    return true;
-      case 'draw_dark': return true;
-      default: return all.any((p) => p.alive && p.uid != bot.uid);
+      // ── Soins : utile seulement s'il y a des blessures à soigner ──
+      case 'full_heal_shield_turn': return bot.wounds > 0;
+      case 'shield3':               return bot.wounds > 0;
+      case 'heal_on_same_terrain':  return bot.wounds > 0;
+
+      // ── Dégâts / effets globaux : utiles dès qu'un adversaire existe ──
+      case 'd4_all':               return true; // touche tout le monde, toujours pertinent
+      case 'aoe_zone6':            return othersAlive;
+      case 'd6_global_attack':     return othersAlive;
+      case 'd4_bonus_attack':      return othersAlive;
+      case 'damage2_then_heal3':   return othersAlive;
+      case 'd6_lifesteal':         return othersAlive;
+      case 'damage3_give_dague':   return othersAlive;
+      case 'damage2_or_heal1':     return true; // attaque OU soin, toujours utile
+      case 'set_wounds7':          return othersAlive;
+      case 'damien_serve':         return othersAlive;
+
+      // ── Effets à condition (ne pas gâcher un tour pour rien) ──
+      case 'luc_ignite':
+        return all.any((p) => p.alive && p.uid != bot.uid && p.lucFireTurnsRemaining == 0);
+      case 'lock_ability_while_alive':
+        return all.any((p) => p.alive && p.uid != bot.uid && p.abilityLockedByUid == null);
+      case 'steal_max_hp': return bot.maxHpModifier < 5; // plafond de 5 vols
+      case 'swap_equipment':
+        return bot.equipment.isNotEmpty &&
+            all.any((p) => p.alive && p.uid != bot.uid && p.equipment.isNotEmpty);
+      case 'oscar_xp_spend': return bot.oscarXp >= 2; // au moins la Plante (2xp)
+      case 'self1_trigger_terrain':
+        return bot.wounds < bot.character!.hp - 1; // ne pas se tuer pour rien
+      case 'terrain_max_aoe':
+        // Hong Yi : 8 dégâts à un adversaire, mais s'inflige 5 — vérifier
+        // qu'elle y survit avant de foncer tête baissée.
+        return othersAlive && bot.wounds + 5 < bot.character!.hp;
+
+      // ── Nécessitent un joueur mort ──
+      case 'baptiste_revive':
+        return all.any((p) => !p.alive) && bot.wounds < bot.character!.hp - 1;
+      case 'bonus_turns': // Ninja : sans mort, "aucun effet" — inutile de le gâcher
+        return all.any((p) => !p.alive);
+
+      // ── Copie/choix uniques : toujours utiles la première fois ──
+      case 'meg_shapeshift':        return true;
+      case 'craft_equipment_remi':  return true;
+      case 'builder_power':         return true;
+      case 'prophete_mark':         return true;
+      case 'hailey_copy_hunter':    return true;
+      case 'copy_ability':
+        return all.any((p) => p.alive && p.uid != bot.uid && p.revealed &&
+            p.character != null &&
+            !GameEngine.uncopyableAbilities.contains(p.character!.abilityEffect));
+
+      // ── Divers, toujours pertinents à activer ──
+      case 'move_adjacent_choice': return true; // Christine : repositionnement gratuit
+      case 'peek_reorder_deck':    return true; // Elaia : jamais nocif
+      case 'store_damage_nils':    return true; // activer le stockage OU tout déverser
+      case 'choose_all_dice':      return true; // Fifi : dés au max, jamais nocif
+      case 'casino_bet':           return true;
+      case 'swap_zones':           return true;
+      case 'draw_dark':  return true;
+      case 'draw_light': return true;
+
+      // ── Passifs : ne devraient jamais consommer un clic de bouton ──
+      // (déclenchés automatiquement ailleurs — attaque, mort, révélation...)
+      case 'felipe_passive':
+      case 'gege_passive':
+      case 'counter_attack_passive':
+      case 'infinite_range':
+      case 'no_attack_buff':
+      case 'victor_charm':
+      case 'maxime_double_first':
+      case 'heal1_on_own_attack':
+      case 'tom_shadow_kill_boost':
+      case 'reroll_d6_attack':
+      case 'zero_wound_power':
+      case 'maxence_selfharm_boost':
+      case 'double_attack_if_tanky':
+      case 'chameleon_passive':
+      case 'death_heal_allies':
+      case 'fanny_none':
+      case 'heal_hunter_on_attack':
+        return false;
+
+      default: return othersAlive;
     }
   }
 
@@ -229,6 +313,18 @@ class AiBrain {
 
   // Choisit la meilleure cible
   Player? bestTarget(Player bot, List<Player> all, AiDifficulty d, {String context = ''}) {
+    // Baptiste : a besoin d'un joueur MORT à ressusciter, pas d'un vivant —
+    // sans ce cas à part, le filtre général ci-dessous (joueurs vivants)
+    // ne renvoyait jamais de résultat et Baptiste ne pouvait jamais agir.
+    if (context == 'baptiste_revive') {
+      final dead = all.where((p) => !p.alive).toList();
+      if (dead.isEmpty) return null;
+      // Priorité à un allié mort (faction identique) si possible, sinon
+      // n'importe quel mort — ramener un ennemi n'a aucun intérêt tactique
+      // mais reste un choix légal si aucun allié n'est disponible.
+      final allies = dead.where((p) => _isAlly(bot, p)).toList();
+      return (allies.isNotEmpty ? allies : dead)[_rng.nextInt((allies.isNotEmpty ? allies : dead).length)];
+    }
     final cands = all.where((p) => p.alive && p.uid != bot.uid).toList();
     if (cands.isEmpty) return null;
     if (d == AiDifficulty.easy) return cands[_rng.nextInt(cands.length)];
@@ -498,7 +594,7 @@ class SoloController extends ChangeNotifier {
           !GameEngine.uncopyableAbilities.contains(x.character!.abilityEffect)).toList();
         if (candidates.isNotEmpty) target = candidates[_rng.nextInt(candidates.length)];
       } else if (needsTarget) {
-        target = _ai.bestTarget(bot, state!.players, difficulty);
+        target = _ai.bestTarget(bot, state!.players, difficulty, context: bot.character!.abilityEffect);
       }
       // Christine (bot) : tire une zone adjacente au hasard elle-même, puisque
       // le moteur exige désormais un choix explicite (humain OU bot).
@@ -596,6 +692,18 @@ class SoloController extends ChangeNotifier {
         final resolveLog = _eg.applyAbility(bot, state!.players, state!.terrainLayout, extra: form);
         state!.abilityOverlay = form == 'offense' ? 'meg_offense' : 'meg_defense';
         _log(resolveLog);
+      } else if (log == 'baptiste_choose_amount' && target != null) {
+        // Baptiste (bot) : la cible (un mort) est déjà trouvée par
+        // bestTarget() — il ne reste qu'à choisir combien de blessures
+        // s'infliger pour le ramener, sans se mettre en danger de mort.
+        final maxSelfDmg = _eg.effectiveMaxHp(bot) - bot.wounds - 1;
+        final selfDmg = maxSelfDmg > 0 ? (1 + _rng.nextInt(maxSelfDmg)) : 0;
+        if (selfDmg > 0) {
+          final resolveLog = _eg.applyAbility(bot, state!.players, state!.terrainLayout,
+              target: target, extra: '$selfDmg');
+          state!.abilityOverlay = 'baptiste_revive';
+          _log(resolveLog);
+        }
       } else if (log != 'cible_requise') {
         _log(log);
       }
@@ -1183,7 +1291,7 @@ class SoloController extends ChangeNotifier {
         _log('🔒 ${p.name} verrouille la capacité de ${target.name} tant qu\'elle est en vie', cls: 'player');
         if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
 
-      case 'set_wounds5':
+      case 'set_wounds7':
         if (target == null) { s.pendingTargetAction = 'ability_set5'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
         final before = target.wounds;
         target.wounds = 5;
@@ -2555,10 +2663,10 @@ class SoloController extends ChangeNotifier {
   // sans ça, un bot avec une de ces capacités la gâche silencieusement
   // (target reste null, l'effet ne s'applique jamais, le tour semble figé).
   bool _abilityNeedsTarget(String eff) => [
-    'damage2_choice','damage2_then_heal3','set_wounds5','steal_equip_choice',
+    'damage2_choice','damage2_then_heal3','set_wounds7','steal_equip_choice',
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors',
-    'lock_ability_while_alive',
+    'lock_ability_while_alive','steal_max_hp','luc_ignite','baptiste_revive',
   ].contains(eff);
 
   // Liste synchronisée avec le switch needsTarget de resolveCard() —

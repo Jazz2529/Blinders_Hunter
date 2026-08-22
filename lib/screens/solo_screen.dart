@@ -1962,8 +1962,10 @@ class _PlayerCardSide extends StatelessWidget {
               border: me.revealed ? Border.all(color: fc, width: 2) : null,
             ),
             child: img != null
-              ? Image.asset(img, fit: BoxFit.cover, width: double.infinity,
+              ? SmoothAssetImage(img, fit: BoxFit.cover, width: double.infinity, height: double.infinity,
                   cacheWidth: 640,
+                  placeholderColor: fbg,
+                  placeholderIcon: c.icon,
                   errorBuilder: (_, __, ___) => _fallback(c, fbg))
               : _fallback(c, fbg),
           ),
@@ -2722,6 +2724,35 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                     ]),
                   ),
                 ),
+              // Mathieu : nombre d'attaques effectuées — dès la 3ème, le bonus
+              // de +2 dégâts devient permanent. Affiché en ronds pour rendre
+              // la progression lisible d'un coup d'œil.
+              if (effChar.abilityEffect == 'third_attack_bonus')
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: (me.attackCount >= 3 ? kGold : kTextSub).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: (me.attackCount >= 3 ? kGold : kTextSub).withValues(alpha: 0.5))),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      ...List.generate(3, (i) => Padding(
+                        padding: const EdgeInsets.only(right: 3),
+                        child: Icon(
+                          me.attackCount > i ? Icons.circle : Icons.circle_outlined,
+                          size: 12,
+                          color: me.attackCount >= 3 ? kGold : kTextSub),
+                      )),
+                      const SizedBox(width: 6),
+                      Text(
+                        me.attackCount >= 3
+                            ? 'Bonus +2 dégâts actif (${me.attackCount} attaques)'
+                            : 'Attaques : ${me.attackCount}/3',
+                        style: cinzel(11, c: me.attackCount >= 3 ? kGold : kTextSub)),
+                    ]),
+                  ),
+                ),
             ]),
           ),
           // Équipements actifs
@@ -3286,7 +3317,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'ability_travert')     title = '🎲 Travert — Choisissez une cible (D6) — UNIQUE';
     if (context == 'ability_hong_yi')     title = '⚡ Hong Yi — Cible (8 mutuels)';
     if (context == 'ability_carapatte')   title = '🐢 Carapatte — Cible (D6 lifesteal)';
-    if (context == 'ability_set5')        title = '📍 Marion — Choisissez un joueur (placé à 5 blessures)';
+    if (context == 'ability_set5')        title = '📍 Marion — Choisissez un joueur (placé à 7 blessures)';
     if (context == 'ability_ines')        title = '🔒 Inès — Choisissez le joueur dont vous verrouillez la capacité';
     if (context == 'ability_damien')      title = '🍸 Damien — Choisissez qui servir';
     if (context == 'ability_tommy')       title = '🎭 Tommy — Copier le pouvoir de qui ?';
@@ -3715,7 +3746,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     // l'intérieur de humanUseAbility() — ne JAMAIS appeler humanSkipAbility()
     // après, ça écraserait la phase qu'elles viennent de définir.
     final selfManaged = {
-      'damage2_choice', 'damage2_then_heal3', 'set_wounds5', 'steal_equip_choice',
+      'damage2_choice', 'damage2_then_heal3', 'set_wounds7', 'steal_equip_choice',
       'swap_equipment', 'damage3_give_dague', 'd6_global_attack', 'd6_lifesteal',
       'terrain_max_aoe', 'damien_serve', 'copy_ability',
       'self1_trigger_terrain', 'draw_light', 'draw_dark', 'peek_reorder_deck',

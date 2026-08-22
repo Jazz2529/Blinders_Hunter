@@ -590,3 +590,64 @@ class _TurnBannerState extends State<TurnBanner>
     );
   }
 }
+
+// ─── Image avec fondu + indicateur de chargement ────────────────────────────
+// Sur le web, chaque asset doit être téléchargé via HTTP (contrairement au
+// natif où les assets sont intégrés au binaire et s'affichent instantanément)
+// — une illustration haute résolution peut donc mettre un moment à arriver.
+// Ce widget affiche un petit spinner + l'icône du personnage pendant
+// l'attente, puis fait un fondu doux vers l'image une fois chargée, au lieu
+// de laisser un espace vide qui peut donner l'impression que rien ne se passe.
+class SmoothAssetImage extends StatelessWidget {
+  final String path;
+  final BoxFit fit;
+  final int? cacheWidth, cacheHeight;
+  final Color placeholderColor;
+  final String? placeholderIcon;
+  final double width, height;
+  final Widget Function(BuildContext, Object, StackTrace?)? errorBuilder;
+  const SmoothAssetImage(this.path, {
+    super.key,
+    this.fit = BoxFit.cover,
+    this.cacheWidth,
+    this.cacheHeight,
+    this.placeholderColor = Colors.black12,
+    this.placeholderIcon,
+    this.width = double.infinity,
+    this.height = double.infinity,
+    this.errorBuilder,
+  });
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Image.asset(path, fit: fit, width: width, height: height,
+      cacheWidth: cacheWidth, cacheHeight: cacheHeight,
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded) return child;
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 350),
+          child: frame != null
+              ? child
+              : Container(
+                  key: const ValueKey('loading'),
+                  width: width, height: height,
+                  color: placeholderColor,
+                  child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    if (placeholderIcon != null)
+                      Text(placeholderIcon!, style: const TextStyle(fontSize: 40)),
+                    const SizedBox(height: 10),
+                    const SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: kGold)),
+                  ])),
+                ),
+        );
+      },
+      errorBuilder: errorBuilder ?? (_, __, ___) => Container(
+        width: width, height: height, color: placeholderColor,
+        child: placeholderIcon != null
+            ? Center(child: Text(placeholderIcon!, style: const TextStyle(fontSize: 40)))
+            : null),
+    );
+  }
+}
+

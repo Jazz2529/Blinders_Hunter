@@ -155,9 +155,10 @@ class GameProvider extends ChangeNotifier {
   // statiques, peu de risque de divergence, évite un couplage supplémentaire
   // entre les deux contrôleurs).
   bool _abilityNeedsTarget(String eff) => [
-    'damage2_choice','damage2_then_heal3','set_wounds5','steal_equip_choice',
+    'damage2_choice','damage2_then_heal3','set_wounds7','steal_equip_choice',
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors','luc_ignite','baptiste_revive',
+    'lock_ability_while_alive','steal_max_hp',
   ].contains(eff);
 
   bool _cardNeedsTarget(String eff) => [
@@ -173,12 +174,6 @@ class GameProvider extends ChangeNotifier {
   // zones, sélecteur de dés, tours bonus, prescience, capacité copiée…) —
   // un bot les ignore prudemment pour l'instant plutôt que de risquer de
   // rester bloqué au milieu d'un flux conçu pour une vraie interface.
-  bool _isComplexBotUnsafeAbility(String eff) => const {
-    'casino_bet', 'swap_zones', 'choose_all_dice', 'bonus_turns',
-    'elaia_peek', 'copy_ability', 'oscar_xp_spend', 'baptiste_revive',
-    'hailey_copy_hunter', 'meg_shapeshift',
-  }.contains(eff);
-
   void _recordMultiResult(Map<String, dynamic>? result) {
     if (result == null || _resultRecorded) return;
     final me = players[myUid];
@@ -286,8 +281,7 @@ class GameProvider extends ChangeNotifier {
         !all.any((x) => x.uid != bot!.uid && x.alive && x.revealed &&
             x.character != null &&
             !GameEngine.uncopyableAbilities.contains(x.character!.abilityEffect)));
-    if (_ai.shouldUseAbility(bot, all, layout, _botDifficulty) && canUseCopy &&
-        !_isComplexBotUnsafeAbility(eff)) {
+    if (_ai.shouldUseAbility(bot, all, layout, _botDifficulty) && canUseCopy) {
       if (!bot.revealed) {
         if (eff == 'chameleon_passive') {
           final hunters = all.where((p) => p.character?.faction == Faction.hunter && p.character != null).map((p) => p.character!).toList();
@@ -316,7 +310,15 @@ class GameProvider extends ChangeNotifier {
       }
       final needsTarget = _abilityNeedsTarget(eff);
       Player? target;
-      if (needsTarget) target = _ai.bestTarget(bot, all, _botDifficulty, context: eff);
+      if (eff == 'copy_ability') {
+        // Tommy (bot) : choisit un joueur révélé au pouvoir copiable, au hasard
+        // — bestTarget() générique ne convient pas ici (pas de notion de
+        // "révélé et copiable").
+        final candidates = all.where((x) =>
+          x.uid != bot!.uid && x.alive && x.revealed && x.character != null &&
+          !GameEngine.uncopyableAbilities.contains(x.character!.abilityEffect)).toList();
+        if (candidates.isNotEmpty) target = candidates[Random().nextInt(candidates.length)];
+      } else if (needsTarget) target = _ai.bestTarget(bot, all, _botDifficulty, context: eff);
       // Christine (bot) : tire une zone adjacente au hasard elle-même, puisque
       // le moteur exige désormais un choix explicite (humain OU bot).
       String? extraParam;
@@ -324,7 +326,17 @@ class GameProvider extends ChangeNotifier {
         final adjZones = kAdjacences[bot.zoneIndex];
         extraParam = adjZones[Random().nextInt(adjZones.length)].toString();
       }
-      if (target != null || !needsTarget) {
+      if (eff == 'hailey_copy_hunter') {
+        // Hailey (bot) : tire 3 Hunters non joués et en copie un au hasard —
+        // mécanique entièrement custom, ne passe pas par _eg.applyAbility().
+        final offered = haileyDraw3(all);
+        if (offered.isNotEmpty) {
+          final chosen = offered[Random().nextInt(offered.length)];
+          bot.copiedEffect = chosen.abilityEffect;
+          await _commitAll(all, '📖 ${bot.name} copie le pouvoir de ${chosen.name} : ${chosen.ability}');
+          await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack, abilityOverlay: 'hailey_copy');
+        }
+      } else if (target != null || !needsTarget) {
         final abLog = _eg.applyAbility(bot, all, layout, target: target, extra: extraParam);
         if (abLog == 'draw_dark' || abLog == 'draw_light') {
           _eg.applyDeathPassives(all);
@@ -352,6 +364,121 @@ class GameProvider extends ChangeNotifier {
           all = _mutableAll();
           bot = all.where((p) => p.uid == botUid).firstOrNull;
           if (bot == null || !bot.alive) return;
+        } else if (abLog == 'meg_choice') {
+          // Meg (bot) : choix aléatoire de la forme initiale.
+          final form = Random().nextBool() ? 'offense' : 'defense';
+          final abLog2 = _eg.applyAbility(bot, all, layout, extra: form);
+          _eg.applyDeathPassives(all);
+          await _commitAll(all, abLog2 ?? '');
+          await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+              abilityOverlay: form == 'offense' ? 'meg_offense' : 'meg_defense');
+        } else if (abLog == 'bonus_turns_zero') {
+          await _commitAll(all, '🥷 ${bot.name} : aucun joueur mort, pouvoir sans effet.');
+        } else if (abLog != null && abLog.startsWith('bonus_turns:')) {
+          final deadCount = int.tryParse(abLog.split(':')[1]) ?? 0;
+          await _commitAll(all, '🥷 ${bot.name} active son pouvoir — $deadCount tour(s) bonus !');
+          await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+              bonusTurnsRemaining: deadCount, abilityOverlay: 'ninja_shadow');
+        } else if (abLog == 'oscar_choice') {
+          // Oscar (bot) : dépense son XP dans la meilleure option accessible.
+          var choice = '';
+          Player? waterTarget;
+          if (bot.oscarXp >= 4) {
+            choice = 'fire';
+          } else if (bot.oscarXp >= 3) {
+            final withEquip = all.where((p) =>
+                p.uid != bot!.uid && p.alive && p.equipment.isNotEmpty).toList();
+            if (withEquip.isNotEmpty) {
+              choice = 'water';
+              waterTarget = withEquip[Random().nextInt(withEquip.length)];
+            } else if (bot.oscarXp >= 2) {
+              choice = 'plant';
+            }
+          } else if (bot.oscarXp >= 2) {
+            choice = 'plant';
+          }
+          if (choice.isNotEmpty) {
+            final abLog2 = _eg.applyAbility(bot, all, layout, target: waterTarget, extra: choice);
+            if (abLog2 != 'oscar_not_enough') {
+              _eg.applyDeathPassives(all);
+              await _commitAll(all, abLog2 ?? '');
+              final ovOscar = choice == 'water' ? 'oscar_water' : choice == 'plant' ? 'oscar_plant' : 'oscar_fire';
+              await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack, abilityOverlay: ovOscar);
+            }
+          }
+        } else if (abLog == 'choose_all_dice') {
+          // Fifi (bot) : dés au maximum, comme indiqué sur sa carte.
+          await _commitAll(all, '🍀 ${bot.name} — tour parfait, dés au maximum !');
+          await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+              fifiGoldenTurn: true, fifiMoveResult: 7, fifiAtkResult: 5, abilityOverlay: 'fifi_golden');
+        } else if (abLog == 'baptiste_choose_amount' && target != null) {
+          // Baptiste (bot) : la cible (un mort) est déjà trouvée par
+          // bestTarget() — il ne reste qu'à choisir combien de blessures
+          // s'infliger pour le ramener, sans se mettre en danger de mort.
+          final maxSelfDmg = _eg.effectiveMaxHp(bot) - bot.wounds - 1;
+          final selfDmg = maxSelfDmg > 0 ? (1 + Random().nextInt(maxSelfDmg)) : 0;
+          if (selfDmg > 0) {
+            final abLog2 = _eg.applyAbility(bot, all, layout, target: target, extra: '$selfDmg');
+            _eg.applyDeathPassives(all);
+            await _commitAll(all, abLog2 ?? '');
+            await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack, abilityOverlay: 'baptiste_revive');
+          }
+        } else if (abLog == 'swap_zones') {
+          // Richard II (bot) : échange sa propre zone avec la meilleure zone
+          // accessible (réutilise bestZone(), déjà pondérée par faction/PV),
+          // en suivant EXACTEMENT la même séquence que chooseSwapZone()
+          // (joueur humain) pour un comportement identique.
+          final richardStartZone = bot.zoneIndex;
+          final z2 = _ai.bestZone(bot, all, layout, _botDifficulty);
+          if (z2 != richardStartZone) {
+            for (final p in all) {
+              if (p.zoneIndex == richardStartZone) p.zoneIndex = z2;
+              else if (p.zoneIndex == z2) p.zoneIndex = richardStartZone;
+            }
+            final newLayout = List<Terrain>.from(layout);
+            final tmp = newLayout[richardStartZone];
+            newLayout[richardStartZone] = newLayout[z2];
+            newLayout[z2] = tmp;
+            final t1name = newLayout[richardStartZone].name;
+            final t2name = newLayout[z2].name;
+            await _commitAll(all, '👑 ${bot.name} échange $t2name ↔ $t1name !');
+            await _fb.setTerrainLayout(roomId!, newLayout);
+            await _fb.setPhase(roomId!, GamePhase.zoneEffect,
+                abilityOverlay: 'richard2_swap', richardActivateZone: richardStartZone);
+            await Future.delayed(const Duration(milliseconds: 700));
+            await _botApplyTerrainEffect(botUid);
+            all = _mutableAll();
+            bot = all.where((p) => p.uid == botUid).firstOrNull;
+            if (bot == null || !bot.alive) return;
+          }
+        } else if (abLog == 'casino_bet') {
+          // Mr Casino (bot) : pari aléatoire pair/impair, puis interprète le
+          // résultat comme le ferait un joueur humain via _MultiCasinoWidget.
+          final betOdd = Random().nextBool();
+          final d = _eg.rollD6();
+          final wonBet = betOdd == (d % 2 == 1);
+          if (wonBet) {
+            final t2 = _ai.bestTarget(bot, all, _botDifficulty);
+            if (t2 != null) {
+              _eg.applyDamage(t2, 3);
+              if (!t2.alive) t2.killedByUid = bot.uid;
+              _eg.applyDeathPassives(all);
+              await _commitAll(all, '🎰 ${bot.name} gagne son pari ($d) et inflige 3 blessures à ${t2.name} !');
+              final endedCasino = await _checkWin(all, justDiedId: t2.alive ? null : t2.uid);
+              if (endedCasino) return;
+              await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack, abilityOverlay: 'casino_win');
+            }
+          } else {
+            _eg.applyDamage(bot, 2);
+            if (!bot.alive) bot.killedByUid = bot.uid;
+            _eg.applyDeathPassives(all);
+            await _commitAll(all, '🎰 ${bot.name} perd son pari ($d) — subit 2 blessures');
+            final endedCasino = await _checkWin(all, justDiedId: bot.alive ? null : bot.uid);
+            if (endedCasino) return;
+            if (bot.alive) {
+              await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack, abilityOverlay: 'casino_lose');
+            }
+          }
         } else if (abLog != null && abLog.startsWith('christine_moved:')) {
           final movedZone = int.parse(abLog.split(':')[1]);
           _eg.applyDeathPassives(all);
@@ -896,7 +1023,7 @@ class GameProvider extends ChangeNotifier {
     'full_heal_shield_turn': 'cambou_sheep',
     'd4_heal_neighbors': 'oceane_notes',
     'damage2_then_heal3': 'raph_petals',
-    'set_wounds5': 'marion_plants',
+    'set_wounds7': 'marion_plants',
     'aoe_zone6': 'artcade_flames',
     'double_move_dice': 'albane_clock',
     'ally_sacrifice_heal': 'amelia_light',

@@ -220,8 +220,10 @@ class _RoleRevealState extends State<RoleRevealScreen> {
                 borderRadius: BorderRadius.circular(12),
                 child: SizedBox(height: 240,
                   child: AspectRatio(aspectRatio: 2/3,
-                    child: Image.asset(imgPath, fit: BoxFit.cover,
+                    child: SmoothAssetImage(imgPath, fit: BoxFit.cover,
                       cacheWidth: 320, cacheHeight: 480,
+                      placeholderColor: fc.withOpacity(0.15),
+                      placeholderIcon: c.icon,
                       errorBuilder: (_, __, ___) => Container(
                         width: 100, height: 100,
                         color: fc.withOpacity(0.15),
@@ -1437,6 +1439,34 @@ class _ActionPanelState extends State<_ActionPanel> {
                   ]),
                 ),
               ),
+            // Mathieu : nombre d'attaques effectuées — dès la 3ème, le bonus
+            // de +2 dégâts devient permanent.
+            if ((me?.copiedEffect ?? me?.character?.abilityEffect) == 'third_attack_bonus')
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: ((me?.attackCount ?? 0) >= 3 ? kGold : kTextSub).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: ((me?.attackCount ?? 0) >= 3 ? kGold : kTextSub).withValues(alpha: 0.5))),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    ...List.generate(3, (i) => Padding(
+                      padding: const EdgeInsets.only(right: 3),
+                      child: Icon(
+                        (me?.attackCount ?? 0) > i ? Icons.circle : Icons.circle_outlined,
+                        size: 12,
+                        color: (me?.attackCount ?? 0) >= 3 ? kGold : kTextSub),
+                    )),
+                    const SizedBox(width: 6),
+                    Text(
+                      (me?.attackCount ?? 0) >= 3
+                          ? 'Bonus +2 dégâts actif (${me?.attackCount} attaques)'
+                          : 'Attaques : ${me?.attackCount ?? 0}/3',
+                      style: cinzel(11, c: (me?.attackCount ?? 0) >= 3 ? kGold : kTextSub)),
+                  ]),
+                ),
+              ),
           ],
           BHButton(label:'Passer → Déplacement',onTap:()=>_act(gp.skipAbility),outlined:true),
         ];
@@ -1597,7 +1627,7 @@ class _ActionPanelState extends State<_ActionPanel> {
                 onTap: () => _act(gp.backToAbility)),
             ];
           } // attackTargets already filters by adjacency
-        } else if (pta == 'clemence_target' || pta == 'terrain_damage9' || pta == 'set_marker7_choice' || pta == 'set_wounds5') {
+        } else if (pta == 'clemence_target' || pta == 'terrain_damage9' || pta == 'set_marker7_choice' || pta == 'set_wounds7') {
           // Clémence, Terrain 9, Premier Secours ("vous compris") et Marion peuvent se cibler eux-mêmes
           all = gp.players.values.where((p) => p.alive).toList();
         } else if (pta == 'copy_ability') {
@@ -1615,7 +1645,7 @@ class _ActionPanelState extends State<_ActionPanel> {
         if (pta == 'terrain_damage9') title = '🏹 Clairière — 2 blessures à la cible';
         if (pta == 'baptiste_target') title = '✝️ Baptiste — Quel joueur mort ramener à la vie ?';
         if (pta == 'terrain_steal')   title = '🗼 Tour du Voleur — voler un équipement';
-        if (pta == 'set_wounds5')     title = '📍 Marion — placer à 5 blessures';
+        if (pta == 'set_wounds7')     title = '📍 Marion — placer à 7 blessures';
         if (pta == 'damage2_then_heal3') title = '🥷 Raph — soigner de 3 (vous subissez 2)';
         if (pta == 'ally_sacrifice_heal') title = '✨ Amélia — soigner de 4 (vous subissez 2)';
         if (pta == 'terrain_max_aoe') title = '⚡ Hong Yi — 8 blessures (vous finirez à 1 blessure)';
@@ -1736,7 +1766,7 @@ class _ActionPanelState extends State<_ActionPanel> {
                   pta == 'creation_marin' || pta == 'corne_des_woods') {
                 await gp.applyCard(target: t);
               } else {
-                // Pouvoirs nécessitant une cible (set_wounds5, damage2_then_heal3, etc.)
+                // Pouvoirs nécessitant une cible (set_wounds7, damage2_then_heal3, etc.)
                 await gp.useAbility(target: t);
               }
             }

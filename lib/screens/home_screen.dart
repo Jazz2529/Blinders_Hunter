@@ -521,11 +521,65 @@ class SettingsDialogState extends State<SettingsDialog> {
           ),
 
           const SizedBox(height: 16),
+          // Réinitialisation de la progression
+          SectionLabel('PROGRESSION'),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () => _confirmReset(ctx),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: kRed.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: kRed.withValues(alpha: 0.6)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.restart_alt, color: kRed, size: 18),
+                const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Réinitialiser ma progression', style: body(12, c: kRed)),
+                  Text('Or, cosmétiques, historique et statistiques', style: body(10, c: kTextDim)),
+                ])),
+              ]),
+            ),
+          ),
+
+          const SizedBox(height: 16),
           // Version
           Text('Blinders Hunter — Mode Solo & Multijoueur',
             style: body(10, c: kTextDim), textAlign: TextAlign.center),
         ]),
       ),
     );
+  }
+
+  void _confirmReset(BuildContext ctx) {
+    showDialog(context: ctx, builder: (dctx) => AlertDialog(
+      backgroundColor: kBg2,
+      title: Text('⚠️ Réinitialiser la progression ?', style: cinzel(15, c: kRed)),
+      content: Text(
+        'Cette action efface définitivement ton or, tes cosmétiques débloqués, '
+        'ton historique de parties et tes statistiques par personnage. '
+        'Cette action est irréversible.',
+        style: body(13)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dctx),
+          child: Text('Annuler', style: cinzel(12, c: kTextSub)),
+        ),
+        TextButton(
+          onPressed: () async {
+            await Prefs.resetProgress();
+            if (dctx.mounted) Navigator.pop(dctx);
+            if (ctx.mounted) {
+              setState(() {});
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(content: Text('Progression réinitialisée.')));
+            }
+          },
+          child: Text('Réinitialiser', style: cinzel(12, c: kRed, fw: FontWeight.w900)),
+        ),
+      ],
+    ));
   }
 }
