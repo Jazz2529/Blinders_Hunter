@@ -23,6 +23,7 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
   int gold = 0;
   Set<String> owned = {};
   Map<String, String> equipped = {};
+  bool randomTerrainSkins = false;
 
   @override
   void initState() {
@@ -36,6 +37,7 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
       gold = Prefs.gold();
       owned = Prefs.ownedCosmetics();
       equipped = Prefs.equippedCosmetics();
+      randomTerrainSkins = Prefs.randomTerrainSkins();
     });
   }
 
@@ -144,7 +146,7 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
     if (items.isEmpty) {
       return Center(child: Text('Aucun article pour le moment.', style: body(13, c: kTextDim)));
     }
-    return GridView.builder(
+    final grid = GridView.builder(
       padding: const EdgeInsets.all(16),
       // SliverGridDelegateWithMaxCrossAxisExtent au lieu d'un nombre de
       // colonnes fixe : sur un grand écran PC, un fixe à 2 colonnes forçait
@@ -163,6 +165,39 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
         onToggleEquip: () => _toggleEquip(items[i]),
       ),
     );
+    if (cat != CosmeticCategory.terrain) return grid;
+    // Terrains : réglage "skins aléatoires à chaque partie" au-dessus de la
+    // grille — quand activé, ignore le skin équipé fixe et en tire un
+    // différent (parmi ceux débloqués) au début de chaque nouvelle partie.
+    return Column(children: [
+      Container(
+        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: kGold.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: kGold.withValues(alpha: 0.4)),
+        ),
+        child: Row(children: [
+          const Text('🎲', style: TextStyle(fontSize: 22)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Skins de terrain aléatoires', style: cinzel(12, c: kGold2, fw: FontWeight.w900)),
+            Text('Un skin différent (parmi ceux débloqués) à chaque partie',
+              style: body(10, c: kTextSub)),
+          ])),
+          Switch(
+            value: randomTerrainSkins,
+            activeThumbColor: kGold,
+            onChanged: (v) {
+              Prefs.setRandomTerrainSkins(v);
+              setState(() => randomTerrainSkins = v);
+            },
+          ),
+        ]),
+      ),
+      Expanded(child: grid),
+    ]);
   }
 }
 

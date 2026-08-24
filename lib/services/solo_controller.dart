@@ -9,6 +9,7 @@ import '../data/game_data.dart';
 import '../data/interactions_data.dart';
 import '../data/tokens_data.dart';
 import '../services/audio_service.dart';
+import '../services/persistence.dart';
 import 'engine.dart';
 
 // ─────────────────────────────────────────────
@@ -422,6 +423,9 @@ class SoloController extends ChangeNotifier {
 
   // ─── Setup ──────────────────────────────
   void startGame() {
+    // Skins de terrain aléatoires (si le réglage est activé) — tirés une
+    // seule fois ici, pour toute la durée de cette partie.
+    Prefs.rollRandomTerrainSkinsForNewGame();
     // 5 joueurs : humain + 4 bots
     // Tokens disponibles = uniquement les jetons de BASE (kAllTokens) —
     // PAS les cosmétiques de boutique, qui doivent rester réservés aux

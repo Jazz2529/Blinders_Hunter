@@ -99,6 +99,10 @@ class GameProvider extends ChangeNotifier {
     myUid  = _fb.currentUid;
     hostId = myUid; // l'hôte est forcément moi quand je crée la salle
     Prefs.saveRoom(roomId!, myUid!);
+    // Skins de terrain aléatoires (si le réglage est activé) — tirés
+    // localement pour toute la durée de cette partie (purement visuel,
+    // pas besoin de synchronisation entre joueurs).
+    Prefs.rollRandomTerrainSkinsForNewGame();
     _subscribe(); notifyListeners();
     return roomId!;
   }
@@ -108,6 +112,7 @@ class GameProvider extends ChangeNotifier {
     roomId = code.toUpperCase(); myUid = _fb.currentUid;
     hostId = await _fb.getHostId(roomId!);
     Prefs.saveRoom(roomId!, myUid!);
+    Prefs.rollRandomTerrainSkinsForNewGame();
     _subscribe(); notifyListeners();
   }
 

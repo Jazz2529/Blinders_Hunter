@@ -137,7 +137,6 @@ const Map<String, String> kCharacterImages = {
   'maxime': 'assets/images/characters/maxime.png',
   'victor': 'assets/images/characters/victor.png',
   'meiko': 'assets/images/characters/meiko.png',
-  'meg': 'assets/images/characters/meg.png',
   'mimic': 'assets/images/characters/mimic.png',
   'monkey': 'assets/images/characters/monkey_raph.png',
   'mr_casino': 'assets/images/characters/mr_casino.png',
@@ -273,7 +272,16 @@ String? terrainImagePath(String effect) => kTerrainImages[effect];
 
 /// Illustration effective d'un terrain — prend en compte le cosmétique
 /// équipé (boutique) s'il y en a un, sinon retombe sur l'image de base.
+/// Si le réglage "skins aléatoires" est actif, utilise en priorité le skin
+/// tiré au sort pour CETTE partie (voir Prefs.rollRandomTerrainSkinsForNewGame).
 String? effectiveTerrainImagePath(String effect) {
+  if (Prefs.randomTerrainSkins()) {
+    final randomId = Prefs.sessionTerrainSkins()[effect];
+    if (randomId != null) {
+      final item = kCosmeticsCatalog.where((c) => c.id == randomId).firstOrNull;
+      if (item != null) return item.imagePath;
+    }
+  }
   final equipped = Prefs.equippedCosmetics()['terrain:$effect'];
   if (equipped != null) {
     final item = kCosmeticsCatalog.where((c) => c.id == equipped).firstOrNull;

@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../data/cosmetics_data.dart';
 
 /// ─── Persistance locale ───────────────────────────────────────────────────
 /// Réglages (audio, affichage), salle en cours (reconnexion) et
@@ -197,6 +199,47 @@ class Prefs {
         (k) => k.startsWith('games_played_') || k.startsWith('games_won_'));
     for (final k in statKeys.toList()) {
       await sp.remove(k);
+    }
+  }
+
+  // ── Skins de terrain aléatoires ──────────────────────────────────────
+  /// Réglage : si activé, chaque nouvelle partie tire un skin au hasard
+  /// (parmi ceux DÉBLOQUÉS) pour chaque type de terrain, au lieu d'utiliser
+  /// le skin fixe équipé en boutique.
+  static bool randomTerrainSkins() => _sp?.getBool('random_terrain_skins') ?? false;
+  static void setRandomTerrainSkins(bool value) => _sp?.setBool('random_terrain_skins', value);
+
+  /// Tire un skin aléatoire par type de terrain — à appeler une seule fois
+  /// au tout début d'une nouvelle partie (solo ou multi). Le résultat est
+  /// mémorisé pour toute la durée de la partie (pas un tirage à chaque
+  /// affichage, sinon l'illustration changerait sans arrêt à l'écran).
+  static void rollRandomTerrainSkinsForNewGame() {
+    if (_sp == null) return;
+    final owned = ownedCosmetics();
+    const terrainTypes = {'vision', 'lumiere', 'tenebres', 'damage9', 'steal', 'choice'};
+    final map = <String, String>{};
+    final rng = Random();
+    for (final t in terrainTypes) {
+      final options = kCosmeticsCatalog.where((c) =>
+          c.category == CosmeticCategory.terrain && c.targetId == t && owned.contains(c.id)).toList();
+      if (options.isNotEmpty) {
+        map[t] = options[rng.nextInt(options.length)].id;
+      }
+    }
+    _sp!.setString('terrain_skins_session', jsonEncode(map));
+  }
+
+  /// Skins tirés pour la partie en cours (vide si le réglage n'est pas
+  /// activé, ou si aucun skin n'était débloqué pour un type de terrain —
+  /// dans ce cas ce type retombe simplement sur son skin équipé habituel).
+  static Map<String, String> sessionTerrainSkins() {
+    final raw = _sp?.getString('terrain_skins_session');
+    if (raw == null) return {};
+    try {
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      return m.map((k, v) => MapEntry(k, v as String));
+    } catch (_) {
+      return {};
     }
   }
 }
