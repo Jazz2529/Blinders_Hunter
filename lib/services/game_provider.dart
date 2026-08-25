@@ -961,15 +961,11 @@ class GameProvider extends ChangeNotifier {
     if (!me.alive) me.killedByUid = me.uid; // mort de son propre pouvoir
     _eg.applyDeathPassives(all);
     await _commitAll(all, '🎰 Mr Casino perd son pari — ${me.name} subit 2 blessures');
-    await _checkWin(all, justDiedId: me.alive ? null : me.uid);
-    if (!me.alive) {
-      // Il ne peut plus jouer son tour s'il vient de mourir — le tour
-      // passe immédiatement au joueur suivant au lieu de le laisser
-      // continuer (bouger/attaquer) alors qu'il est mort.
-      await endTurn();
-    } else {
-      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, abilityOverlay: 'casino_lose');
-    }
+    // _checkWin() gère désormais TOUTE mort du joueur en cours de tour (y
+    // compris auto-infligée) en terminant son tour elle-même — inutile de
+    // dupliquer cette logique ici.
+    if (await _checkWin(all, justDiedId: me.alive ? null : me.uid)) return;
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, abilityOverlay: 'casino_lose');
   }
 
   /// Mr Casino — inflige 3 dégâts à la cible choisie après un pari gagné.
@@ -1388,8 +1384,11 @@ class GameProvider extends ChangeNotifier {
     }
     _eg.applyDeathPassives(all);
     await _commitAll(all, log);
-    await _checkWin(all, justDiedId: tgt != null && !tgt.alive ? tgt.uid
-        : (!actor.alive ? actor.uid : null));
+    // _checkWin() gère désormais TOUTE mort du joueur en cours de tour (y
+    // compris auto-infligée, ex: Raph du Soleil) en terminant son tour
+    // elle-même — on vérifie donc son retour au lieu de l'ignorer.
+    if (await _checkWin(all, justDiedId: tgt != null && !tgt.alive ? tgt.uid
+        : (!actor.alive ? actor.uid : null))) return;
 
     // Travert : voice line (spéciale si Clémence révélée, sinon générale)
     if ((actor.copiedEffect ?? actor.character?.abilityEffect ?? '') == 'd6_global_attack') {
@@ -1404,13 +1403,6 @@ class GameProvider extends ChangeNotifier {
             ? (log.contains('se soigne de 1 blessure') ? 'julien_heal' : 'julien_attack')
             : _abilityOverlays[actor.copiedEffect ?? actor.character?.abilityEffect ?? ''];
     final dice = _extractDiceFromLog(log);
-    // Si l'acteur est mort en utilisant sa capacité (ex: Raph), passer au tour suivant
-    if (!actor.alive) {
-      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
-          abilityOverlay: overlay, abilityDiceResult: dice);
-      await endTurn();
-      return;
-    }
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
         abilityOverlay: overlay, abilityDiceResult: dice);
   }
@@ -1904,6 +1896,16 @@ class GameProvider extends ChangeNotifier {
     bool gameEndedTurn2 = false;
     if (!nextPlayer.alive) { gameEndedTurn2 = await _checkWin(all, justDiedId: nextPlayer.uid); }
     if (gameEndedTurn2) return;
+    if (!nextPlayer.alive) {
+      // Il vient de mourir de son propre feu/poison AVANT même que son tour
+      // ne débute officiellement (currentPlayerId pas encore écrit) — on
+      // enchaîne directement sur le joueur suivant plutôt que de lui poser
+      // une phase "capacité" pour un joueur déjà mort.
+      await _fb.addLog(roomId!,
+          '💀 ${nextPlayer.name} meurt avant même le début de son tour — passage au joueur suivant');
+      await endTurn(actingUid: nextPlayer.uid);
+      return;
+    }
     await _fb.setPhase(roomId!, GamePhase.ability, currentPlayerId: order[next], hasAttacked: false, clearPending: true);
   }
 
@@ -1985,6 +1987,21 @@ class GameProvider extends ChangeNotifier {
       await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
           publicRevealUid: unmasked.uid,
           publicRevealTimestamp: DateTime.now().millisecondsSinceEpoch);
+    }
+    // Si le joueur DONT C'EST LE TOUR vient de mourir pendant ce même tour —
+    // feu de Luc, poison de Damien, Araignée Sanguinaire, capacité qui
+    // s'auto-inflige des dégâts, ou n'importe quelle autre source — son
+    // tour s'arrête immédiatement et on passe au joueur suivant. On
+    // renvoie `true` (comme pour une fin de partie) pour que TOUS les
+    // appelants existants, qui font déjà `if (await _checkWin(...)) return;`,
+    // arrêtent correctement d'écraser la phase par-dessus celle posée pour
+    // le joueur suivant — sans avoir à modifier chaque site un par un.
+    final current = gameState != null ? players[gameState!.currentPlayerId] : null;
+    if (current != null && !current.alive) {
+      await _fb.addLog(roomId!,
+          '💀 ${current.name} meurt pendant son propre tour — passage au joueur suivant');
+      await endTurn(actingUid: current.uid);
+      return true;
     }
     return false;
   }

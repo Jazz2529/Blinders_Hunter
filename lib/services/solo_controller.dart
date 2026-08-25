@@ -29,6 +29,12 @@ class SoloState {
   String? winnerMessage;
   bool botThinking;
   bool hasAttackedThisTurn;
+  // Vrai si le tour en cours vient d'être coupé court parce que le joueur
+  // dont c'était le tour est mort (feu, poison, capacité auto-infligée,
+  // etc.) — signale aux appelants de _checkWin() de ne PAS écraser la
+  // phase déjà posée par nextTurn() pour le joueur suivant. Remis à false
+  // au début de chaque nouveau tour.
+  bool turnEndedByDeath = false;
   bool hasDoubleMove;
   bool didNotAttackLastTurn; // Fifi été
   bool skipMovement;         // Demi-sel: peut ne pas se déplacer
@@ -181,6 +187,7 @@ class AiBrain {
   // Décide si le bot joue sa capacité
   bool shouldUseAbility(Player bot, List<Player> all, List<Terrain> layout, AiDifficulty d) {
     if (bot.abilityUsed) return false;
+    if (bot.abilityLockedByUid != null) return false; // Inès : capacité verrouillée
     if (d == AiDifficulty.easy) {
       // Facile : comportement plus aléatoire, mais on évite quand même les
       // activations totalement inutiles (ex: se soigner à pleins PV).
@@ -471,7 +478,7 @@ class SoloController extends ChangeNotifier {
       outgoing.felipeOnBorrowedTime = false;
       outgoing.alive = false;
       _log('🩸 ${outgoing.name} (Felipe) n\'a pas pu se sauver à temps — il succombe à ses blessures.', cls: 'death');
-      _checkWin(justDiedId: outgoing.uid);
+      await _checkWin(justDiedId: outgoing.uid);
     }
     // Fifi Été / Theo : mémorise si CE joueur a attaqué pendant SON PROPRE
     // tour qui se termine — sans ça (l'ancien champ était global et jamais
@@ -491,6 +498,7 @@ class SoloController extends ChangeNotifier {
     p.damageTakenThisTurn = 0; // remise à zéro pour le tracking de Jason
     p.emilienRerolledThisTurn = false; // remise à zéro — une relance par tour
     state!.currentIdx = next;
+    state!.turnEndedByDeath = false;
     state!.phase = GamePhase.ability;
     state!.pendingCard = null;
     state!.pendingCardIsSecret = false;
@@ -515,7 +523,7 @@ class SoloController extends ChangeNotifier {
     // Un passif de début de tour (poison de Damien, etc.) peut tuer un
     // joueur — sans ce check, ni la victoire ni la récompense de Jeanne ne
     // se déclenchaient jamais pour une mort survenue de cette façon.
-    if (!p.alive) { _checkWin(justDiedId: p.uid); }
+    if (!p.alive) { await _checkWin(justDiedId: p.uid); }
     // Zazou snapshot
     _currentSnapshot = {
       for (final pl in state!.players) pl.uid: {'wounds': pl.wounds, 'equip': List.from(pl.equipment), 'alive': pl.alive}
@@ -661,8 +669,8 @@ class SoloController extends ChangeNotifier {
             if (res['needsTarget'] != true) {
               _log(res['log'] as String);
               final justDied = state!.players.where((x) => !x.alive).toList();
-              if (justDied.isEmpty) { _checkWin(); }
-              else { for (final d in justDied) { _checkWin(justDiedId: d.uid); } }
+              if (justDied.isEmpty) { await _checkWin(); }
+              else { for (final d in justDied) { await _checkWin(justDiedId: d.uid); } }
             }
           }
         }
@@ -742,7 +750,7 @@ class SoloController extends ChangeNotifier {
       } else if (log != 'cible_requise') {
         _log(log);
       }
-      _checkWin();
+      await _checkWin();
     }
     notifyListeners();
     if (state!.isOver) { state!.botThinking = false; notifyListeners(); return; }
@@ -799,7 +807,7 @@ class SoloController extends ChangeNotifier {
         if (!t.alive) t.killedByUid = bot.uid; // sinon aucun butin possible
         _eg.applyDeathPassives(state!.players); // sinon Fanny (et autres passifs de mort) ne se déclenchent jamais sur ce kill
         _log('🏹 ${bot.name} inflige 2 à ${t.name}');
-        _checkWin(justDiedId: t.alive?null:t.uid);
+        await _checkWin(justDiedId: t.alive?null:t.uid);
       }
     }
     else if (terrain.effect == 'steal') {
@@ -838,7 +846,7 @@ class SoloController extends ChangeNotifier {
             final vlog = res['log'] as String;
             // Pour les cartes vision, ne loguer que le résultat (pas le contenu)
             _log(vlog);
-            _checkWin();
+            await _checkWin();
           }
         }
       }
@@ -899,7 +907,7 @@ class SoloController extends ChangeNotifier {
             if (state != null) { state!.woundFlashUid = null; }
           });
         }
-        _checkWin(justDiedId: target.alive ? null : target.uid);
+        await _checkWin(justDiedId: target.alive ? null : target.uid);
       }
     }
     notifyListeners();
@@ -1069,7 +1077,7 @@ class SoloController extends ChangeNotifier {
   }
 
 
-  void humanResolveEquipChoice(int equipIdx) {
+  void humanResolveEquipChoice(int equipIdx) async {
     final mode = state!.equipChoiceMode ?? 'steal';
     final actorUid = state!.equipChoiceActorUid;
     final targetUid = state!.equipChoiceTargetUid;
@@ -1084,7 +1092,7 @@ class SoloController extends ChangeNotifier {
     state!.pendingTargetAction = null;
     state!.pendingCard = null;
     state!.phase = _postCardPhase();
-    _checkWin(); notifyListeners();
+    await _checkWin(); notifyListeners();
   }
 
   void clemenceChooseEffect(String eff) {
@@ -1115,7 +1123,7 @@ class SoloController extends ChangeNotifier {
     _applyBuilderCombo(target);
   }
 
-  void _applyBuilderCombo(Player? target) {
+  void _applyBuilderCombo(Player? target) async {
     final s = state!;
     final p = s.current;
     final e1 = s.builderEffect1!;
@@ -1134,7 +1142,7 @@ class SoloController extends ChangeNotifier {
     s.phase = GamePhase.move;
     p.abilityUsed = true;
     s.abilityOverlay = 'clemence_forge';
-    _checkWin(justDiedId: target != null && !target.alive ? target.uid : null);
+    await _checkWin(justDiedId: target != null && !target.alive ? target.uid : null);
     notifyListeners();
   }
 
@@ -1149,7 +1157,7 @@ class SoloController extends ChangeNotifier {
     _log('🃏 ${p.name} révèle : ${disguise.name}', cls: 'player'); notifyListeners();
   }
 
-  void humanUseAbility({Player? target, String? passive, String? extra}) {
+  void humanUseAbility({Player? target, String? passive, String? extra}) async {
     final p = state!.current;
     final s = state!;
     final eff = p.copiedEffect ?? p.character?.abilityEffect ?? '';
@@ -1173,8 +1181,8 @@ class SoloController extends ChangeNotifier {
         s.pendingTargetAction = null; // sans ça, l'écran de choix de cible pouvait réapparaître
         s.abilityOverlay = 'nils_release';
         _log('📦 ${p.name} déverse $storedN blessures stockées sur ${target.name} ($dealtN reçues) !', cls: 'player');
-        _checkWin(justDiedId: target.alive ? null : target.uid);
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        await _checkWin(justDiedId: target.alive ? null : target.uid);
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Agathe : vole 1 PV MAX à un joueur au choix, définitivement (max 5x) ──
       case 'steal_max_hp':
@@ -1197,8 +1205,8 @@ class SoloController extends ChangeNotifier {
         s.pendingTargetAction = null;
         s.abilityOverlay = 'agathe_drain';
         _log('🧛 ${p.name} vole 1 PV MAX à ${target.name} (elle: ${_eg.effectiveMaxHp(p)} PV max, lui: ${_eg.effectiveMaxHp(target)} PV max)', cls: 'player');
-        _checkWin(justDiedId: target.alive ? null : target.uid);
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        await _checkWin(justDiedId: target.alive ? null : target.uid);
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Albane: double dés géré dans la phase move ──
       case 'double_move_dice':
@@ -1233,8 +1241,8 @@ class SoloController extends ChangeNotifier {
         p.abilityUsed = false; // répétable chaque tour
         s.pendingTargetAction = null;
         _log('🐉 Art\'Cade enflamme la zone 6 — $hit6 joueur(s) subissent 2 blessures !', cls: 'player');
-        _checkWin();
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        await _checkWin();
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Captain Ricard: s'inflige des blessures pour soigner un mort/vivant ──
       case 'sacrifice_heal_dead':
@@ -1324,7 +1332,7 @@ class SoloController extends ChangeNotifier {
         s.pendingTargetAction = null;
         s.abilityOverlay = 'ines_lock';
         _log('🔒 ${p.name} verrouille la capacité de ${target.name} tant qu\'elle est en vie', cls: 'player');
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       case 'set_wounds7':
         if (target == null) { s.pendingTargetAction = 'ability_set5'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
@@ -1342,8 +1350,8 @@ class SoloController extends ChangeNotifier {
         } else {
           _log('📍 Marion place ${target.name} à 5 blessures (déjà à 5)', cls: 'player');
         }
-        _checkWin(justDiedId: target.alive ? null : target.uid);
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        await _checkWin(justDiedId: target.alive ? null : target.uid);
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Cupidon: lie 2 joueurs ──
       case 'link_two_players':
@@ -1360,10 +1368,12 @@ class SoloController extends ChangeNotifier {
         s.pendingTargetAction = null;
         s.abilityOverlay = 'raph_petals';
         _log('🥷 Raph subit 2 et soigne ${target.name} de 3', cls: 'player');
-        _checkWin(justDiedId: p.alive ? null : p.uid);
-        // Si Raph est mort en utilisant sa capacité, on passe au tour suivant
-        if (!p.alive) { humanEndTurn(); return; }
-        s.phase = GamePhase.move; notifyListeners(); return;
+        await _checkWin(justDiedId: p.alive ? null : p.uid);
+        // _checkWin() gère désormais elle-même le passage au tour suivant
+        // si Raph vient de mourir de sa propre capacité — turnEndedByDeath
+        // évite d'écraser la phase déjà posée pour le joueur suivant.
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
+        notifyListeners(); return;
 
       // ── Mère Christine: copie Lumière sur allié ──
       case 'lumiere_copy':
@@ -1504,8 +1514,8 @@ class SoloController extends ChangeNotifier {
         s.abilityOverlay = 'vlad_mountain';
         s.abilityDiceResult = {'d': 4, 'result': dv, 'dmg': dealtVlad};
         _log('💨 Vlad lance D4($dv) → inflige $dealtVlad blessures à ${target.name} !', cls: 'player');
-        _checkWin(justDiedId: target.alive ? null : target.uid);
-        if (!s.isOver) { s.phase = GamePhase.move; }
+        await _checkWin(justDiedId: target.alive ? null : target.uid);
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
         notifyListeners(); return;
 
       // ── Elaia : prescience — choisir la pile à regarder ──
@@ -1564,8 +1574,8 @@ class SoloController extends ChangeNotifier {
         _eg.applyDamage(target, 2);
         s.abilityOverlay = 'julien_attack';
         _log('🍳 Julien inflige 2 à ${target.name}', cls: 'player');
-        _checkWin(justDiedId: target.alive ? null : target.uid);
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        await _checkWin(justDiedId: target.alive ? null : target.uid);
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Marin Shadow: donne item → inflige 2 ──
       case 'trade_item_damage3':
@@ -1576,8 +1586,8 @@ class SoloController extends ChangeNotifier {
         _eg.recalcPassives(p); // sinon Marin garde à tort le passif de l'objet qu'il vient de donner
         _eg.applyDamage(target, 2);
         _log('💰 Marin donne "${item.name}" à ${target.name} et inflige 2', cls: 'player');
-        _checkWin(justDiedId: target.alive ? null : target.uid);
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        await _checkWin(justDiedId: target.alive ? null : target.uid);
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Travert: D6 sur cible choisie ──
       case 'd6_global_attack':
@@ -1594,8 +1604,8 @@ class SoloController extends ChangeNotifier {
         _log('🎲 Travert lance D6($dt) → inflige $dealtTr blessures à ${target.name} !', cls: 'player');
         final travertIt = _eg.travertInteraction(s.players);
         audio.playInteractionVoice(travertIt.key);
-        _checkWin(justDiedId: target.alive ? null : target.uid);
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        await _checkWin(justDiedId: target.alive ? null : target.uid);
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Raphaël Shadow: attaque répétée, miroir ──
       case 'mirror_damage':
@@ -1616,8 +1626,8 @@ class SoloController extends ChangeNotifier {
         } else {
           _log('🎵 Jazzon inflige 1 à ${target.name} (pas d\'équipement)', cls: 'player');
         }
-        _checkWin(justDiedId: target.alive ? null : target.uid);
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        await _checkWin(justDiedId: target.alive ? null : target.uid);
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Glads: récupère TOUS les équipements ──
       case 'gather_attack_redistribute':
@@ -1645,9 +1655,9 @@ class SoloController extends ChangeNotifier {
         s.abilityDiceResult = {'d': 8, 'result': 8, 'dmg': 8};
         _log('⚡ Hong Yi inflige 8 à ${target.name} — et s\'inflige 4 blessures en retour !', cls: 'player');
         if (!p.alive) p.killedByUid = p.uid;
-        _checkWin(justDiedId: target.alive ? null : target.uid);
-        if (!p.alive) _checkWin(justDiedId: p.uid);
-        if (!s.isOver) { s.phase = GamePhase.move; }
+        await _checkWin(justDiedId: target.alive ? null : target.uid);
+        if (!p.alive) await _checkWin(justDiedId: p.uid);
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
         notifyListeners();
         return;
 
@@ -1665,8 +1675,8 @@ class SoloController extends ChangeNotifier {
         _eg.applyDamage(target, 3);
         p.abilityUsed = true;
         _log('🔊 Enceinte révèle et inflige 3 à ${target.name} !', cls: 'player');
-        _checkWin(justDiedId: target.alive ? null : target.uid);
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        await _checkWin(justDiedId: target.alive ? null : target.uid);
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Jésus: ressuscite à 0 blessure (passif mort) ──
       case 'resurrect_once':
@@ -1784,9 +1794,9 @@ class SoloController extends ChangeNotifier {
         s.abilityOverlay = 'leo_flames_all';
         s.abilityDiceResult = {'d': 4, 'result': dLeo, 'dmg': dLeo};
         _log('🔥 Léo lance D4($dLeo) — TOUS les joueurs (lui inclus) subissent $dLeo blessures !', cls: 'player');
-        for (final uid in killedUids) _checkWin(justDiedId: uid);
-        if (killedUids.isEmpty) _checkWin();
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        for (final uid in killedUids) await _checkWin(justDiedId: uid);
+        if (killedUids.isEmpty) await _checkWin();
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       case 'heal1_on_own_attack':
         p.abilityUsed = false;
@@ -1806,8 +1816,8 @@ class SoloController extends ChangeNotifier {
         s.abilityDiceResult = {'d': 6, 'result': dcL, 'dmg': dealtL};
         s.abilityOverlay = 'carapatte_food';
         _log('🐢 Carapatte lance D6($dcL) sur ${target.name} — inflige $dcL, se soigne de $dealtL', cls: 'player');
-        _checkWin(justDiedId: target.alive ? null : target.uid);
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        await _checkWin(justDiedId: target.alive ? null : target.uid);
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Tristan : échange un équipement avec un autre joueur ──
       case 'swap_equipment':
@@ -1820,8 +1830,8 @@ class SoloController extends ChangeNotifier {
         if (logSwap.isNotEmpty) _log(logSwap, cls: 'player');
         if (!logSwap.contains('échange impossible')) s.abilityOverlay = 'tristan_swap';
         s.pendingTargetAction = null;
-        _checkWin();
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        await _checkWin();
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Marin : 3 dégâts + dague à la cible ──
       case 'damage3_give_dague':
@@ -1834,8 +1844,8 @@ class SoloController extends ChangeNotifier {
         if (logMarin.isNotEmpty) _log(logMarin, cls: 'player');
         s.pendingTargetAction = null;
         s.abilityOverlay = 'marin_dagger';
-        _checkWin();
-        if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners(); return;
+        await _checkWin();
+        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
       // ── Oscar : affiche l'écran de choix (Eau/Plante/Feu) ──
       case 'oscar_xp_spend':
@@ -1881,7 +1891,7 @@ class SoloController extends ChangeNotifier {
     if (state!.phase == GamePhase.ability || state!.phase == GamePhase.chooseTarget) {
       state!.phase = GamePhase.move;
     }
-    _checkWin(); notifyListeners();
+    await _checkWin(); notifyListeners();
   }
 
   /// Oscar : traite le choix d'un des 3 éléments (Eau/Plante/Feu). "Eau"
@@ -1933,7 +1943,7 @@ class SoloController extends ChangeNotifier {
   }
 
   /// Baptiste : résout la résurrection une fois le montant choisi.
-  void humanBaptisteAmount(int amount) {
+  void humanBaptisteAmount(int amount) async {
     final p = state!.current;
     final s = state!;
     final target = s.players.where((pp) => pp.uid == _baptisteTargetUid).firstOrNull;
@@ -1950,13 +1960,13 @@ class SoloController extends ChangeNotifier {
     if (!p.alive) {
       // Sacrifice total : Baptiste vient de mourir en ramenant l'autre à
       // la vie — passe directement au joueur suivant.
-      _checkWin(justDiedId: p.uid);
-      if (!s.isOver) humanEndTurn();
+      await _checkWin(justDiedId: p.uid);
+      if (!s.isOver && !s.turnEndedByDeath) humanEndTurn();
       notifyListeners();
       return;
     }
-    _checkWin();
-    if (!s.isOver) { s.phase = GamePhase.move; }
+    await _checkWin();
+    if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
     notifyListeners();
   }
 
@@ -1993,7 +2003,7 @@ class SoloController extends ChangeNotifier {
   };
 
   /// Damien : sert l'alcool fort — 4 dégâts instantanés.
-  void damienServeAlcohol() {
+  void damienServeAlcohol() async {
     final s = state!;
     final targetUid = s.damienTargetUid; if (targetUid == null) return;
     final actor = s.current;
@@ -2002,8 +2012,8 @@ class SoloController extends ChangeNotifier {
     _log(log, cls: 'player');
     s.damienTargetUid = null;
     s.abilityOverlay = 'damien_alcohol';
-    _checkWin(justDiedId: target.alive ? null : target.uid);
-    if (!s.isOver) { s.phase = GamePhase.move; } notifyListeners();
+    await _checkWin(justDiedId: target.alive ? null : target.uid);
+    if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners();
   }
 
   /// Damien : sert le poison — 3 dégâts/tour pendant 2 tours.
@@ -2189,7 +2199,7 @@ class SoloController extends ChangeNotifier {
     state!.phase = _postCardPhase(); notifyListeners();
   }
 
-  void humanApplyCard({Player? target}) {
+  void humanApplyCard({Player? target}) async {
     final card = state!.pendingCard; if (card == null) return;
     final p = state!.current;
     // Snapshot des joueurs vivants AVANT résolution — indispensable pour ne
@@ -2220,7 +2230,7 @@ class SoloController extends ChangeNotifier {
       final punishLog = _eg.resolvePunishChoice(punishActor, punishTarget, giveEquip);
       _log(punishLog, cls: 'player');
       state!.pendingCard = null; state!.phase = _postCardPhase();
-      _checkWin(justDiedId: punishTarget.alive ? null : punishTarget.uid); notifyListeners(); return;
+      await _checkWin(justDiedId: punishTarget.alive ? null : punishTarget.uid); notifyListeners(); return;
     }
     if (res['needsEquipChoice'] == true) {
       state!.equipChoiceMode = res['equipChoiceMode'] as String;
@@ -2289,9 +2299,9 @@ class SoloController extends ChangeNotifier {
     // reconnu comme l'auteur du kill quand il joue une carte lui-même.
     for (final d in justDied) { d.killedByUid ??= p.uid; }
     if (justDied.isEmpty) {
-      _checkWin();
+      await _checkWin();
     } else {
-      for (final d in justDied) { _checkWin(justDiedId: d.uid); }
+      for (final d in justDied) { await _checkWin(justDiedId: d.uid); }
     }
     notifyListeners();
   }
@@ -2311,7 +2321,7 @@ class SoloController extends ChangeNotifier {
     state!.pendingCard = null; state!.phase = _postCardPhase(); notifyListeners();
   }
 
-  void humanApplyTerrainTarget(String targetId) {
+  void humanApplyTerrainTarget(String targetId) async {
     final action = state!.pendingTargetAction ?? '';
     final target = state!.players.firstWhere((p) => p.uid == targetId);
     if (action == 'terrain_damage9') {
@@ -2320,7 +2330,7 @@ class SoloController extends ChangeNotifier {
       _log('🏹 Terrain 9 — tu infliges $dmg9 à ${target.name}', cls: 'player');
       if (!target.alive) target.killedByUid = state!.current.uid; // sinon aucun butin possible
       _eg.applyDeathPassives(state!.players); // sinon Fanny (et autres passifs de mort) ne se déclenchent jamais sur ce kill
-      _checkWin(justDiedId: target.alive ? null : target.uid);
+      await _checkWin(justDiedId: target.alive ? null : target.uid);
     } else if (action == 'terrain_steal') {
       if (target.equipment.isNotEmpty) {
         final e = target.equipment.removeAt(_rng.nextInt(target.equipment.length));
@@ -2334,11 +2344,11 @@ class SoloController extends ChangeNotifier {
       }
     }
     state!.pendingTargetAction = null;
-    if (!state!.isOver) { state!.phase = _postCardPhase(); }
+    if (!state!.isOver && !state!.turnEndedByDeath) { state!.phase = _postCardPhase(); }
     notifyListeners();
   }
 
-  void humanChooseTarget(String targetId) {
+  void humanChooseTarget(String targetId) async {
     final target = state!.players.firstWhere((p) => p.uid == targetId);
     if (state!.pendingTargetAction == 'jeanne_mark_target') {
       jeanneChooseTarget(targetId);
@@ -2366,7 +2376,7 @@ class SoloController extends ChangeNotifier {
         state!.forcedAttackerUid = null;
         state!.pendingTargetAction = null;
         state!.phase = GamePhase.attack;
-        _checkWin(justDiedId: target.alive ? null : target.uid);
+        await _checkWin(justDiedId: target.alive ? null : target.uid);
         notifyListeners();
       }
       return;
@@ -2403,7 +2413,7 @@ class SoloController extends ChangeNotifier {
     // NB: humanUseAbility gère elle-même la phase suivante pour les cas spéciaux
   }
 
-  void humanAttack(String targetId, int dmg) {
+  void humanAttack(String targetId, int dmg) async {
     final attacker = state!.current;
     final target = state!.players.firstWhere((p) => p.uid == targetId);
     // Fifi Golden: force 5 dégâts
@@ -2446,7 +2456,7 @@ class SoloController extends ChangeNotifier {
         if (gegeTriggered2) state!.abilityOverlay = 'gege_ghost';
       }
     }
-    _checkWin(justDiedId: target.alive ? null : target.uid);
+    await _checkWin(justDiedId: target.alive ? null : target.uid);
     // Track Raphaël mirror damage
     if (state!.raphShadowMultiAtk) {
       state!.raphShadowTotalDmg += (res['actualDmg'] as int? ?? dmg);
@@ -2460,12 +2470,12 @@ class SoloController extends ChangeNotifier {
         if (state != null) { state!.woundFlashUid = null; notifyListeners(); }
       });
     }
-    if (!state!.isOver) { state!.phase = GamePhase.attack; }
+    if (!state!.isOver && !state!.turnEndedByDeath) { state!.phase = GamePhase.attack; }
     notifyListeners();
   }
 
 
-  void humanBazookaAttack(int dmg) {
+  void humanBazookaAttack(int dmg) async {
     if (state == null) return;
     final attacker = state!.current;
     final targets = _eg.attackTargets(attacker, state!.players, state!.terrainLayout);
@@ -2504,7 +2514,7 @@ class SoloController extends ChangeNotifier {
     }
 
     // Check wins after all attacks
-    for (final uid in killed) _checkWin(justDiedId: uid);
+    for (final uid in killed) await _checkWin(justDiedId: uid);
     notifyListeners();
   }
 
@@ -2553,11 +2563,11 @@ class SoloController extends ChangeNotifier {
 
 
 
-  void applyDamageToPlayer(String uid, int dmg) {
+  void applyDamageToPlayer(String uid, int dmg) async {
     if (state == null) return;
     final target = state!.players.firstWhere((p) => p.uid == uid, orElse: () => state!.players.first);
     _eg.applyDamage(target, dmg);
-    _checkWin(justDiedId: target.alive ? null : target.uid);
+    await _checkWin(justDiedId: target.alive ? null : target.uid);
     notifyListeners();
   }
 
@@ -2568,12 +2578,12 @@ class SoloController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void applyDamageToHuman(int dmg, {String reason = ''}) {
+  void applyDamageToHuman(int dmg, {String reason = ''}) async {
     final me = state!.players.firstWhere((p) => !p.isBot, orElse: () => state!.current);
     _eg.applyDamage(me, dmg);
     if (reason.isNotEmpty) _log(reason, cls: 'player');
-    _checkWin(justDiedId: me.alive ? null : me.uid);
-    if (!state!.isOver) { state!.phase = GamePhase.attack; }
+    await _checkWin(justDiedId: me.alive ? null : me.uid);
+    if (!state!.isOver && !state!.turnEndedByDeath) { state!.phase = GamePhase.attack; }
     notifyListeners();
   }
 
@@ -2618,7 +2628,7 @@ class SoloController extends ChangeNotifier {
     if (state!.log.length > 80) state!.log.removeAt(0);
   }
 
-  void _checkWin({String? justDiedId}) {
+  Future<void> _checkWin({String? justDiedId}) async {
     if (state == null) return;
     // Baleine — soigne les Hunters révélés à sa mort (et tout autre passif de mort)
     _eg.applyDeathPassives(state!.players);
@@ -2691,6 +2701,22 @@ class SoloController extends ChangeNotifier {
       unmasked.disguiseJustLost = false;
       state!.pendingRevealAnimation = unmasked.uid;
       _log('🎭 ${unmasked.name} perd son déguisement — sa vraie identité est révélée !', cls: 'player');
+    }
+    // Si le joueur DONT C'EST LE TOUR vient de mourir pendant ce même tour —
+    // feu de Luc, poison de Damien, Araignée Sanguinaire, capacité qui
+    // s'auto-inflige des dégâts (Peio, Hong Yi...), ou n'importe quelle
+    // autre source — son tour s'arrête immédiatement et on passe au joueur
+    // suivant, plutôt que de continuer à afficher/gérer un tour pour un
+    // joueur mort. `turnEndedByDeath` signale aux appelants de _checkWin()
+    // de NE PAS écraser la phase déjà posée par nextTurn() pour le joueur
+    // suivant (sinon le tour du nouveau joueur repartirait de la mauvaise
+    // phase).
+    if (!state!.current.alive) {
+      state!.turnEndedByDeath = true;
+      _log('💀 ${state!.current.name} meurt pendant son propre tour — passage au joueur suivant',
+        cls: 'player');
+      state!.bonusTurnsRemaining = 0; // ne doit pas "fuiter" vers le joueur suivant
+      await nextTurn();
     }
   }
 

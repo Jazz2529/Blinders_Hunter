@@ -3137,7 +3137,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
             // Emilien : passif — une SEULE relance du D6 par tour. Non
             // disponible pour le bazooka ni le double-lancer de Mango
             // (structures différentes).
-            if (_atkD4b == null && !me.emilienRerolledThisTurn &&
+            if (me.revealed && _atkD4b == null && !me.emilienRerolledThisTurn &&
                 (me.copiedEffect ?? me.character?.abilityEffect) == 'reroll_d6_attack') ...[
               const SizedBox(height: 8),
               BHButton(

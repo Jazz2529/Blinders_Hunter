@@ -104,7 +104,7 @@ class GameEngine with AbilityEngine {
 
   List<Player> attackTargets(Player attacker, List<Player> all, List<Terrain> layout) {
     // Gège le Fantôme : ne peut pas attaquer quand révélé (passif seulement)
-    final eff = attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '';
+    final eff = effectiveAbility(attacker);
     if (eff == 'gege_passive' && attacker.revealed) return [];
     final z = attacker.zoneIndex;
     final adj = kAdjacences[z];
@@ -129,7 +129,7 @@ class GameEngine with AbilityEngine {
     // de la liste de cibles valides, quelle que soit la portée normalement
     // applicable (bouclier "romantique", pas une question de distance).
     final victor = all.where((p) =>
-        p.alive && (p.copiedEffect ?? p.character?.abilityEffect) == 'victor_charm').firstOrNull;
+        p.alive && effectiveAbility(p) == 'victor_charm').firstOrNull;
     if (victor != null && (victor.charmLevels[attacker.uid] ?? 0) >= 100) {
       result = result.where((p) => p.uid != victor.uid).toList();
     }
@@ -142,11 +142,22 @@ class GameEngine with AbilityEngine {
   /// sous 1, pour éviter un PV max nul ou négatif qui n'aurait pas de sens.
   int effectiveMaxHp(Player p) => max(1, (p.character?.hp ?? 1) + p.maxHpModifier);
 
+  /// Effet de capacité "effectif" d'un joueur — vide si Inès l'a verrouillé
+  /// (tant qu'elle est en vie). Centralise le blocage : toute capacité qui
+  /// se déclenche en comparant ce résultat à un identifiant d'effet est
+  /// automatiquement neutralisée pour un joueur verrouillé, qu'il s'agisse
+  /// d'une capacité ACTIVE (bouton) ou PASSIVE (déclenchée automatiquement
+  /// lors d'une attaque, d'une mort, etc.).
+  String effectiveAbility(Player p) {
+    if (p.abilityLockedByUid != null) return '';
+    return p.copiedEffect ?? p.character?.abilityEffect ?? '';
+  }
+
   /// Maxime : mémorise le PREMIER joueur à lui avoir réellement infligé des
   /// blessures cette partie — sa condition de victoire. Ne s'écrase jamais
   /// une fois posé (seul le tout premier compte).
   void applyMaximeFirstAttacker(Player attacker, Player target, int actualDmg) {
-    if ((target.copiedEffect ?? target.character?.abilityEffect) != 'maxime_double_first') return;
+    if (effectiveAbility(target) != 'maxime_double_first') return;
     if (actualDmg <= 0) return;
     if (target.maximeFirstAttackerUid != null) return;
     target.maximeFirstAttackerUid = attacker.uid;
@@ -158,7 +169,7 @@ class GameEngine with AbilityEngine {
   /// réellement infligés — c'est l'action d'attaquer qui compte, pas le
   /// résultat.
   void applyVictorCharm(Player attacker, Player target, List<Player>? all) {
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') != 'victor_charm') return;
+    if (effectiveAbility(attacker) != 'victor_charm') return;
     if (!attacker.revealed) return;
     final curTarget = attacker.charmLevels[target.uid] ?? 0;
     attacker.charmLevels[target.uid] = (curTarget + 20).clamp(0, 100).toInt();
@@ -178,7 +189,7 @@ class GameEngine with AbilityEngine {
     if (isTenebresCard && p.tendebresImmune) return 0;
     // BIBBLE: cartes ténèbres le soignent au lieu de le blesser
     if (isTenebresCard && p.revealed &&
-        (p.copiedEffect ?? p.character?.abilityEffect ?? '') == 'tenebres_heal_instead') {
+        effectiveAbility(p) == 'tenebres_heal_instead') {
       applyHeal(p, n);
       return 0;
     }
@@ -201,7 +212,7 @@ class GameEngine with AbilityEngine {
     // sauvetage, et la fin de tour pour la mort si le sursis n'a pas
     // suffi). Ne fonctionne QUE s'il est révélé — sinon aucun effet, il
     // meurt normalement comme n'importe qui.
-    final isFelipe = (p.copiedEffect ?? p.character?.abilityEffect ?? '') == 'felipe_passive';
+    final isFelipe = effectiveAbility(p) == 'felipe_passive';
     if (isFelipe && p.revealed && !p.felipeOnBorrowedTime && p.wounds >= effectiveMaxHp(p)) {
       p.felipeOnBorrowedTime = true;
       p.wounds = effectiveMaxHp(p) - 1; // 1 PV restant, toujours en vie
@@ -845,7 +856,7 @@ class GameEngine with AbilityEngine {
         return {'log': '🦇 ${actor.name} vampirise ${target.name}', 'needsTarget': false};
       case 'blue_shell':
         if (target.revealed &&
-            (target.copiedEffect ?? target.character?.abilityEffect ?? '') == 'tenebres_heal_instead') {
+            effectiveAbility(target) == 'tenebres_heal_instead') {
           // Bibble : cette carte Ténèbres le soigne au lieu de le blesser.
           final wouldBe = target.wounds < 5 ? (5 - target.wounds) : 0;
           if (wouldBe > 0) applyHeal(target, wouldBe);
@@ -965,7 +976,7 @@ class GameEngine with AbilityEngine {
   Map<String, dynamic> _vision(Player actor, Player target, Faction f, int dmg) {
     // Le Caméléon (Jason) : insensible aux cartes Vision, même non révélé —
     // aucune information ne doit jamais filtrer sur sa vraie faction.
-    final targetEff = target.copiedEffect ?? target.character?.abilityEffect ?? '';
+    final targetEff = effectiveAbility(target);
     if (targetEff == 'chameleon_passive') {
       return {'log': '🔮 Carte Vision — ${target.name} ne subit aucune blessure', 'needsTarget': false};
     }
@@ -995,40 +1006,40 @@ class GameEngine with AbilityEngine {
     // l'ATTAQUANT, ce qui n'a aucun sens pour un objet défensif. Supprimée.
 
     // Luc/Peintre passive +1 dmg
-    final atkEff = attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '';
+    final atkEff = effectiveAbility(attacker);
     if (atkEff == 'ines_plus1_atk' && attacker.revealed) dmg += 1;
     // Meg : forme Offensive active → +1 dégât infligé
     if (atkEff == 'meg_shapeshift' && attacker.megForm == 'offense' && dmg > 0) dmg += 1;
     // Théo Homard +1 dmg si révélé
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'revealed_plus1_dmg') dmg += 1;
+    if (effectiveAbility(attacker) == 'revealed_plus1_dmg') dmg += 1;
     // Felipe Pompims dernier Hunter +2
     if (atkEff == 'last_hunter_buff' && attacker.bonusMaxHp > 0) dmg += 2;
     // Mathieu : à partir de la 3ème attaque, +2 dégâts PERMANENT sur toutes
     // les attaques suivantes (pas seulement un pic sur la 3ème).
     final mathieuCount = attackCount ?? 0;
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus' && mathieuCount >= 2) dmg += 2;
+    if (effectiveAbility(attacker) == 'third_attack_bonus' && mathieuCount >= 2) dmg += 2;
     // Vache: -1 infligé
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'reduce_all_by1') dmg = max(0, dmg - 1);
+    if (effectiveAbility(attacker) == 'reduce_all_by1') dmg = max(0, dmg - 1);
     // Rémi : équipement personnalisé — bonus de dégâts choisis (suit
     // l'équipement, pas le personnage — utile s'il est volé).
     final remiChoices = remiActiveChoices(attacker);
     if (remiChoices.contains('remi_dmg1') && dmg > 0) dmg += 1;
     if (remiChoices.contains('remi_dmg2') && dmg > 0) dmg += 2;
     // Louise: si 0 dmg → 4, sinon +1
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'zero_wound_power') {
+    if (effectiveAbility(attacker) == 'zero_wound_power' && attacker.revealed) {
       if (dmg == 0) dmg = 4;
       else dmg += 1;
     }
     // Carla: si cible est un Hunter révélé → soigne du même montant que les
     // dégâts qui auraient été infligés (aucune réduction). Sinon, dégâts
     // normaux sans modification.
-    final isCarla = (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'heal_hunter_on_attack';
+    final isCarla = effectiveAbility(attacker) == 'heal_hunter_on_attack';
     if (isCarla && attacker.revealed && target.character?.faction == Faction.hunter && target.revealed) {
       if (dmg > 0) applyHeal(target, dmg);
       return {'log': '🕊 Carla soigne ${target.name} de $dmg au lieu de blesser', 'actualDmg': 0};
     }
     // Fifi Été: +2 si pas attaqué le tour d'avant
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'no_attack_buff'
+    if (effectiveAbility(attacker) == 'no_attack_buff'
         && attacker.revealed && attacker.bonusMaxHp > 0) {
       dmg += 2; attacker.bonusMaxHp = 0; // consume le buff
     }
@@ -1037,7 +1048,7 @@ class GameEngine with AbilityEngine {
       dmg += 2; attacker.oscarFireBonus = false; // consommé
     }
     // Maxime : sa première attaque après s'être révélé inflige le double.
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'maxime_double_first'
+    if (effectiveAbility(attacker) == 'maxime_double_first'
         && attacker.revealed && !attacker.maximeUsedFirstBonus) {
       dmg *= 2; attacker.maximeUsedFirstBonus = true; // consommé, ne se reproduit plus
     }
@@ -1047,7 +1058,7 @@ class GameEngine with AbilityEngine {
     // Maxence : passif révélé — chaque attaque lui inflige 1 blessure, mais
     // ajoute 2 dégâts à cette même attaque. Peut potentiellement le tuer
     // lui-même s'il est déjà très affaibli.
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'maxence_selfharm_boost'
+    if (effectiveAbility(attacker) == 'maxence_selfharm_boost'
         && attacker.revealed) {
       dmg += 2;
       applyDamage(attacker, 1);
@@ -1073,11 +1084,11 @@ class GameEngine with AbilityEngine {
     // (sinon la réduction s'appliquait deux fois pendant une attaque : ici
     // ET à nouveau dans applyDamage, ce qui faisait -2 au lieu de -1).
     // Vache cible: -1 reçu
-    if ((target.copiedEffect ?? target.character?.abilityEffect ?? '') == 'reduce_all_by1') dmg = max(0, dmg - 1);
+    if (effectiveAbility(target) == 'reduce_all_by1') dmg = max(0, dmg - 1);
     // Inès passive: -1 reçu
-    if ((target.copiedEffect ?? target.character?.abilityEffect ?? '') == 'ines_minus1_recv' && target.revealed) dmg = max(0, dmg - 1);
+    if (effectiveAbility(target) == 'ines_minus1_recv' && target.revealed) dmg = max(0, dmg - 1);
     // Meg : forme Défensive active → -1 dégât reçu
-    if ((target.copiedEffect ?? target.character?.abilityEffect ?? '') == 'meg_shapeshift' && target.megForm == 'defense') dmg = max(0, dmg - 1);
+    if (effectiveAbility(target) == 'meg_shapeshift' && target.megForm == 'defense') dmg = max(0, dmg - 1);
     // Shieldtarget (Vlad Princesse)
     // handled in controller
 
@@ -1092,7 +1103,7 @@ class GameEngine with AbilityEngine {
     // n'infligent rien, les blessures sont stockées pour être déversées
     // plus tard (bouton dédié) sur un joueur au choix.
     if (attacker.revealed &&
-        (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'store_damage_nils') {
+        effectiveAbility(attacker) == 'store_damage_nils') {
       attacker.storedDamage += dmg;
       return {'log': '📦 ${attacker.name} stocke $dmg blessures (total: ${attacker.storedDamage})', 'actualDmg': 0};
     }
@@ -1105,7 +1116,7 @@ class GameEngine with AbilityEngine {
     }
     // Oscar : cumule 1 XP par blessure infligée en attaque (toute source
     // confondue — dégâts de base et bonus type Épée Ninja).
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'oscar_xp_spend' && attacker.revealed && actual > 0) {
+    if (effectiveAbility(attacker) == 'oscar_xp_spend' && attacker.revealed && actual > 0) {
       attacker.oscarXp += actual + (attacker.epeeNinja ? 2 : 0);
     }
     // Victor : charme la cible et tous les joueurs présents sur sa zone —
@@ -1150,7 +1161,7 @@ class GameEngine with AbilityEngine {
     // Scott: contre-attaque (uniquement s'il survit à l'attaque)
     bool scottCountered = false;
     int? counterD4, counterD6, counterDmg;
-    final tEff = target.copiedEffect ?? target.character?.abilityEffect ?? '';
+    final tEff = effectiveAbility(target);
     if (tEff == 'counter_attack_passive' && target.revealed && target.alive) {
       final cd4 = rollD4(); final cd6 = rollD6();
       final cDmg = (cd4 - cd6).abs();
@@ -1167,7 +1178,7 @@ class GameEngine with AbilityEngine {
       log += ' | 🐱 Orion vole "${eq.name}"';
     }
     // Slime passif SUR Slime: quand quelqu'un ATTAQUE Slime, l'attaquant perd un équipement
-    final tgtEff2 = target.copiedEffect ?? target.character?.abilityEffect ?? '';
+    final tgtEff2 = effectiveAbility(target);
     if (tgtEff2 == 'attack_discard_equip' && actual > 0 && attacker.equipment.isNotEmpty) {
       final lost = attacker.equipment.removeAt(0);
       recalcPassives(attacker);
@@ -1180,7 +1191,7 @@ class GameEngine with AbilityEngine {
     }
     // Baleine: soigne alliés à sa mort
     if (!target.alive) {
-      final dTEff = target.copiedEffect ?? target.character?.abilityEffect ?? '';
+      final dTEff = effectiveAbility(target);
       if (dTEff == 'death_heal_allies' && target.character!.faction == Faction.hunter) {
         for (final p in all.where((p) => p.alive && p.character!.faction == Faction.hunter && p.revealed)) {
           applyHeal(p, 3);
@@ -1197,23 +1208,23 @@ class GameEngine with AbilityEngine {
         log += ' | 💣 Enceinte explose — tous subissent ${target.deathBombDmg} blessures !';
       }
       // Jesus: ressuscite
-      final jEff = target.copiedEffect ?? target.character?.abilityEffect ?? '';
+      final jEff = effectiveAbility(target);
       if (jEff == 'resurrect_once' && !target.revived) {
         target.wounds = 0; target.alive = true; target.revived = true;
         log += ' | ✝️ Jésus ressuscite !';
       }
     }
     // Raphaël Shadow mirror
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'mirror_damage' && actual > 0) {
+    if (effectiveAbility(attacker) == 'mirror_damage' && actual > 0) {
       applyDamage(attacker, actual);
       log += ' | ⚔️ Raphaël subit $actual (miroir)';
     }
     // Rat d'Rouen: soigne de 1 si C'EST son attaque qui inflige
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'heal1_on_own_attack' && actual > 0) {
+    if (effectiveAbility(attacker) == 'heal1_on_own_attack' && attacker.revealed && actual > 0) {
       applyHeal(attacker, 1);
     }
     // Jason neutre: +1 blessure sur toutes ses attaques
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'lie_vision_plus1' && attacker.revealed) {
+    if (effectiveAbility(attacker) == 'lie_vision_plus1' && attacker.revealed) {
       applyDamage(target, 1);
       if (!target.alive) target.killedByUid = attacker.uid;
     }
@@ -1232,11 +1243,11 @@ class GameEngine with AbilityEngine {
     if (attacker.epeeNinja && dmg > 0) dmg += 2;
     // Mathieu : à partir de la 3ème attaque, +2 dégâts PERMANENT sur toutes
     // les attaques suivantes (idem resolveAttackFull, utilisée par les bots).
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus'
+    if (effectiveAbility(attacker) == 'third_attack_bonus'
         && (attacker.attackCount - 1) >= 2) dmg += 2;
     // Louise : si 0 dmg → 4, sinon +1
-    final atkEff = attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '';
-    if (atkEff == 'zero_wound_power') {
+    final atkEff = effectiveAbility(attacker);
+    if (atkEff == 'zero_wound_power' && attacker.revealed) {
       if (dmg == 0) dmg = 4; else dmg += 1;
     }
     // Carla : si cible est un Hunter révélé → soigne du même montant que les
@@ -1284,7 +1295,7 @@ class GameEngine with AbilityEngine {
     // Nils : passif automatique — tant qu'il est révélé (identique à
     // resolveAttackFull, utilisée par le joueur humain).
     if (attacker.revealed &&
-        (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'store_damage_nils') {
+        effectiveAbility(attacker) == 'store_damage_nils') {
       attacker.storedDamage += dmg;
       return {'log': '📦 ${attacker.name} stocke $dmg blessures (total: ${attacker.storedDamage})', 'scottCountered': false};
     }
@@ -1292,7 +1303,7 @@ class GameEngine with AbilityEngine {
     if (!target.alive) target.killedByUid = attacker.uid;
     // (epeeNinja already included in dmg above)
     // Oscar : cumule 1 XP par blessure infligée en attaque.
-    if ((attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'oscar_xp_spend' && attacker.revealed && actual > 0) {
+    if (effectiveAbility(attacker) == 'oscar_xp_spend' && attacker.revealed && actual > 0) {
       attacker.oscarXp += actual;
     }
     applyVictorCharm(attacker, target, all);
@@ -1301,7 +1312,7 @@ class GameEngine with AbilityEngine {
     // Scott : contre-attaque (uniquement s'il survit à l'attaque)
     bool scottCountered = false;
     int? counterD4, counterD6, counterDmg;
-    final tEff = target.copiedEffect ?? target.character?.abilityEffect ?? '';
+    final tEff = effectiveAbility(target);
     if (tEff == 'counter_attack_passive' && target.revealed && target.alive) {
       final cd4 = rollD4(); final cd6 = rollD6();
       final cDmg = (cd4 - cd6).abs();
@@ -1312,8 +1323,8 @@ class GameEngine with AbilityEngine {
       counterD4 = cd4; counterD6 = cd6; counterDmg = cActual;
     }
     // Rat d'Rouen : soigne de 1 si C'EST son attaque qui inflige
-    final atkEffRat = attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '';
-    if (atkEffRat == 'heal1_on_own_attack' && actual > 0) {
+    final atkEffRat = effectiveAbility(attacker);
+    if (atkEffRat == 'heal1_on_own_attack' && attacker.revealed && actual > 0) {
       applyHeal(attacker, 1);
       log += ' | 🐀 ${attacker.name} se soigne de 1';
     }
@@ -1525,6 +1536,17 @@ class GameEngine with AbilityEngine {
 
     // ── Fin de partie ──────────────────────────────────────────────────────
     if (gameEnding) {
+      // Jason : victoire EXCLUSIVE — s'il est vivant à la toute fin de la
+      // partie, il gagne SEUL et tout le monde d'autre perd, peu importe
+      // les autres conditions de victoire simultanément remplies. Vérifié
+      // en priorité absolue, avant même de construire la liste des autres
+      // gagnants potentiels.
+      for (final p in alive) {
+        if (p.character!.winEffect == 'survive_solo_win') {
+          return {'winnerIds': [p.uid],
+            'reason': '🦎 ${p.name} survit jusqu\'à la fin — victoire exclusive, tous les autres joueurs perdent !'};
+        }
+      }
       final winners = <String>[];
       for (final p in alive) {
         final we = p.character!.winEffect;
@@ -1572,7 +1594,7 @@ class GameEngine with AbilityEngine {
     Player? gege;
     for (final p in all) {
       if (p.alive && p.revealed && p.uid != attacker.uid &&
-          (p.copiedEffect ?? p.character?.abilityEffect ?? '') == 'gege_passive') {
+          effectiveAbility(p) == 'gege_passive') {
         gege = p; break;
       }
     }
@@ -1596,7 +1618,7 @@ class GameEngine with AbilityEngine {
     Player? gege;
     for (final p in all) {
       if (p.alive && p.revealed && p.uid != attacker.uid &&
-          (p.copiedEffect ?? p.character?.abilityEffect ?? '') == 'gege_passive') {
+          effectiveAbility(p) == 'gege_passive') {
         gege = p; break;
       }
     }
@@ -1653,8 +1675,8 @@ class GameEngine with AbilityEngine {
   void applyDeathPassives(List<Player> all) {
     for (final p in all) {
       if (p.alive || p.deathPassiveProcessed) continue;
-      final eff = p.copiedEffect ?? p.character?.abilityEffect ?? '';
-      if (eff == 'death_heal_allies') {
+      final eff = effectiveAbility(p);
+      if (eff == 'death_heal_allies' && p.revealed) {
         for (final ally in all.where((a) =>
             a.alive && a.character?.faction == Faction.hunter && a.revealed)) {
           applyHeal(ally, 2);
@@ -1698,8 +1720,8 @@ class GameEngine with AbilityEngine {
       if (p.killedByUid != null && p.character?.faction == Faction.shadow) {
         Player? tomKiller;
         for (final k in all) { if (k.uid == p.killedByUid) { tomKiller = k; break; } }
-        if (tomKiller != null && tomKiller.uid != p.uid &&
-            (tomKiller.copiedEffect ?? tomKiller.character?.abilityEffect) == 'tom_shadow_kill_boost') {
+        if (tomKiller != null && tomKiller.uid != p.uid && tomKiller.revealed &&
+            effectiveAbility(tomKiller) == 'tom_shadow_kill_boost') {
           tomKiller.maxHpModifier += 2;
           tomKiller.tomBonusDmg += 2;
         }
@@ -2257,7 +2279,7 @@ class GameEngine with AbilityEngine {
       if (p.lucFireTurnsRemaining <= 0) p.lucFireSourceUid = null;
     }
 
-    final eff = p.copiedEffect ?? p.character?.abilityEffect ?? '';
+    final eff = effectiveAbility(p);
     if (!p.revealed) return logs;
 
     // Fijacked: soigne 1 par équipement

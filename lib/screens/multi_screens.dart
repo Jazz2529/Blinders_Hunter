@@ -1863,7 +1863,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               onTap:()=>_act(_confirmAttack)),
             // Emilien : passif — une SEULE relance du D6 par tour. Non
             // disponible pour le bazooka ni le double-lancer de Mango.
-            if (_atkD4b == null && !hasBazooka && !_emilienRerolledThisTurn &&
+            if (gp.me?.revealed == true && _atkD4b == null && !hasBazooka && !_emilienRerolledThisTurn &&
                 (gp.me?.copiedEffect ?? gp.me?.character?.abilityEffect) == 'reroll_d6_attack') ...[
               const SizedBox(height: 8),
               BHButton(
