@@ -667,8 +667,24 @@ class GameEngine with AbilityEngine {
           actor.abilityUsed = false; // répétable, même en cas d'échec
           return '🔄 ${actor.name} — échange impossible (équipement manquant chez l\'un des deux)';
         }
-        final myIdx = _rng.nextInt(actor.equipment.length);
-        final theirIdx = _rng.nextInt(target.equipment.length);
+        // Tristan choisit précisément quel objet il donne et lequel il
+        // reçoit (extra au format "monIndex,leurIndex") — les bots, qui ne
+        // fournissent pas `extra`, retombent sur un tirage aléatoire des
+        // deux côtés (comportement inchangé pour eux).
+        int myIdx, theirIdx;
+        if (extra != null && extra.contains(',')) {
+          final parts = extra.split(',');
+          myIdx = int.tryParse(parts[0]) ?? -1;
+          theirIdx = int.tryParse(parts[1]) ?? -1;
+          if (myIdx < 0 || myIdx >= actor.equipment.length ||
+              theirIdx < 0 || theirIdx >= target.equipment.length) {
+            actor.abilityUsed = false;
+            return '🔄 ${actor.name} — choix d\'équipement invalide';
+          }
+        } else {
+          myIdx = _rng.nextInt(actor.equipment.length);
+          theirIdx = _rng.nextInt(target.equipment.length);
+        }
         final myCard = actor.equipment.removeAt(myIdx);
         final theirCard = target.equipment.removeAt(theirIdx);
         actor.equipment.add(theirCard);
@@ -1344,8 +1360,6 @@ class GameEngine with AbilityEngine {
     String? justKilledId,   // uid de la victime (pour kill_copied, kill_felipe, etc.)
     String? killerId,        // uid du tueur
     int killsThisTurn = 0,   // Couronne: 2 kills en 1 tour
-    bool gameEnding = false, // appelé en fin de partie (survive, unrevealed, etc.)
-    List<String>? teamAllyUids, // Dresseur: uids de l'équipe
   }) {
     final alive = players.where((p) => p.alive).toList();
     final hunters = alive.where((p) => p.character!.faction == Faction.hunter).toList();
@@ -1420,15 +1434,21 @@ class GameEngine with AbilityEngine {
           final victim = players.firstWhere((pp) => pp.uid == justDiedId);
           if (victim.character!.abilityEffect == p.copiedEffect && victim.killedByUid == p.uid) {
             // Si ce kill élimine AUSSI le dernier membre d'une faction, la
-            // faction gagnante partage la victoire avec Tommy (même coup).
+            // faction gagnante partage la victoire avec Tommy (même coup) —
+            // les membres DÉJÀ MORTS de cette faction gagnent aussi (comme
+            // pour une victoire de camp classique), sinon un joueur mort
+            // plus tôt dans la partie se retrouvait à tort compté comme
+            // perdant alors que son camp vient de gagner.
             final ids = <String>{p.uid};
             if (victim.character!.faction == Faction.hunter && hunters.isEmpty) {
               ids.addAll(shadows.map((s2) => s2.uid));
+              ids.addAll(players.where((pp) => !pp.alive && pp.character!.faction == Faction.shadow).map((pp) => pp.uid));
               return {'winnerIds': ids.toList(),
                 'reason': '📋 ${p.name} élimine ${victim.name} (pouvoir copié) — les Shadows gagnent aussi !'};
             }
             if (victim.character!.faction == Faction.shadow && shadows.isEmpty) {
               ids.addAll(hunters.map((h2) => h2.uid));
+              ids.addAll(players.where((pp) => !pp.alive && pp.character!.faction == Faction.hunter).map((pp) => pp.uid));
               return {'winnerIds': ids.toList(),
                 'reason': '📋 ${p.name} élimine ${victim.name} (pouvoir copié) — les Hunters gagnent aussi !'};
             }
@@ -1462,15 +1482,18 @@ class GameEngine with AbilityEngine {
           if (killer.character!.winEffect == 'kill_hp13plus' && killer.alive) {
             // Si ce kill élimine AUSSI le dernier membre d'une faction, la
             // faction gagnante partage la victoire avec Mango (même coup) —
-            // même logique que Tommy juste au-dessus.
+            // même logique que Tommy juste au-dessus, y compris les membres
+            // DÉJÀ MORTS de cette faction (qui gagnent aussi).
             final ids = <String>{killer.uid};
             if (victim.character!.faction == Faction.hunter && hunters.isEmpty) {
               ids.addAll(shadows.map((s2) => s2.uid));
+              ids.addAll(players.where((pp) => !pp.alive && pp.character!.faction == Faction.shadow).map((pp) => pp.uid));
               return {'winnerIds': ids.toList(),
                 'reason': '🥭 ${killer.name} élimine ${victim.name} (13+ PV) — les Shadows gagnent aussi !'};
             }
             if (victim.character!.faction == Faction.shadow && shadows.isEmpty) {
               ids.addAll(hunters.map((h2) => h2.uid));
+              ids.addAll(players.where((pp) => !pp.alive && pp.character!.faction == Faction.hunter).map((pp) => pp.uid));
               return {'winnerIds': ids.toList(),
                 'reason': '🥭 ${killer.name} élimine ${victim.name} (13+ PV) — les Hunters gagnent aussi !'};
             }
@@ -1481,6 +1504,23 @@ class GameEngine with AbilityEngine {
     }
 
     // ── Victoires principales ───────────────────────────────────────────────
+
+    // Jason : victoire EXCLUSIVE — dès que la partie serait normalement sur
+    // le point de se terminer par élimination totale d'un camp, s'il est
+    // vivant à ce moment-là il gagne SEUL et tout le monde d'autre perd,
+    // peu importe qui aurait dû gagner à sa place. Vérifié ici (avant les
+    // checks de camp) pour prendre le dessus sur une victoire de camp
+    // classique — de très loin le scénario le plus fréquent pour terminer
+    // une partie (les decks se remélangent automatiquement dès qu'ils sont
+    // épuisés, il n'existe pas de "fin de partie" par épuisement de pioche).
+    if (shadows.isEmpty || hunters.isEmpty) {
+      for (final p in alive) {
+        if (p.character!.winEffect == 'survive_solo_win') {
+          return {'winnerIds': [p.uid],
+            'reason': '🦎 ${p.name} survit jusqu\'à la fin — victoire exclusive, tous les autres joueurs perdent !'};
+        }
+      }
+    }
 
     // Tous les Shadows morts → Hunters + survive gagnent
     if (shadows.isEmpty) {
@@ -1535,49 +1575,6 @@ class GameEngine with AbilityEngine {
     }
 
     // ── Fin de partie ──────────────────────────────────────────────────────
-    if (gameEnding) {
-      // Jason : victoire EXCLUSIVE — s'il est vivant à la toute fin de la
-      // partie, il gagne SEUL et tout le monde d'autre perd, peu importe
-      // les autres conditions de victoire simultanément remplies. Vérifié
-      // en priorité absolue, avant même de construire la liste des autres
-      // gagnants potentiels.
-      for (final p in alive) {
-        if (p.character!.winEffect == 'survive_solo_win') {
-          return {'winnerIds': [p.uid],
-            'reason': '🦎 ${p.name} survit jusqu\'à la fin — victoire exclusive, tous les autres joueurs perdent !'};
-        }
-      }
-      final winners = <String>[];
-      for (final p in alive) {
-        final we = p.character!.winEffect;
-        switch (we) {
-          case 'survive': winners.add(p.uid);
-          case 'unrevealed_win': if (!p.revealed) winners.add(p.uid);
-          case 'left_wins':
-            final idx = players.indexOf(p);
-            final left = players[(idx - 1 + players.length) % players.length];
-            if (left.alive && winners.contains(left.uid)) winners.add(p.uid);
-          case 'right_wins':
-            final idx2 = players.indexOf(p);
-            final right = players[(idx2 + 1) % players.length];
-            if (right.alive && winners.contains(right.uid)) winners.add(p.uid);
-          case 'two_kills_or_center':
-            // terrainLayout id 1 = terrain 4-5
-            // handled by zoneIndex check at game end
-            break;
-          case 'team_alive_win':
-            if (teamAllyUids != null && teamAllyUids.every((uid) =>
-              players.any((pp) => pp.uid == uid && pp.alive))) {
-              for (final uid in teamAllyUids) winners.add(uid);
-            }
-          default: break;
-        }
-      }
-      if (winners.isNotEmpty) {
-        return {'winnerIds': winners.toSet().toList(), 'reason': 'Fin de partie — conditions de victoire !'};
-      }
-    }
-
     return null;
   }
 
@@ -1746,6 +1743,14 @@ class GameEngine with AbilityEngine {
             winCondition: victim.winCondition,
             winEffect: victim.winEffect,
           );
+          // Voler une identité révèle automatiquement Fanny si elle ne
+          // l'était pas déjà — elle ne peut plus se cacher derrière
+          // "aucun pouvoir tant qu'elle n'a tué personne" une fois
+          // transformée.
+          if (!fannyKiller.revealed) {
+            fannyKiller.revealed = true;
+            fannyKiller.fannyJustRevealed = true;
+          }
         }
       }
       // Crucifix en Argent : récupère TOUS les équipements de la victime
@@ -1792,6 +1797,14 @@ class GameEngine with AbilityEngine {
   /// une fois l'animation déclenchée.
   Player? checkDisguiseLost(List<Player> all) {
     for (final p in all) { if (p.disguiseJustLost) return p; }
+    return null;
+  }
+
+  /// Fanny : vient-elle de voler une identité (et donc de se révéler
+  /// automatiquement) ? À appeler après applyDeathPassives, comme pour
+  /// checkDisguiseLost (Jason).
+  Player? checkFannyRevealed(List<Player> all) {
+    for (final p in all) { if (p.fannyJustRevealed) return p; }
     return null;
   }
 

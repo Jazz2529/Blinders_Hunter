@@ -65,6 +65,10 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     category: CosmeticCategory.character, targetId: 'bibble', cost: 150,
     imagePath: 'assets/images/characters/beeble.png'),
 
+  CosmeticItem(id: 'bibble-tarot', name: 'Bibble - Joker',
+    category: CosmeticCategory.character, targetId: 'bibble', cost: 150,
+    imagePath: 'assets/images/characters/bibble-tarot.png'),  
+
   CosmeticItem(id: 'bob-tarot', name: 'Bob - 10',
     category: CosmeticCategory.character, targetId: 'bob', cost: 150,
     imagePath: 'assets/images/characters/bob-tarot.png'), 

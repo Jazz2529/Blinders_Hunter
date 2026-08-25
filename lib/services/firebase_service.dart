@@ -418,6 +418,8 @@ class FirebaseService {
     List<String>? builderOffered,
     List<String>? haileyOffered,
     String? markedPlayerUid,
+    String? tristanTargetUid,
+    int? tristanGiveIdx,
     String? jeanneReward,
     String? jeanneUid,
     int? swapZone1,
@@ -491,6 +493,10 @@ class FirebaseService {
     if (builderOffered != null) updates['builderOffered'] = builderOffered;
     if (haileyOffered != null) updates['haileyOffered'] = haileyOffered;
     if (markedPlayerUid != null) updates['markedPlayerUid'] = markedPlayerUid;
+    if (tristanTargetUid != null) {
+      updates['tristanTargetUid'] = tristanTargetUid == '__clear__' ? null : tristanTargetUid;
+    }
+    if (tristanGiveIdx != null) updates['tristanGiveIdx'] = tristanGiveIdx == -1 ? null : tristanGiveIdx;
     if (jeanneReward != null) updates['jeanneReward'] = jeanneReward;
     if (jeanneUid != null) updates['jeanneUid'] = jeanneUid;
     if (swapZone1 != null) updates['swapZone1'] = swapZone1;

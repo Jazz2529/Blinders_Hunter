@@ -1166,6 +1166,43 @@ class GameProvider extends ChangeNotifier {
         pendingTargetAction: 'baptiste_amount', baptisteTargetUid: target.uid);
   }
 
+  /// Tristan étape 1 : cible choisie — passe au choix de SON objet à donner.
+  Future<void> tristanChooseTarget(Player target) async {
+    final me = players[myUid]!;
+    if (me.equipment.isEmpty || target.equipment.isEmpty) {
+      await _fb.addLog(roomId!,
+          "🔄 ${me.name} — échange impossible (équipement manquant chez l'un des deux)");
+      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+      return;
+    }
+    await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+        pendingTargetAction: 'tristan_give_choice', tristanTargetUid: target.uid);
+  }
+
+  /// Tristan étape 2 : objet à donner choisi — passe au choix de l'objet à recevoir.
+  Future<void> tristanChooseGive(int myIdx) async {
+    await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+        pendingTargetAction: 'tristan_receive_choice', tristanGiveIdx: myIdx);
+  }
+
+  /// Tristan étape 3 : objet à recevoir choisi — résout l'échange complet.
+  Future<void> tristanChooseReceive(int theirIdx) async {
+    final targetUid = gameState?.tristanTargetUid;
+    final myIdx = gameState?.tristanGiveIdx;
+    if (targetUid == null || myIdx == null) return;
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final target = all.firstWhere((p) => p.uid == targetUid);
+    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout,
+        target: target, extra: '$myIdx,$theirIdx');
+    actor.abilityUsed = false; // répétable
+    _eg.applyDeathPassives(all);
+    await _commitAll(all, log);
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
+        tristanTargetUid: '__clear__', tristanGiveIdx: -1,
+        abilityOverlay: log.contains('invalide') ? null : 'tristan_swap');
+  }
+
   /// Baptiste étape 2 : montant confirmé — résout la résurrection.
   Future<void> baptisteConfirmAmount(int amount) async {
     final targetUid = gameState?.baptisteTargetUid;
@@ -1986,6 +2023,16 @@ class GameProvider extends ChangeNotifier {
       await _commitAll(all, '🎭 ${unmasked.name} perd son déguisement — sa vraie identité est révélée !');
       await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
           publicRevealUid: unmasked.uid,
+          publicRevealTimestamp: DateTime.now().millisecondsSinceEpoch);
+    }
+    // Fanny : vient-elle de voler une identité (son premier kill) sans être
+    // révélée ? Ça la révèle automatiquement, comme pour Jason ci-dessus.
+    final fannyRevealed = _eg.checkFannyRevealed(all);
+    if (fannyRevealed != null) {
+      fannyRevealed.fannyJustRevealed = false;
+      await _commitAll(all, '🎭 ${fannyRevealed.name} vole une identité — révélation automatique !');
+      await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+          publicRevealUid: fannyRevealed.uid,
           publicRevealTimestamp: DateTime.now().millisecondsSinceEpoch);
     }
     // Si le joueur DONT C'EST LE TOUR vient de mourir pendant ce même tour —

@@ -1606,6 +1606,18 @@ class _ActionPanelState extends State<_ActionPanel> {
           return [Text('✝️ ${gp.currentPlayer?.name ?? "Baptiste"} choisit son sacrifice…',
             style: cinzel(13, c: kGold))];
         }
+        // Tristan étape 2 : choisir SON équipement à donner.
+        if (pta == 'tristan_give_choice') {
+          if (gp.isMyTurn) return [_MultiTristanGiveWidget(gp: gp)];
+          return [Text('🔄 ${gp.currentPlayer?.name ?? "Tristan"} choisit ce qu\'il donne…',
+            style: cinzel(13, c: kGold))];
+        }
+        // Tristan étape 3 : choisir l'équipement à recevoir chez la cible.
+        if (pta == 'tristan_receive_choice') {
+          if (gp.isMyTurn) return [_MultiTristanReceiveWidget(gp: gp)];
+          return [Text('🔄 ${gp.currentPlayer?.name ?? "Tristan"} choisit ce qu\'il reçoit…',
+            style: cinzel(13, c: kGold))];
+        }
         // Mr Casino : afficher le widget de pari (seulement à Mr Casino)
         if (pta == 'casino_bet') {
           if (gp.isMyTurn) return [_MultiCasinoWidget(gp: gp)];
@@ -1760,6 +1772,8 @@ class _ActionPanelState extends State<_ActionPanel> {
                 await gp.damienChooseTarget(t);
               } else if (pta == 'clemence_target') {
                 await gp.clemenceApplyToTarget(t);
+              } else if (pta == 'ability_tristan') {
+                await gp.tristanChooseTarget(t);
               } else if (pta != null && pta.startsWith('vision_') ||
                   pta == 'banane_demonique' || pta == 'vampirisation' ||
                   pta == 'blue_shell' || pta == 'veuve_noire' ||
@@ -2978,6 +2992,60 @@ class _MultiChristineZoneWidget extends StatelessWidget {
             ),
           );
         }),
+      ]),
+    );
+  }
+}
+
+class _MultiTristanGiveWidget extends StatelessWidget {
+  final GameProvider gp;
+  const _MultiTristanGiveWidget({required this.gp});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final me = gp.me;
+    final equipment = me?.equipment ?? const [];
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: surfaceDecor(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('🔄 Tristan — Quel objet donnez-vous ?', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
+        const SizedBox(height: 12),
+        ...equipment.asMap().entries.map((entry) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: BHButton(
+            label: entry.value.name,
+            onTap: () => gp.tristanChooseGive(entry.key),
+          ),
+        )),
+      ]),
+    );
+  }
+}
+
+class _MultiTristanReceiveWidget extends StatelessWidget {
+  final GameProvider gp;
+  const _MultiTristanReceiveWidget({required this.gp});
+
+  @override
+  Widget build(BuildContext ctx) {
+    final targetUid = gp.gameState?.tristanTargetUid;
+    final target = targetUid != null ? gp.players[targetUid] : null;
+    final equipment = target?.equipment ?? const [];
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: surfaceDecor(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('🔄 Tristan — Quel objet de ${target?.name ?? "?"} voulez-vous en échange ?',
+          style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
+        const SizedBox(height: 12),
+        ...equipment.asMap().entries.map((entry) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: BHButton(
+            label: entry.value.name,
+            onTap: () => gp.tristanChooseReceive(entry.key),
+          ),
+        )),
       ]),
     );
   }

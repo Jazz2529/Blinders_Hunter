@@ -182,6 +182,7 @@ class Player {
   String? disguiseFactionOverride;
   String? disguiseCharIdOverride; // ID du perso imité — pour afficher sa carte complète
   bool disguiseJustLost = false; // Jason : vient de perdre son déguisement (5+ dégâts/tour) — déclenche sa vraie révélation
+  bool fannyJustRevealed = false; // Fanny : vient de voler une identité en éliminant un joueur sans être révélée — déclenche sa révélation automatique
   bool jasonWeaponVoicePlayed = false; // Jason : voice line arme spéciale déjà jouée cette partie (une seule fois)
   int storedDamage = 0;      // Nils : blessures stockées en attendant d'être déchargées
   int oscarXp = 0;           // Oscar : XP cumulée (1 par blessure infligée en attaque), condition de victoire à 13
@@ -259,6 +260,7 @@ class Player {
     this.disguiseCharIdOverride,
     this.damageTakenThisTurn = 0,
     this.disguiseJustLost = false,
+    this.fannyJustRevealed = false,
     this.jasonWeaponVoicePlayed = false,
     this.storedDamage = 0,
     this.oscarXp = 0,
@@ -319,6 +321,7 @@ class Player {
     'disguiseFactionOverride': disguiseFactionOverride,
     'damageTakenThisTurn': damageTakenThisTurn,
     'disguiseJustLost': disguiseJustLost,
+    'fannyJustRevealed': fannyJustRevealed,
     'jasonWeaponVoicePlayed': jasonWeaponVoicePlayed,
     'storedDamage': storedDamage,
     'oscarXp': oscarXp,
@@ -398,6 +401,7 @@ class Player {
     disguiseCharIdOverride: j['disguiseCharIdOverride'] as String?,
     damageTakenThisTurn: (j['damageTakenThisTurn'] as int?) ?? 0,
     disguiseJustLost: (j['disguiseJustLost'] as bool?) ?? false,
+    fannyJustRevealed: (j['fannyJustRevealed'] as bool?) ?? false,
     jasonWeaponVoicePlayed: (j['jasonWeaponVoicePlayed'] as bool?) ?? false,
     storedDamage: (j['storedDamage'] as num?)?.toInt() ?? 0,
     oscarXp: (j['oscarXp'] as num?)?.toInt() ?? 0,
@@ -464,6 +468,8 @@ class GameState {
   final List<String> haileyOffered;      // Hailey : 3 Hunters non joués proposés au tour courant
   // Jeanne (Prophétesse)
   final String? markedPlayerUid;  // uid du joueur marqué (visible de tous)
+  final String? tristanTargetUid; // Tristan : joueur choisi à l'étape 1
+  final int? tristanGiveIdx;      // Tristan : index de SON équipement choisi à l'étape 2
   final String? jeanneReward;     // récompense secrète (visible seulement de Jeanne)
   final String? jeanneUid;        // uid de Jeanne
   // Richard II — échange de zones
@@ -529,6 +535,8 @@ class GameState {
     this.builderOffered = const [],
     this.haileyOffered = const [],
     this.markedPlayerUid,
+    this.tristanTargetUid,
+    this.tristanGiveIdx,
     this.jeanneReward,
     this.jeanneUid,
     this.swapZone1,
@@ -584,6 +592,8 @@ class GameState {
     'builderOffered': builderOffered,
     'haileyOffered': haileyOffered,
     'markedPlayerUid': markedPlayerUid,
+    'tristanTargetUid': tristanTargetUid,
+    'tristanGiveIdx': tristanGiveIdx,
     'jeanneReward': jeanneReward,
     'jeanneUid': jeanneUid,
     'swapZone1': swapZone1,
@@ -652,6 +662,8 @@ class GameState {
     builderOffered: List<String>.from((j['builderOffered'] as List?) ?? []),
     haileyOffered: List<String>.from((j['haileyOffered'] as List?) ?? []),
     markedPlayerUid: j['markedPlayerUid'] as String?,
+    tristanTargetUid: j['tristanTargetUid'] as String?,
+    tristanGiveIdx: j['tristanGiveIdx'] as int?,
     jeanneReward: j['jeanneReward'] as String?,
     jeanneStep: (j['jeanneStep'] as int?) ?? 0,
     jeanneUid: j['jeanneUid'] as String?,

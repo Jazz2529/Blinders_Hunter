@@ -2599,6 +2599,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'corne_des_woods_victim', 'corne_des_woods', 'creation_marin', 'heal_other_d4',
       'clemence_target', 'jeanne_mark_target', 'equip_choice',
       'swap_zone_pick1', 'swap_zone_pick2', 'jeanne_mark_target', 'christine_zone_pick',
+      'tristan_give_choice', 'tristan_receive_choice',
     };
     if (abilityTargetActions.contains(s.pendingTargetAction)) {
       return _buildInlineTargetList(ctx);
@@ -3254,6 +3255,43 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       ];
     }
 
+    // Tristan étape 2 : choisir SON équipement à donner
+    if (context == 'tristan_give_choice') {
+      final p = s.current;
+      return [
+        Container(padding: const EdgeInsets.all(10), decoration: surfaceDecor(),
+          child: Text('🔄 Tristan — Quel objet donnez-vous ?', style: cinzel(12, c: kGold2))),
+        const SizedBox(height: 8),
+        ...p.equipment.asMap().entries.map((entry) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: BHButton(
+            label: entry.value.name,
+            onTap: () => ctrl.humanTristanChooseGive(entry.key),
+          ),
+        )),
+      ];
+    }
+    // Tristan étape 3 : choisir l'équipement à RECEVOIR chez la cible
+    if (context == 'tristan_receive_choice') {
+      final targetUid = s.tristanTargetUid;
+      final t = targetUid != null
+          ? s.players.firstWhere((pl) => pl.uid == targetUid, orElse: () => s.current)
+          : s.current;
+      return [
+        Container(padding: const EdgeInsets.all(10), decoration: surfaceDecor(),
+          child: Text('🔄 Tristan — Quel objet de ${t.name} voulez-vous en échange ?',
+            style: cinzel(12, c: kGold2))),
+        const SizedBox(height: 8),
+        ...t.equipment.asMap().entries.map((entry) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: BHButton(
+            label: entry.value.name,
+            onTap: () => ctrl.humanTristanChooseReceive(entry.key),
+          ),
+        )),
+      ];
+    }
+
     // Christine : choix direct d'une des 2 zones ADJACENTES (pas de dés)
     if (context == 'christine_zone_pick') {
       final myZoneIdx = s.current.zoneIndex;
@@ -3331,7 +3369,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'baptiste_target')     title = '✝️ Baptiste — Quel joueur mort ramener à la vie ?';
     if (context == 'ability_agathe')      title = '🧛 Agathe — Voler 1 PV MAX à qui ?';
     if (context == 'ability_raph_heal')   title = '🥷 Raph (Soleil Levant) — Choisissez qui soigner de 3 (vous subissez 2)';
-    if (context == 'ability_tristan')     title = '🔄 Tristan — Choisissez un joueur (échange un équipement au hasard)';
+    if (context == 'ability_tristan')     title = '🔄 Tristan — Choisissez un joueur avec qui échanger';
     if (context == 'heal_other_d4')       title = '🍓 Fraise Tagada — Choisissez qui soigner (D4)';
     if (context == 'creation_marin')      title = '🩸 Création de Marin — Choisissez une cible';
     if (context == 'corne_des_woods')     title = '🌳 Corne des Woods — Qui doit attaquer ?';
@@ -3455,6 +3493,8 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       ctrl.humanChooseTarget(target.uid);
     } else if (context == 'jeanne_mark_target') {
       ctrl.jeanneChooseTarget(target.uid);
+    } else if (context == 'ability_tristan') {
+      ctrl.humanTristanChooseTarget(target.uid);
     } else if (context.startsWith('ability_')) {
       // Pour les abilities, pendingTargetAction est encore valide
       // car humanUseAbility lit l'effet depuis le character, pas le pendingTargetAction

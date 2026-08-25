@@ -40,6 +40,8 @@ class SoloState {
   bool skipMovement;         // Demi-sel: peut ne pas se déplacer
   bool peioReturnToMove = false; // Peio: après avoir réactivé le terrain, revenir en phase Déplacement
   String? linkedUid1;        // Cupidon: uid1 lié
+  String? tristanTargetUid;  // Tristan : joueur choisi à l'étape 1
+  int? tristanGiveIdx;       // Tristan : index de SON équipement choisi à l'étape 2
   String? linkedUid2;        // Cupidon: uid2 lié
   int linkedTurnsLeft;       // Cupidon: tours restants
   String? shieldTargetUid;   // Vlad Princesse: uid protégé (-1 dmg)
@@ -1821,17 +1823,12 @@ class SoloController extends ChangeNotifier {
 
       // ── Tristan : échange un équipement avec un autre joueur ──
       case 'swap_equipment':
-        if (target == null) {
-          s.pendingTargetAction = 'ability_tristan';
-          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
-        }
-        final res = _eg.applyAbilityFull(p, s.players, s.terrainLayout, target: target);
-        final logSwap = res['log'] as String? ?? '';
-        if (logSwap.isNotEmpty) _log(logSwap, cls: 'player');
-        if (!logSwap.contains('échange impossible')) s.abilityOverlay = 'tristan_swap';
-        s.pendingTargetAction = null;
-        await _checkWin();
-        if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
+        // La résolution complète se fait désormais via
+        // humanTristanChooseTarget → humanTristanChooseGive →
+        // humanTristanChooseReceive (choix précis des 2 objets échangés)
+        // — ce cas ne fait qu'ouvrir la sélection de cible.
+        s.pendingTargetAction = 'ability_tristan';
+        s.phase = GamePhase.chooseTarget; notifyListeners(); return;
 
       // ── Marin : 3 dégâts + dague à la cible ──
       case 'damage3_give_dague':
@@ -2159,6 +2156,47 @@ class SoloController extends ChangeNotifier {
     s.abilityOverlay = 'christine_map';
     _log('🗺️ Christine se déplace directement vers ${s.terrainLayout[zoneIdx].name}', cls: 'player');
     humanApplyTerrainEffect(nextPhaseIfDefault: GamePhase.attack, zoneOverride: zoneIdx);
+  }
+
+  /// Tristan étape 1 : cible choisie — passe au choix de SON objet à donner.
+  void humanTristanChooseTarget(String targetUid) {
+    final s = state!;
+    final target = s.players.firstWhere((pl) => pl.uid == targetUid);
+    if (s.current.equipment.isEmpty || target.equipment.isEmpty) {
+      _log('🔄 ${s.current.name} — échange impossible (équipement manquant chez l\'un des deux)',
+        cls: 'player');
+      s.pendingTargetAction = null;
+      s.phase = GamePhase.move; notifyListeners(); return;
+    }
+    s.tristanTargetUid = targetUid;
+    s.pendingTargetAction = 'tristan_give_choice';
+    notifyListeners();
+  }
+
+  /// Tristan étape 2 : objet à donner choisi — passe au choix de l'objet à recevoir.
+  void humanTristanChooseGive(int myIdx) {
+    final s = state!;
+    s.tristanGiveIdx = myIdx;
+    s.pendingTargetAction = 'tristan_receive_choice';
+    notifyListeners();
+  }
+
+  /// Tristan étape 3 : objet à recevoir choisi — résout l'échange complet.
+  void humanTristanChooseReceive(int theirIdx) {
+    final s = state!;
+    final p = s.current;
+    final targetUid = s.tristanTargetUid;
+    final myIdx = s.tristanGiveIdx;
+    if (targetUid == null || myIdx == null) return;
+    final target = s.players.firstWhere((pl) => pl.uid == targetUid);
+    final logSwap = _eg.applyAbility(p, s.players, s.terrainLayout,
+        target: target, extra: '$myIdx,$theirIdx');
+    if (logSwap.isNotEmpty) _log(logSwap, cls: 'player');
+    if (!logSwap.contains('invalide')) s.abilityOverlay = 'tristan_swap';
+    s.tristanTargetUid = null;
+    s.tristanGiveIdx = null;
+    s.pendingTargetAction = null;
+    s.phase = GamePhase.move; notifyListeners();
   }
 
   void humanDrawCard(DeckType deck) {
@@ -2701,6 +2739,14 @@ class SoloController extends ChangeNotifier {
       unmasked.disguiseJustLost = false;
       state!.pendingRevealAnimation = unmasked.uid;
       _log('🎭 ${unmasked.name} perd son déguisement — sa vraie identité est révélée !', cls: 'player');
+    }
+    // Fanny : vient-elle de voler une identité (son premier kill) sans être
+    // révélée ? Ça la révèle automatiquement, comme pour Jason ci-dessus.
+    final fannyRevealed = _eg.checkFannyRevealed(state!.players);
+    if (fannyRevealed != null) {
+      fannyRevealed.fannyJustRevealed = false;
+      state!.pendingRevealAnimation = fannyRevealed.uid;
+      _log('🎭 ${fannyRevealed.name} vole une identité — révélation automatique !', cls: 'player');
     }
     // Si le joueur DONT C'EST LE TOUR vient de mourir pendant ce même tour —
     // feu de Luc, poison de Damien, Araignée Sanguinaire, capacité qui
