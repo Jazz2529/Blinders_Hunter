@@ -371,6 +371,8 @@ const List<GameCard> kLumiereCards = [
     effect:'force_shadow_reveal',text:'Si vous êtes un Shadow, vous devez révéler votre identité (les autres joueurs ne sont pas affectés)'),
   GameCard(id:'L16',name:'Bucket de Poulet',deck:DeckType.lumiere,type:CardType.utilisation,
     effect:'heal_self_4',text:'Vous êtes soigné de 4 blessures'),
+  GameCard(id:'L14',name:'Crucifix d\'Argent',deck:DeckType.lumiere,type:CardType.equipement,
+    effect:'crucifix_argent',text:'Quand vous éliminez un joueur, récupérez TOUS ses équipements au lieu d\'en choisir un seul'),  
   GameCard(id:'L20',name:'Flamme des Arcades',deck:DeckType.lumiere,type:CardType.utilisation,
     effect:'flamme_arcades',text:'Si vous êtes sur le terrain 6, soignez-vous de 2 ; sinon subissez 1 blessure'),
 ];

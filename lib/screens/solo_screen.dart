@@ -686,6 +686,14 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
             ctrl.state!.abilityOverlay = null;
             ctrl.notifyListeners();
           }),
+        if (overlay == 'jeanne_reward')
+          JeanneRewardOverlay(
+            bannerText: ctrl.state!.jeanneRewardBanner ?? '',
+            onDone: () {
+              ctrl.state!.abilityOverlay = null;
+              ctrl.state!.jeanneRewardBanner = null;
+              ctrl.notifyListeners();
+            }),
       ]);
     },
   ));
@@ -2243,6 +2251,7 @@ class _WoundsColumnState extends State<_WoundsColumn>
     'dague_voleur'       => '🗡',
     'lance_lumiere'      => '✨',
     'sainte_tunique'     => '🛡',
+    'crucifix_argent'    => '✝️',
     'tenebres_card_immune'=> '🔺',
     'terrain9_immune'    => '👂',
     'triple_dice_choice' => '⏱',
@@ -2338,6 +2347,16 @@ class _WoundsColumnState extends State<_WoundsColumn>
             // info publique visible de tous comme le feu de Luc.
             if (p.alive && p.shield)
               const Text('🛡️', style: TextStyle(fontSize: 10)),
+            // Mathieu : compteur d'attaques (3 = bonus +2 dégâts permanent
+            // actif) — info PUBLIQUE, visible de tous, comme le feu de Luc.
+            if (p.alive && (p.copiedEffect ?? p.character?.abilityEffect) == 'third_attack_bonus')
+              Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) => Padding(
+                padding: const EdgeInsets.only(left: 1),
+                child: Icon(
+                  p.attackCount > i ? Icons.circle : Icons.circle_outlined,
+                  size: 7,
+                  color: p.attackCount >= 3 ? kGold : kTextSub),
+              ))),
             // Victor : cœur affiché UNIQUEMENT si CE joueur est charmé à
             // 100% ET que la personne qui regarde l'écran est Victor lui-même
             // — cette info reste strictement privée pour tous les autres.
@@ -2901,7 +2920,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${terrain.icon} ${terrain.name}', style: cinzel(13, c: kGold2)),
               const SizedBox(height: 3),
-              Text(terrain.desc, style: body(12, c: kTextSub)),
+              Text(terrain.keyword, style: body(12, c: kTextSub)),
             ]),
           ),
           // CORRECTION : terrain9 et steal déclenchent la liste inline
@@ -3553,7 +3572,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (idx == -1 || idx == s.current.zoneIndex) idx = (s.current.zoneIndex + 1) % 6;
     final t = s.terrainLayout[idx];
     return BHButton(
-      label: '→ ${t.icon} ${t.name}  (${t.desc})',
+      label: '→ ${t.icon} ${t.name}  (${t.keyword})',
       onTap: () { ctrl.humanMove(idx); setState(() { _d4 = _d6 = _sum = null; _sum2 = null; _d4b = null; _d6b = null; }); },
     );
   }
@@ -4820,6 +4839,7 @@ class _EquipmentPanel extends StatelessWidget {
     'dague_voleur'        => '🗡',
     'lance_lumiere'       => '✨',
     'sainte_tunique'      => '🛡',
+    'crucifix_argent'     => '✝️',
     'tenebres_card_immune'=> '🔺',
     'terrain9_immune'     => '👂',
     'triple_dice_choice'  => '⏱',
@@ -4833,6 +4853,7 @@ class _EquipmentPanel extends StatelessWidget {
     'dague_voleur'        => '+1 blessure sur chaque attaque qui touche',
     'lance_lumiere'       => '+2 blessures sur chaque attaque qui touche',
     'sainte_tunique'      => '−1 blessure reçue et infligée',
+    'crucifix_argent'     => 'Récupère TOUT l\'équipement d\'un joueur éliminé',
     'tenebres_card_immune'=> 'Immunisé aux cartes Ténèbres (sauf Bombe)',
     'terrain9_immune'     => "Immunisé à l'effet du terrain 9",
     'triple_dice_choice'  => 'Lance 2 fois les dés au déplacement — choisis',

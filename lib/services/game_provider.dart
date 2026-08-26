@@ -1985,11 +1985,17 @@ class GameProvider extends ChangeNotifier {
       // (deux écritures séquentielles créent une fenêtre de race condition).
       await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
           markedPlayerUid: '__clear__',
-          jeanneRewardBanner: bannerText, jeanneRewardBannerTimestamp: bannerTs);
+          jeanneRewardBanner: bannerText, jeanneRewardBannerTimestamp: bannerTs,
+          abilityOverlay: bannerText != null ? 'jeanne_reward' : null);
       if (needsCard && killerUid == myUid) {
         final gs = gameState;
         if (gs?.jeanneReward == 'heal3_lumiere') await drawCard(DeckType.lumiere);
         if (gs?.jeanneReward == 'draw_vision') await drawCard(DeckType.vision);
+        // Piochée ici (plutôt que dans applyJeanneReward/checkJeanneReward)
+        // pour que, si ce n'est PAS un équipement, la carte reste
+        // normalement utilisable (choix de cible) via le flux standard de
+        // pioche — au lieu d'être gaspillée.
+        if (gs?.jeanneReward == 'equip_tenebres') await drawCard(DeckType.tenebres);
       }
     }
     final res = _eg.checkWin(all, justDiedId: justDiedId);
@@ -2007,7 +2013,22 @@ class GameProvider extends ChangeNotifier {
       final loot = _eg.checkLootOpportunity(dead, all);
       if (loot != null) {
         final (killerUid, deadUid) = loot;
-        if (lootAccumulator != null) {
+        final killer = all.firstWhere((p) => p.uid == killerUid, orElse: () => dead);
+        if (killer.crucifixArgent) {
+          // Crucifix d'Argent : récupère TOUT l'équipement d'un coup, pas
+          // de choix à faire — se commit immédiatement, indépendamment de
+          // l'accumulateur (il n'y a rien à mettre en file d'attente).
+          final items = List<GameCard>.from(dead.equipment);
+          if (items.isNotEmpty) {
+            dead.equipment.clear();
+            killer.equipment.addAll(items);
+            _eg.recalcPassives(killer);
+            _eg.recalcPassives(dead);
+            final names = items.map((e) => '"${e.name}"').join(', ');
+            await _commitAll(all,
+                "✝️ ${killer.name} récupère TOUT l'équipement de ${dead.name} grâce au Crucifix d'Argent : $names");
+          }
+        } else if (lootAccumulator != null) {
           lootAccumulator.add(MapEntry(killerUid, deadUid));
         } else {
           await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,

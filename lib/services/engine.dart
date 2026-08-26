@@ -2046,12 +2046,11 @@ class GameEngine with AbilityEngine {
         applyHeal(killer, 3);
         return ('🔮 ${killer.name} : +3 soins + carte Lumière', true);
       case 'equip_tenebres':
-        final card = drawCard(DeckType.tenebres);
-        if (card.type == CardType.equipement) {
-          killer.equipment.add(card); _equipPassive(killer, card);
-          return ('🔮 ${killer.name} reçoit "${card.name}" (équipement Ténèbres)', false);
-        }
-        return ('🔮 ${killer.name} : carte Ténèbres "${card.name}" — non équipement, ignorée', false);
+        // La pioche se fait désormais côté appelant (via le même mécanisme
+        // que heal3_lumiere/draw_vision) — ainsi, si la carte tirée n'est
+        // PAS un équipement, elle reste utilisable normalement (choix de
+        // cible) au lieu d'être gaspillée/ignorée.
+        return ('🔮 ${killer.name} pioche une carte Ténèbres (récompense de Jeanne)', true);
       case 'invuln_turn':
         killer.shield = true; killer.shieldCharges = 99;
         return ('🔮 ${killer.name} est invulnérable ce tour !', false);
@@ -2128,6 +2127,7 @@ class GameEngine with AbilityEngine {
     // Reset all equipment-based passives
     p.hache = false; p.sniper = false; p.bazooka = false;
     p.lance = false; p.lanceLonginus = false; p.dague = false; p.sainteTunique = false;
+    p.crucifixArgent = false;
     p.epeeNinja = false; p.mirrorDamage = false;
     p.terrainImmune = false; p.terrainDmgImmune = false; p.tendebresImmune = false;
     // Reapply from remaining equipment
@@ -2140,6 +2140,7 @@ class GameEngine with AbilityEngine {
       case 'terrain9_immune':      p.terrainImmune = true; break;
       case 'terrain9_dmg_immune':  p.terrainDmgImmune = true; break;
       case 'sainte_tunique':       p.sainteTunique = true; break;
+      case 'crucifix_argent':      p.crucifixArgent = true; break;
       case 'tenebres_card_immune': p.tendebresImmune = true; break;
       case 'lance_lumiere':        p.lance = true; break;
       case 'lance_longinus':       p.lanceLonginus = true; break; // +2 dmg, condition (Hunter révélé) vérifiée à l'attaque

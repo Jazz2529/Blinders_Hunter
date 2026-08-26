@@ -618,6 +618,10 @@ class _GameScreenState extends State<GameScreen> {
         if (overlay == 'oscar_fire')           OscarElementOverlay(element: 'fire', onDone: clearOverlay),
         if (overlay == 'tommy_copy')            TommyCopyOverlay(onDone: clearOverlay),
         if (overlay == 'tristan_swap')          TristanSwapOverlay(onDone: clearOverlay),
+        if (overlay == 'jeanne_reward')
+          JeanneRewardOverlay(
+            bannerText: gp.gameState?.jeanneRewardBanner ?? '',
+            onDone: clearOverlay),
         turnBanner,
         burningRope,
         revealQuoteBanner,
@@ -1055,6 +1059,16 @@ class _PlayerRow extends StatelessWidget {
           // Louna : bouclier actif — insensible aux blessures ce tour.
           if (p.alive && p.shield)
             const Text('🛡️', style: TextStyle(fontSize: 11)),
+          // Mathieu : compteur d'attaques (3 = bonus +2 dégâts actif) —
+          // info PUBLIQUE, visible de tous.
+          if (p.alive && (p.copiedEffect ?? p.character?.abilityEffect) == 'third_attack_bonus')
+            Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) => Padding(
+              padding: const EdgeInsets.only(left: 1),
+              child: Icon(
+                p.attackCount > i ? Icons.circle : Icons.circle_outlined,
+                size: 8,
+                color: p.attackCount >= 3 ? kGold : kTextSub),
+            ))),
           // Victor : cœur visible UNIQUEMENT si c'est LUI (le joueur
           // connecté sur CET appareil) qui a charmé CE joueur à 100% —
           // strictement privé pour n'importe qui d'autre.
@@ -1954,7 +1968,7 @@ class _ActionPanelState extends State<_ActionPanel> {
     if (idx == -1 || idx == gp.me?.zoneIndex) idx = ((gp.me?.zoneIndex ?? 0) + 1) % 6;
     final t = layout[idx];
     return BHButton(
-      label: '→ ${t.icon} ${t.name}  (${t.desc})',
+      label: '→ ${t.icon} ${t.name}  (${t.keyword})',
       onTap: () => _act(() async { gp.moveTo(idx, diceSum: _sum!, d4: _d4!, d6: _d6!); _resetDice(); }),
     );
   }
@@ -3569,6 +3583,16 @@ class _PlayerChip extends StatelessWidget {
             // Louna : bouclier actif — insensible aux blessures ce tour.
             if (p.alive && p.shield)
               Text('🛡️', style: body(9, c: kTextSub)),
+            // Mathieu : compteur d'attaques (3 = bonus +2 dégâts actif) —
+            // info PUBLIQUE, visible de tous.
+            if (p.alive && (p.copiedEffect ?? p.character?.abilityEffect) == 'third_attack_bonus')
+              Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) => Padding(
+                padding: const EdgeInsets.only(left: 1),
+                child: Icon(
+                  p.attackCount > i ? Icons.circle : Icons.circle_outlined,
+                  size: 6,
+                  color: p.attackCount >= 3 ? kGold : kTextSub),
+              ))),
             // Victor : cœur visible UNIQUEMENT si c'est LUI (le joueur
             // connecté sur CET appareil) qui a charmé CE joueur à 100%.
             Builder(builder: (_) {

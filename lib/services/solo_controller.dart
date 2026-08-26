@@ -525,7 +525,18 @@ class SoloController extends ChangeNotifier {
     // Un passif de début de tour (poison de Damien, etc.) peut tuer un
     // joueur — sans ce check, ni la victoire ni la récompense de Jeanne ne
     // se déclenchaient jamais pour une mort survenue de cette façon.
-    if (!p.alive) { await _checkWin(justDiedId: p.uid); }
+    if (!p.alive) {
+      // _checkWin() a déjà entièrement géré la suite (avance au joueur
+      // suivant valide, joue même son tour de bot si besoin) via sa propre
+      // cascade — il FAUT s'arrêter ici. Sans ce `return`, le code
+      // continuait avec l'ancienne référence `p` (le joueur qui vient de
+      // mourir), recréant un faux tour à son nom et rappelant _playBot()
+      // pour un bot déjà mort — ce qui perturbait le joueur réellement
+      // censé jouer ensuite (parfois un joueur humain voyait son tour
+      // sauté au profit d'un bot mort).
+      await _checkWin(justDiedId: p.uid);
+      return;
+    }
     // Zazou snapshot
     _currentSnapshot = {
       for (final pl in state!.players) pl.uid: {'wounds': pl.wounds, 'equip': List.from(pl.equipment), 'alive': pl.alive}
@@ -1020,6 +1031,7 @@ class SoloController extends ChangeNotifier {
     // Bannière plein écran — bien visible, pas juste une ligne de journal
     state!.jeanneRewardBanner =
         '${killer.name} a éliminé ${dead.name} (cible de Jeanne) !\n${_eg.jeanneRewardLabel(reward)}';
+    state!.abilityOverlay = 'jeanne_reward';
     // Cas spéciaux nécessitant une pioche de carte
     if (needsCard && reward == 'heal3_lumiere') {
       state!.pendingCard = _eg.drawCard(DeckType.lumiere, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
@@ -1027,6 +1039,14 @@ class SoloController extends ChangeNotifier {
     }
     if (needsCard && reward == 'draw_vision') {
       state!.pendingCard = _eg.drawCard(DeckType.vision, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
+      state!.phase = GamePhase.cardDrawn;
+    }
+    if (needsCard && reward == 'equip_tenebres') {
+      // Piochée ici (plutôt que dans applyJeanneReward) pour que, si ce
+      // n'est PAS un équipement, la carte reste normalement utilisable
+      // (choix de cible) via le flux standard de pioche — au lieu d'être
+      // gaspillée.
+      state!.pendingCard = _eg.drawCard(DeckType.tenebres, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
       state!.phase = GamePhase.cardDrawn;
     }
     // Effacer le marquage
@@ -2716,7 +2736,20 @@ class SoloController extends ChangeNotifier {
       if (loot != null) {
         final (killerUid, deadUid) = loot;
         final killer = state!.players.firstWhere((p) => p.uid == killerUid);
-        if (killer.isBot) {
+        if (killer.crucifixArgent) {
+          // Crucifix d'Argent : récupère TOUT l'équipement d'un coup, pas
+          // de choix à faire (ni pour un humain, ni pour un bot).
+          final items = List<GameCard>.from(dead.equipment);
+          if (items.isNotEmpty) {
+            dead.equipment.clear();
+            killer.equipment.addAll(items);
+            _eg.recalcPassives(killer);
+            _eg.recalcPassives(dead);
+            final names = items.map((e) => '"${e.name}"').join(', ');
+            _log('✝️ ${killer.name} récupère TOUT l\'équipement de ${dead.name} grâce au Crucifix d\'Argent : $names',
+              cls: 'player');
+          }
+        } else if (killer.isBot) {
           // IA : prend l'objet le plus utile si possible, sinon ignore
           final items = dead.equipment;
           if (items.isNotEmpty) {

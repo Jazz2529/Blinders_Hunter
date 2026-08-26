@@ -3668,6 +3668,85 @@ class TristanSwapState extends State<TristanSwapOverlay>
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// JEANNE — révélation de la récompense secrète : qui l'a obtenue,
+// et ce qu'il obtient
+// ═══════════════════════════════════════════════════════════════════
+class JeanneRewardOverlay extends StatefulWidget {
+  final String bannerText; // "X a éliminé Y (cible de Jeanne) !\n[récompense]"
+  final VoidCallback onDone;
+  const JeanneRewardOverlay({required this.bannerText, required this.onDone});
+  @override State<JeanneRewardOverlay> createState() => JeanneRewardState();
+}
+
+class JeanneRewardState extends State<JeanneRewardOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeAc;
+  late Animation<double> _opacity, _seal, _spin, _textReveal;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 2600));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 12),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 63),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 25),
+    ]).animate(_fadeAc);
+    _seal = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.1, 0.4, curve: Curves.easeOutBack)));
+    _spin = Tween<double>(begin: 0, end: 2 * pi).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0, 0.5, curve: Curves.easeOut)));
+    _textReveal = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0.3, 0.55, curve: Curves.easeOut)));
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    final size = MediaQuery.of(ctx).size;
+    final parts = widget.bannerText.split('\n');
+    final line1 = parts.isNotEmpty ? parts[0] : '';
+    final line2 = parts.length > 1 ? parts[1] : '';
+    return AnimatedBuilder(
+      animation: _fadeAc,
+      builder: (_, __) => Positioned.fill(child: IgnorePointer(child: Opacity(
+        opacity: _opacity.value.clamp(0.0, 1.0),
+        child: Stack(children: [
+          Container(color: Colors.black54),
+          Positioned(left: 0, right: 0, top: size.height * 0.24,
+            child: Center(child: Transform.rotate(angle: _spin.value,
+              child: Text('🔮', style: TextStyle(fontSize: 56,
+                shadows: [Shadow(color: const Color(0xFF7E57C2).withValues(alpha: 0.8), blurRadius: 22)]))))),
+          Positioned(left: 0, right: 0, top: size.height * 0.40,
+            child: Opacity(opacity: _textReveal.value.clamp(0.0, 1.0), child: Center(child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 28),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.78),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFF7E57C2))),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('🔮 RÉCOMPENSE DE JEANNE', style: cinzel(14, c: const Color(0xFFB39DDB),
+                  fw: FontWeight.w900), textAlign: TextAlign.center),
+                const SizedBox(height: 10),
+                Text(line1, style: cinzel(13, c: Colors.white), textAlign: TextAlign.center),
+                if (line2.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(line2, style: cinzel(15, c: const Color(0xFFFFD54F), fw: FontWeight.w900),
+                    textAlign: TextAlign.center),
+                ],
+              ]))))),
+        ]),
+      ))),
+    );
+  }
+}
+
+
 
 
 

@@ -217,6 +217,7 @@ const Map<String, String> kCardImages = {
   'lance_lumiere':       'assets/images/cards/lance_lumiere.png',
   'shield_next_turn':    'assets/images/cards/shield_next_turn.png',
   'sainte_tunique':      'assets/images/cards/sainte_tunique.png',
+  'crucifix_argent':     'assets/images/cards/crucifix_argent.png',
   'tenebres_card_immune':'assets/images/cards/tenebres_card_immune.png',
   'heal_other_d6':       'assets/images/cards/heal_other_d6.png',
   'triple_dice_choice':  'assets/images/cards/triple_dice_choice.png',

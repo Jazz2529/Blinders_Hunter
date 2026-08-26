@@ -123,6 +123,19 @@ class Terrain {
     desc: j['desc'] as String,
     icon: j['icon'] as String,
   );
+
+  /// Mot-clé court et lisible pour l'effet de ce terrain, à afficher à la
+  /// place de la description complète (ex: sur le plateau, où l'espace est
+  /// très limité et où une phrase entière devient illisible).
+  String get keyword => switch (effect) {
+    'vision'   => 'Vision',
+    'choice'   => 'Choix',
+    'lumiere'  => 'Lumière',
+    'tenebres' => 'Ténèbre',
+    'damage9'  => 'Blessure',
+    'steal'    => 'Vol',
+    _ => desc,
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -145,6 +158,7 @@ class Player {
   bool terrainImmune;
   bool terrainDmgImmune; // Broche de Chance: immunisé aux DÉGÂTS du terrain 9 (le soin reste possible)
   bool sainteTunique;
+  bool crucifixArgent; // Crucifix d'Argent : récupère TOUT l'équipement d'un joueur éliminé
   bool tendebresImmune;
   bool lance;
   bool lanceLonginus; // +2 dmg si Hunter révélé uniquement (sinon aucun bonus)
@@ -223,6 +237,7 @@ class Player {
     this.terrainImmune = false,
     this.terrainDmgImmune = false,
     this.sainteTunique = false,
+    this.crucifixArgent = false,
     this.tendebresImmune = false,
     this.lance = false,
     this.lanceLonginus = false,
@@ -298,7 +313,7 @@ class Player {
     'shield': shield, 'shieldCharges': shieldCharges,
     'newTurn': newTurn, 'terrainImmune': terrainImmune,
     'terrainDmgImmune': terrainDmgImmune,
-    'sainteTunique': sainteTunique, 'tendebresImmune': tendebresImmune,
+    'sainteTunique': sainteTunique, 'crucifixArgent': crucifixArgent, 'tendebresImmune': tendebresImmune,
     'lance': lance, 'lanceLonginus': lanceLonginus, 'bazooka': bazooka, 'hache': hache,
     'sniper': sniper, 'dague': dague, 'epeeNinja': epeeNinja,
     'bonusMaxHp': bonusMaxHp, 'poisoned': poisoned, 'frozen': frozen,
@@ -364,6 +379,7 @@ class Player {
     terrainImmune: (j['terrainImmune'] as bool?) ?? false,
     terrainDmgImmune: (j['terrainDmgImmune'] as bool?) ?? false,
     sainteTunique: (j['sainteTunique'] as bool?) ?? false,
+    crucifixArgent: (j['crucifixArgent'] as bool?) ?? false,
     tendebresImmune: (j['tendebresImmune'] as bool?) ?? false,
     lance: (j['lance'] as bool?) ?? false,
     lanceLonginus: (j['lanceLonginus'] as bool?) ?? false,
