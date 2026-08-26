@@ -226,6 +226,8 @@ class AiBrain {
         return all.any((p) => p.alive && p.uid != bot.uid && p.lucFireTurnsRemaining == 0);
       case 'lock_ability_while_alive':
         return all.any((p) => p.alive && p.uid != bot.uid && p.abilityLockedByUid == null);
+      case 'maxence_drunk':
+        return all.any((p) => p.alive && p.uid != bot.uid && p.drunkTurnsRemaining == 0);
       case 'steal_max_hp': return bot.maxHpModifier < 5; // plafond de 5 vols
       case 'swap_equipment':
         return bot.equipment.isNotEmpty &&
@@ -1895,6 +1897,7 @@ class SoloController extends ChangeNotifier {
           s.phase = GamePhase.chooseTarget; notifyListeners(); return;
         }
         if (eff == 'luc_ignite' && target != null) s.abilityOverlay = 'luc_ignite';
+        if (eff == 'maxence_drunk' && target != null) s.abilityOverlay = 'maxence_drunk';
         if (log.isNotEmpty) _log(log, cls: 'player');
     }
 
@@ -2806,7 +2809,7 @@ class SoloController extends ChangeNotifier {
     'damage2_choice','damage2_then_heal3','set_wounds7','steal_equip_choice',
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors',
-    'lock_ability_while_alive','steal_max_hp','luc_ignite','baptiste_revive',
+    'lock_ability_while_alive','steal_max_hp','luc_ignite','baptiste_revive','maxence_drunk',
   ].contains(eff);
 
   // Liste synchronisée avec le switch needsTarget de resolveCard() —

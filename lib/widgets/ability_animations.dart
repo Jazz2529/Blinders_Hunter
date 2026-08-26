@@ -3769,3 +3769,91 @@ class JeanneRewardState extends State<JeanneRewardOverlay>
 
 
 
+
+// ═══════════════════════════════════════════════════════════════════
+// MAXENCE — chopes qui trinquent et étoiles qui tournoient, la victime
+// bascule dans l'ivresse
+// ═══════════════════════════════════════════════════════════════════
+class MaxenceDrunkOverlay extends StatefulWidget {
+  final VoidCallback onDone;
+  const MaxenceDrunkOverlay({required this.onDone});
+  @override State<MaxenceDrunkOverlay> createState() => MaxenceDrunkState();
+}
+
+class MaxenceDrunkState extends State<MaxenceDrunkOverlay>
+    with TickerProviderStateMixin {
+  late AnimationController _ac, _fadeAc;
+  late Animation<double> _opacity, _wobble;
+  final List<Particle> _stars = [];
+  final _rng = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 60))
+      ..addListener(() => setState(() {}))
+      ..repeat();
+    _fadeAc = AnimationController(vsync: this,
+        duration: const Duration(milliseconds: 2000));
+    _opacity = TweenSequence([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 14),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 56),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+    ]).animate(_fadeAc);
+    _wobble = Tween<double>(begin: -0.15, end: 0.15).animate(
+      CurvedAnimation(parent: _fadeAc, curve: const Interval(0, 0.6, curve: Curves.easeInOut)));
+
+    const emojis = ['⭐','✨','🍺'];
+    for (int i = 0; i < 12; i++) {
+      final angle = _rng.nextDouble() * 2 * pi;
+      _stars.add(Particle(
+        x: 0.5, y: 0.36,
+        speed: 0.004 + _rng.nextDouble() * 0.004,
+        emoji: emojis[_rng.nextInt(emojis.length)],
+        size: 14 + _rng.nextDouble() * 12,
+        drift: cos(angle) * 0.008,
+        rot: angle,
+      ));
+    }
+    _fadeAc.forward().then((_) { if (mounted) widget.onDone(); });
+  }
+
+  @override void dispose() { _ac.dispose(); _fadeAc.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    for (final p in _stars) {
+      p.x += p.drift * sin(_ac.value * 6);
+      p.y -= sin(p.rot) * p.speed;
+    }
+    final size = MediaQuery.of(ctx).size;
+    return Positioned.fill(child: IgnorePointer(child: Opacity(
+      opacity: _opacity.value.clamp(0.0, 1.0),
+      child: Stack(children: [
+        Container(color: Colors.black45),
+        ..._stars.map((p) => Positioned(
+          left: p.x * size.width,
+          top:  p.y * size.height,
+          child: Text(p.emoji, style: TextStyle(fontSize: p.size)))),
+        Positioned(left: 0, right: 0, top: size.height * 0.34,
+          child: Center(child: Transform.rotate(angle: _wobble.value,
+            child: const Text('🍺', style: TextStyle(fontSize: 56))))),
+        Positioned(left: 0, right: 0, top: size.height * 0.55,
+          child: Center(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFFB300))),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('🍺 MAXENCE', style: cinzel(16, c: const Color(0xFFFFD54F),
+                fw: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('Rend sa cible ivre pendant 2 tours',
+                style: body(12, c: Colors.white)),
+            ])))),
+      ]),
+    )));
+  }
+}

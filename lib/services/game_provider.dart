@@ -163,7 +163,7 @@ class GameProvider extends ChangeNotifier {
     'damage2_choice','damage2_then_heal3','set_wounds7','steal_equip_choice',
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors','luc_ignite','baptiste_revive',
-    'lock_ability_while_alive','steal_max_hp',
+    'lock_ability_while_alive','steal_max_hp','maxence_drunk',
   ].contains(eff);
 
   bool _cardNeedsTarget(String eff) => [
@@ -1069,6 +1069,7 @@ class GameProvider extends ChangeNotifier {
     'lock_ability_while_alive': 'ines_lock',
     'steal_max_hp': 'agathe_drain',
     'luc_ignite': 'luc_ignite',
+    'maxence_drunk': 'maxence_drunk',
     'damage3_give_dague': 'marin_dagger',
     'store_damage_nils': 'nils_release',
     'swap_equipment': 'tristan_swap',

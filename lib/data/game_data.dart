@@ -198,8 +198,8 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'maxence', name:'Maxence', faction:Faction.shadow, hp:12, icon:'🩸',
-    ability:'Passif révélé: chaque attaque vous inflige 1 blessure, mais lui inflige 2 dégâts de plus.',
-    abilityEffect:'maxence_selfharm_boost', abilityRepeatable:true,
+    ability:'Unique: choisissez un joueur et rendez-le ivre pendant 2 tours — sur son écran, tous les jetons changent aléatoirement d\'apparence, les camps et cartes personnages affichés sont aléatoires, et les blessures de tous les joueurs sont masquées.',
+    abilityEffect:'maxence_drunk', abilityRepeatable:false,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
 
   CharacterCard(id:'monkey', name:'Monkey Raph', faction:Faction.shadow, hp:11, icon:'🐒',
@@ -238,9 +238,9 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'tom', name:'Tom', faction:Faction.shadow, hp:14, icon:'💀',
-    ability:'Passif: chaque fois que vous éliminez un Shadow, vous gagnez 2 PV MAX et +2 dégâts permanents à vos attaques.',
-    abilityEffect:'tom_shadow_kill_boost', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
+    ability:'Passif révélé: chaque attaque vous inflige 1 blessure, mais lui inflige 2 dégâts de plus.',
+    abilityEffect:'maxence_selfharm_boost', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'travert', name:'Travert', faction:Faction.shadow, hp:12, icon:'🎲',
     ability:'Unique: choisissez un joueur et lancez le D6 — lui infligez le résultat en blessures',

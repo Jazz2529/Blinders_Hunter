@@ -190,6 +190,8 @@ class Player {
   int poisonTurnsRemaining; // Damien : tours restants de poison (3 dégâts/tour)
   String? lucFireSourceUid; // qui a mis le feu
   int lucFireTurnsRemaining; // Luc : tours restants en feu (2 dégâts/tour, +1 dégât aux attaques)
+  int drunkTurnsRemaining = 0; // Maxence : tours restants ivre (vision brouillée, sur SON écran uniquement)
+  int drunkSeed = 0;           // Maxence : graine fixe pour que le brouillage reste cohérent pendant les 2 tours
   int tomBonusDmg = 0; // Tom : dégâts bonus PERMANENTS cumulés, +2 à chaque Shadow qu'il élimine
   String? disguiseIconOverride;
   String? disguiseNameOverride;
@@ -268,6 +270,8 @@ class Player {
     this.poisonTurnsRemaining = 0,
     this.lucFireSourceUid,
     this.lucFireTurnsRemaining = 0,
+    this.drunkTurnsRemaining = 0,
+    this.drunkSeed = 0,
     this.tomBonusDmg = 0,
     this.disguiseIconOverride,
     this.disguiseNameOverride,
@@ -328,6 +332,8 @@ class Player {
     'poisonTurnsRemaining': poisonTurnsRemaining,
     'lucFireSourceUid': lucFireSourceUid,
     'lucFireTurnsRemaining': lucFireTurnsRemaining,
+    'drunkTurnsRemaining': drunkTurnsRemaining,
+    'drunkSeed': drunkSeed,
     'tomBonusDmg': tomBonusDmg,
     'disguiseIconOverride': disguiseIconOverride,
     'disguiseNameOverride': disguiseNameOverride,
@@ -410,6 +416,8 @@ class Player {
     poisonTurnsRemaining: (j['poisonTurnsRemaining'] as int?) ?? 0,
     lucFireSourceUid: j['lucFireSourceUid'] as String?,
     lucFireTurnsRemaining: (j['lucFireTurnsRemaining'] as int?) ?? 0,
+    drunkTurnsRemaining: (j['drunkTurnsRemaining'] as int?) ?? 0,
+    drunkSeed: (j['drunkSeed'] as int?) ?? 0,
     tomBonusDmg: (j['tomBonusDmg'] as int?) ?? 0,
     disguiseIconOverride: j['disguiseIconOverride'] as String?,
     disguiseNameOverride: j['disguiseNameOverride'] as String?,

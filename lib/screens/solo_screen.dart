@@ -694,6 +694,11 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
               ctrl.state!.jeanneRewardBanner = null;
               ctrl.notifyListeners();
             }),
+        if (overlay == 'maxence_drunk')
+          MaxenceDrunkOverlay(onDone: () {
+            ctrl.state!.abilityOverlay = null;
+            ctrl.notifyListeners();
+          }),
       ]);
     },
   ));
@@ -2061,6 +2066,13 @@ class _HpLeaderboard extends StatelessWidget {
       return a.wounds.compareTo(b.wounds);
     });
 
+    // Maxence : si LE JOUEUR HUMAIN (celui qui regarde cet écran) est
+    // ivre, sa vision de tout le monde est brouillée — jetons, camps/
+    // cartes et blessures. Reste null (pas d'effet) tant qu'il n'est pas
+    // rendu ivre.
+    final humanViewer = s.players.where((pp) => !pp.isBot).firstOrNull;
+    final drunkVision = DrunkVision.forViewer(humanViewer);
+
     return Container(
       color: kBg1,
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
@@ -2083,6 +2095,7 @@ class _HpLeaderboard extends StatelessWidget {
                 isFlashing: s.woundFlashUid == p.uid,
                 isMarked: s.markedPlayerUid == p.uid,
                 victorCharmMaxed: maxed,
+                drunkVision: drunkVision,
                 onTap: (target) { _showOpponentCard(ctx, target, isMe: !target.isBot); },
               ),
             );
@@ -2213,10 +2226,11 @@ class _WoundsColumn extends StatefulWidget {
   final Player player;
   final bool isCurrent, isMe, isFlashing, isMarked;
   final bool victorCharmMaxed;
+  final DrunkVision? drunkVision; // Maxence : vision brouillée du joueur QUI REGARDE cet écran
   final void Function(Player)? onTap;
   const _WoundsColumn({required this.player, required this.isCurrent,
     required this.isMe, this.isFlashing = false, this.isMarked = false,
-    this.victorCharmMaxed = false, this.onTap});
+    this.victorCharmMaxed = false, this.drunkVision, this.onTap});
   @override State<_WoundsColumn> createState() => _WoundsColumnState();
 }
 
@@ -2263,6 +2277,14 @@ class _WoundsColumnState extends State<_WoundsColumn>
     final p     = widget.player;
     final isMe  = widget.isMe;
     final woundColor = p.wounds >= 10 ? kRed : p.wounds >= 6 ? kGold : kGreen;
+    // Maxence : ivresse — carte personnage "hallucinée" pour ce joueur
+    // (visuel seulement), qui fait apparaître TOUT LE MONDE comme révélé
+    // avec un camp/personnage aléatoire, différent à chaque joueur regardé
+    // mais stable tant que la graine ne change pas.
+    final drunkCard = widget.drunkVision?.cardFor(p.uid);
+    final showRing = drunkCard != null || p.revealed;
+    final ringFaction = drunkCard?.faction.name ??
+        ((p.alive ? p.disguiseFactionOverride : null) ?? p.character!.faction.name);
     // Blessures toujours visibles — mais PAS les PV max
 
     return GestureDetector(
@@ -2294,23 +2316,23 @@ class _WoundsColumnState extends State<_WoundsColumn>
             // imite ; mort, il montre sa vraie faction comme tout le monde).
             AnimatedContainer(
               duration: const Duration(milliseconds: 400),
-              padding: EdgeInsets.all(p.revealed ? 2.5 : 0),
+              padding: EdgeInsets.all(showRing ? 2.5 : 0),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                boxShadow: p.revealed ? [
+                boxShadow: showRing ? [
                   BoxShadow(
-                    color: factionColor((p.alive ? p.disguiseFactionOverride : null) ?? p.character!.faction.name).withValues(alpha: 0.7),
+                    color: factionColor(ringFaction).withValues(alpha: 0.7),
                     blurRadius: 10, spreadRadius: 1)
                 ] : null,
               ),
               child: Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: p.revealed ? Border.all(
-                    color: factionColor((p.alive ? p.disguiseFactionOverride : null) ?? p.character!.faction.name), width: 2.5) : null,
+                  border: showRing ? Border.all(
+                    color: factionColor(ringFaction), width: 2.5) : null,
                 ),
                 child: Stack(alignment: Alignment.topRight, clipBehavior: Clip.none, children: [
-                  TokenWidget(tokenId: p.token, size: 30, isDead: !p.alive),
+                  TokenWidget(tokenId: widget.drunkVision?.tokenFor(p.uid) ?? p.token, size: 30, isDead: !p.alive),
                   if (isMe) const Positioned(top: 0, right: 0,
                     child: Text('★', style: TextStyle(fontSize: 8, color: kGold))),
                   if (!isMe && p.revealed && p.alive) const Positioned(top: 0, right: 0,
@@ -2325,7 +2347,7 @@ class _WoundsColumnState extends State<_WoundsColumn>
               tween: IntTween(begin: 0, end: p.wounds),
               duration: const Duration(milliseconds: 500),
               builder: (_, val, __) => Text(
-                !p.alive ? '💀' : '🗡 $val',
+                !p.alive ? '💀' : (widget.drunkVision != null ? '🗡 ❓' : '🗡 $val'),
                 style: TextStyle(
                   fontSize: 10, fontFamily: 'Cinzel',
                   fontWeight: FontWeight.w700,
@@ -3815,7 +3837,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'self1_trigger_terrain', 'draw_light', 'draw_dark', 'peek_reorder_deck',
       'casino_bet', 'swap_zones', 'd4_bonus_attack', 'store_damage_nils', 'steal_max_hp',
       'move_adjacent_choice', 'oscar_xp_spend', 'luc_ignite', 'baptiste_revive',
-      'lock_ability_while_alive',
+      'lock_ability_while_alive', 'maxence_drunk',
     };
     if (selfManaged.contains(eff)) {
       ctrl.humanUseAbility();

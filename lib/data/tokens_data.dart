@@ -2,8 +2,11 @@
 // Données des jetons joueurs — 19 jetons PNG
 // IDs = noms (en minuscules)
 
+import 'dart:math';
 import '../services/persistence.dart';
+import '../models/models.dart';
 import 'cosmetics_data.dart';
+import 'game_data.dart';
 
 class TokenData {
   final String id;
@@ -67,3 +70,34 @@ List<TokenData> availableTokens() {
 /// de base que pour un jeton cosmétique débloqué en boutique (les deux
 /// sont résolus par findToken(), qui vérifie les deux catalogues).
 String effectiveTokenImagePath(String tokenId) => findToken(tokenId)?.imagePath ?? '';
+
+/// Vision brouillée d'un joueur rendu ivre par Maxence — SUR SON PROPRE
+/// ÉCRAN uniquement (les autres joueurs voient tout normalement). Calcule
+/// à la demande, à partir d'une graine FIXE (drunkSeed), un jeton et une
+/// carte personnage "hallucinés" différents pour chaque joueur regardé —
+/// stables tant que la graine ne change pas (pas un tirage différent à
+/// chaque reconstruction du widget, sinon l'écran clignoterait sans arrêt).
+class DrunkVision {
+  final int seed;
+  const DrunkVision(this.seed);
+
+  /// Un jeton différent (aléatoire mais stable) pour ce joueur.
+  String tokenFor(String uid) {
+    final rng = Random(seed ^ uid.hashCode);
+    return kAllTokens[rng.nextInt(kAllTokens.length)].id;
+  }
+
+  /// Une carte personnage différente (visuel seulement, aucun effet de
+  /// jeu réel) pour ce joueur.
+  CharacterCard cardFor(String uid) {
+    final rng = Random(seed ^ uid.hashCode ^ 0x5bd1e995);
+    return kAllCharacters[rng.nextInt(kAllCharacters.length)];
+  }
+
+  /// Null si le joueur regardant l'écran n'est pas (ou plus) ivre — permet
+  /// d'écrire `DrunkVision.forViewer(me)?.tokenFor(uid) ?? p.token`.
+  static DrunkVision? forViewer(Player? viewer) {
+    if (viewer == null || viewer.drunkTurnsRemaining <= 0 || viewer.drunkSeed == 0) return null;
+    return DrunkVision(viewer.drunkSeed);
+  }
+}

@@ -622,6 +622,7 @@ class _GameScreenState extends State<GameScreen> {
           JeanneRewardOverlay(
             bannerText: gp.gameState?.jeanneRewardBanner ?? '',
             onDone: clearOverlay),
+        if (overlay == 'maxence_drunk')        MaxenceDrunkOverlay(onDone: clearOverlay),
         turnBanner,
         burningRope,
         revealQuoteBanner,
@@ -944,11 +945,18 @@ class _PlayerRow extends StatelessWidget {
         : null;
     final displayMaxHp = (disguisedChar?.hp ?? p.character?.hp ?? 0) + p.maxHpModifier;
     final knowMaxHp = (isMe || p.revealed) && p.character != null;
-    final fc = p.revealed && p.character != null
-        ? (hasDisguise
-            ? factionColor(p.disguiseFactionOverride ?? 'neutral')
-            : factionColor(p.character!.faction.name))
-        : null;
+    // Maxence : si LE JOUEUR QUI REGARDE CET ÉCRAN (gp.me) est ivre, SA
+    // vision de tout le monde est brouillée — jetons, camps/cartes et
+    // blessures. N'affecte QUE l'appareil de la victime.
+    final drunkVision = DrunkVision.forViewer(gp.me);
+    final drunkCard = drunkVision?.cardFor(p.uid);
+    final fc = drunkCard != null
+        ? factionColor(drunkCard.faction.name)
+        : p.revealed && p.character != null
+          ? (hasDisguise
+              ? factionColor(p.disguiseFactionOverride ?? 'neutral')
+              : factionColor(p.character!.faction.name))
+          : null;
 
     return GestureDetector(
       onTap: () async {
@@ -989,7 +997,7 @@ class _PlayerRow extends StatelessWidget {
               ),
               child: Stack(alignment: Alignment.topRight, clipBehavior: Clip.none, children: [
                 // Jason garde toujours son jeton — seul le contour change de couleur
-                TokenWidget(tokenId: p.token, size: 32, isDead: !p.alive),
+                TokenWidget(tokenId: drunkVision?.tokenFor(p.uid) ?? p.token, size: 32, isDead: !p.alive),
                 if (isMe) const Positioned(top: 0, right: 0,
                   child: Text('★', style: TextStyle(fontSize: 9, color: kGold))),
                 // Jeanne : marquage visible de tous
@@ -1003,9 +1011,11 @@ class _PlayerRow extends StatelessWidget {
           Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Row(children:[
               Text(p.name,style:body(13,fw:FontWeight.w600)),
-              if(p.revealed && p.character != null)...[
+              if((drunkCard != null || p.revealed) && p.character != null)...[
                 const SizedBox(width:6),
-                if (hasDisguise)
+                if (drunkCard != null)
+                  FactionBadge(drunkCard.faction.name, small: true)
+                else if (hasDisguise)
                   FactionBadge(p.disguiseFactionOverride ?? 'neutral', small: true)
                 else
                   FactionBadge(p.character!.faction.name,small:true),
@@ -1030,6 +1040,8 @@ class _PlayerRow extends StatelessWidget {
           // Blessures — barre PV seulement si on connaît le PV max
           if (!p.alive)
             const Text('💀', style: TextStyle(fontSize: 18))
+          else if (drunkVision != null)
+            const Text('❓', style: TextStyle(fontSize: 16))
           else if (knowMaxHp)
             Column(crossAxisAlignment:CrossAxisAlignment.end,children:[
               Text('${p.wounds}/$displayMaxHp',style:cinzel(12,c:woundColor)),

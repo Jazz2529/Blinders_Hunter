@@ -382,6 +382,14 @@ class GameEngine with AbilityEngine {
         target.abilityLockedByUid = actor.uid;
         return '🔒 ${actor.name} verrouille la capacité de ${target.name} tant qu\'elle est en vie';
 
+      // ── Maxence : rend un joueur ivre pendant 2 tours (vision brouillée
+      // sur SON écran uniquement — jetons, camps/cartes et blessures) ──
+      case 'maxence_drunk':
+        if (target == null) return 'cible_requise';
+        target.drunkTurnsRemaining = 2;
+        target.drunkSeed = _rng.nextInt(999999) + 1; // jamais 0 (0 = "pas de graine")
+        return '🍺 ${actor.name} rend ${target.name} complètement ivre pendant 2 tours !';
+
       // ── Marion : place la cible à exactement 5 blessures (soin ou dégâts) ──
       case 'set_wounds7':
         if (target == null) return 'cible_requise';
@@ -2291,6 +2299,14 @@ class GameEngine with AbilityEngine {
       logs.add('🔥 ${p.name} brûle et subit 2 blessures (${p.lucFireTurnsRemaining} tour(s) restant(s))');
       if (!p.alive) p.killedByUid = p.lucFireSourceUid; // attribue le kill à Luc
       if (p.lucFireTurnsRemaining <= 0) p.lucFireSourceUid = null;
+    }
+
+    // Maxence : ivresse — purement visuelle (aucun dégât), décompte au
+    // début de CHACUN des 2 prochains tours de la victime.
+    if (p.alive && p.drunkTurnsRemaining > 0) {
+      p.drunkTurnsRemaining--;
+      logs.add('🍺 ${p.name} est toujours ivre (${p.drunkTurnsRemaining} tour(s) restant(s))');
+      if (p.drunkTurnsRemaining <= 0) p.drunkSeed = 0;
     }
 
     final eff = effectiveAbility(p);
