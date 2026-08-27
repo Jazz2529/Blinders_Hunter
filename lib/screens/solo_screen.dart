@@ -16,6 +16,7 @@ import '../services/audio_service.dart';
 import '../services/engine.dart';
 import '../widgets/theme.dart';
 import '../widgets/token_widget.dart';
+import '../widgets/player_status_widget.dart';
 import '../widgets/ability_animations.dart';
 import 'home_screen.dart';
 import '../widgets/terrain_widget.dart';
@@ -1844,7 +1845,7 @@ class _GameLayout extends StatelessWidget {
 
           // ── Gauche : plateau + classement ────────────────────
           SizedBox(width: leftW, child: Column(children: [
-            SizedBox(height: (h * 0.14).clamp(70, 100),
+            SizedBox(height: (h * 0.16).clamp(85, 115),
               child: _HpLeaderboard(ctrl: ctrl)),
             Expanded(child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 0, 4, 8),
@@ -1867,7 +1868,7 @@ class _GameLayout extends StatelessWidget {
       } else {
         // ── Layout mobile : colonne ─────────────────────────────
         return Column(children: [
-          SizedBox(height: (h * 0.11).clamp(60, 85),
+          SizedBox(height: (h * 0.14).clamp(78, 108),
             child: _HpLeaderboard(ctrl: ctrl)),
           SizedBox(height: (h * 0.38).clamp(130, 280),
             child: _MiniBoard(ctrl: ctrl)),
@@ -2088,7 +2089,7 @@ class _HpLeaderboard extends StatelessWidget {
                 !pp.isBot && pp.character?.id == 'victor').firstOrNull;
             final maxed = victorMe != null && (victorMe.charmLevels[p.uid] ?? 0) >= 100;
             return Expanded(
-              child: _WoundsColumn(
+              child: PlayerStatusCard(
                 player: p,
                 isCurrent: s.players.indexOf(p) == s.currentIdx,
                 isMe: !p.isBot,
@@ -2222,198 +2223,6 @@ class _HpLeaderboard extends StatelessWidget {
   }
 }
 
-class _WoundsColumn extends StatefulWidget {
-  final Player player;
-  final bool isCurrent, isMe, isFlashing, isMarked;
-  final bool victorCharmMaxed;
-  final DrunkVision? drunkVision; // Maxence : vision brouillée du joueur QUI REGARDE cet écran
-  final void Function(Player)? onTap;
-  const _WoundsColumn({required this.player, required this.isCurrent,
-    required this.isMe, this.isFlashing = false, this.isMarked = false,
-    this.victorCharmMaxed = false, this.drunkVision, this.onTap});
-  @override State<_WoundsColumn> createState() => _WoundsColumnState();
-}
-
-class _WoundsColumnState extends State<_WoundsColumn>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _flashAc;
-  late Animation<Color?> _flashColor;
-
-  @override
-  void initState() {
-    super.initState();
-    _flashAc = AnimationController(vsync: this,
-        duration: const Duration(milliseconds: 600));
-    _flashColor = ColorTween(begin: Colors.transparent, end: kRed.withValues(alpha: 0.5))
-        .animate(CurvedAnimation(parent: _flashAc, curve: Curves.easeOut));
-  }
-
-  @override
-  void didUpdateWidget(_WoundsColumn old) {
-    super.didUpdateWidget(old);
-    if (widget.isFlashing && !old.isFlashing) {
-      _flashAc.forward(from: 0).then((_) => _flashAc.reverse());
-    }
-  }
-
-  @override void dispose() { _flashAc.dispose(); super.dispose(); }
-
-  String _equipIcon(String effect) => switch (effect) {
-    'hache_berserker'    => '🪓',
-    'sniper'             => '🔫',
-    'bazooka'            => '💥',
-    'dague_voleur'       => '🗡',
-    'lance_lumiere'      => '✨',
-    'sainte_tunique'     => '🛡',
-    'crucifix_argent'    => '✝️',
-    'tenebres_card_immune'=> '🔺',
-    'terrain9_immune'    => '👂',
-    'triple_dice_choice' => '⏱',
-    _                    => '⚔',
-  };
-
-  @override
-  Widget build(BuildContext ctx) {
-    final p     = widget.player;
-    final isMe  = widget.isMe;
-    final woundColor = p.wounds >= 10 ? kRed : p.wounds >= 6 ? kGold : kGreen;
-    // Maxence : ivresse — carte personnage "hallucinée" pour ce joueur
-    // (visuel seulement), qui fait apparaître TOUT LE MONDE comme révélé
-    // avec un camp/personnage aléatoire, différent à chaque joueur regardé
-    // mais stable tant que la graine ne change pas.
-    final drunkCard = widget.drunkVision?.cardFor(p.uid);
-    final showRing = drunkCard != null || p.revealed;
-    final ringFaction = drunkCard?.faction.name ??
-        ((p.alive ? p.disguiseFactionOverride : null) ?? p.character!.faction.name);
-    // Blessures toujours visibles — mais PAS les PV max
-
-    return GestureDetector(
-      onTap: widget.onTap != null ? () => widget.onTap!(p) : null,
-      child: WoundDelta(
-      wounds: p.wounds,
-      child: AnimatedBuilder(
-        animation: _flashAc,
-        builder: (_, child) => Container(
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
-          decoration: BoxDecoration(
-            color: widget.isFlashing
-              ? (_flashColor.value ?? Colors.transparent)
-              : (widget.isCurrent ? kGold.withValues(alpha: 0.1) : Colors.transparent),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: widget.isCurrent ? kGold.withValues(alpha: 0.5) : Colors.transparent)),
-          child: child,
-        ),
-        child: Opacity(
-          opacity: p.alive ? 1.0 : 0.35,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-            // Cadre coloré selon faction si révélé (déguisement de Jason
-            // pris en compte tant qu'il est VIVANT — sinon son cadre restait
-            // toujours jaune/Neutre au lieu de la couleur du camp qu'il
-            // imite ; mort, il montre sa vraie faction comme tout le monde).
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 400),
-              padding: EdgeInsets.all(showRing ? 2.5 : 0),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: showRing ? [
-                  BoxShadow(
-                    color: factionColor(ringFaction).withValues(alpha: 0.7),
-                    blurRadius: 10, spreadRadius: 1)
-                ] : null,
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: showRing ? Border.all(
-                    color: factionColor(ringFaction), width: 2.5) : null,
-                ),
-                child: Stack(alignment: Alignment.topRight, clipBehavior: Clip.none, children: [
-                  TokenWidget(tokenId: widget.drunkVision?.tokenFor(p.uid) ?? p.token, size: 30, isDead: !p.alive),
-                  if (isMe) const Positioned(top: 0, right: 0,
-                    child: Text('★', style: TextStyle(fontSize: 8, color: kGold))),
-                  if (!isMe && p.revealed && p.alive) const Positioned(top: 0, right: 0,
-                    child: Text('👁', style: TextStyle(fontSize: 8))),
-                  if (widget.isMarked) const Positioned(top: 0, left: 0,
-                    child: Text('💀', style: TextStyle(fontSize: 9))),
-                ]),
-              ),
-            ),
-            const SizedBox(height: 3),
-            TweenAnimationBuilder<int>(
-              tween: IntTween(begin: 0, end: p.wounds),
-              duration: const Duration(milliseconds: 500),
-              builder: (_, val, __) => Text(
-                !p.alive ? '💀' : (widget.drunkVision != null ? '🗡 ❓' : '🗡 $val'),
-                style: TextStyle(
-                  fontSize: 10, fontFamily: 'Cinzel',
-                  fontWeight: FontWeight.w700,
-                  color: p.alive ? woundColor : kTextDim,
-                ),
-              ),
-            ),
-            // Luc : joueur en feu — visible de tous, aucune info cachée ici
-            // contrairement au charme de Victor.
-            if (p.alive && p.lucFireTurnsRemaining > 0)
-              Text('🔥 ${p.lucFireTurnsRemaining}',
-                style: const TextStyle(fontSize: 8, fontFamily: 'Cinzel',
-                  fontWeight: FontWeight.w900, color: kRed)),
-            // Inès : capacité verrouillée — info PUBLIQUE, visible de tous
-            // tant que le verrou est actif (Inès en vie).
-            if (p.alive && p.abilityLockedByUid != null)
-              const Text('🔒', style: TextStyle(fontSize: 10)),
-            // Louna : bouclier actif — insensible aux blessures ce tour,
-            // info publique visible de tous comme le feu de Luc.
-            if (p.alive && p.shield)
-              const Text('🛡️', style: TextStyle(fontSize: 10)),
-            // Mathieu : compteur d'attaques (3 = bonus +2 dégâts permanent
-            // actif) — info PUBLIQUE, visible de tous, comme le feu de Luc.
-            if (p.alive && (p.copiedEffect ?? p.character?.abilityEffect) == 'third_attack_bonus')
-              Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) => Padding(
-                padding: const EdgeInsets.only(left: 1),
-                child: Icon(
-                  p.attackCount > i ? Icons.circle : Icons.circle_outlined,
-                  size: 7,
-                  color: p.attackCount >= 3 ? kGold : kTextSub),
-              ))),
-            // Victor : cœur affiché UNIQUEMENT si CE joueur est charmé à
-            // 100% ET que la personne qui regarde l'écran est Victor lui-même
-            // — cette info reste strictement privée pour tous les autres.
-            if (widget.victorCharmMaxed) const Text('💘',
-              style: TextStyle(fontSize: 10)),
-            // Felipe : en sursis — doit éliminer quelqu'un ce tour ou mourir
-            if (p.felipeOnBorrowedTime)
-              const Text('⏳ SURSIS', style: TextStyle(
-                fontSize: 7, fontFamily: 'Cinzel', fontWeight: FontWeight.w900, color: kRed)),
-            // Theo / Fifi Été : prochaine attaque +2 dégâts (buff actif)
-            if (p.bonusMaxHp > 0 &&
-                (p.copiedEffect ?? p.character?.abilityEffect) == 'no_attack_buff')
-              const Text('⚡ +2 DÉGÂTS', style: TextStyle(
-                fontSize: 7, fontFamily: 'Cinzel', fontWeight: FontWeight.w900, color: kGold)),
-            // Équipements — icônes compactes
-            if (p.equipment.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 1,
-                  children: p.equipment.map((eq) => Tooltip(
-                    message: eq.name,
-                    child: Text(_equipIcon(eq.effect),
-                      style: const TextStyle(fontSize: 9)),
-                  )).toList(),
-                ),
-              ),
-          ]),
-          ),
-        ),
-      ),
-    ));
-  }
-}
 
 // ─────────────────────────────────────────────
 // PLATEAU AVEC IMAGES ET ADJACENCES

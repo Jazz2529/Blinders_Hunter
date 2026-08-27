@@ -260,7 +260,12 @@ class AiBrain {
       // ── Divers, toujours pertinents à activer ──
       case 'move_adjacent_choice': return true; // Christine : repositionnement gratuit
       case 'peek_reorder_deck':    return true; // Elaia : jamais nocif
-      case 'store_damage_nils':    return true; // activer le stockage OU tout déverser
+      case 'store_damage_nils':
+        // Le stockage est désormais automatique/passif (pendant les
+        // attaques) — ce bouton ne sert plus qu'à DÉVERSER. Inutile de le
+        // presser tant qu'il n'y a rien à déverser (gaspillerait le tour
+        // sur un "rien à déverser" silencieux).
+        return bot.storedDamage > 0;
       case 'choose_all_dice':      return true; // Fifi : dés au max, jamais nocif
       case 'casino_bet':           return true;
       case 'swap_zones':           return true;
@@ -2810,6 +2815,7 @@ class SoloController extends ChangeNotifier {
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors',
     'lock_ability_while_alive','steal_max_hp','luc_ignite','baptiste_revive','maxence_drunk',
+    'store_damage_nils',
   ].contains(eff);
 
   // Liste synchronisée avec le switch needsTarget de resolveCard() —

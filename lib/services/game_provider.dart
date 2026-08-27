@@ -19,6 +19,26 @@ class GameProvider extends ChangeNotifier {
   final GameEngine      _eg = GameEngine.instance;
   final AiBrain         _ai = AiBrain(); // pilotage des bots en multijoueur
   static const AiDifficulty _botDifficulty = AiDifficulty.normal;
+
+  // ── Anti-spam centralisé ─────────────────────────────────────────────
+  // De nombreux boutons appellent une méthode de GameProvider directement
+  // (onTap: () => gp.xxx()), sans passer par le garde local `_act()` de
+  // _ActionPanelState (qui n'existe que pour CE widget précis) — un tap
+  // rapide et répété pouvait donc déclencher le MÊME effet plusieurs fois
+  // avant que le premier aller-retour Firestore ne mette à jour l'état et
+  // ne fasse disparaître le bouton. `guardedAction` centralise la
+  // protection au niveau du provider, partagé par TOUS les boutons peu
+  // importe le widget qui les affiche.
+  bool _actionBusy = false;
+  Future<void> guardedAction(Future<void> Function() fn) async {
+    if (_actionBusy) return;
+    _actionBusy = true;
+    try {
+      await fn();
+    } finally {
+      _actionBusy = false;
+    }
+  }
   final bool firebaseEnabled;
   GameProvider({this.firebaseEnabled = false});
 
@@ -164,6 +184,7 @@ class GameProvider extends ChangeNotifier {
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors','luc_ignite','baptiste_revive',
     'lock_ability_while_alive','steal_max_hp','maxence_drunk',
+    'store_damage_nils',
   ].contains(eff);
 
   bool _cardNeedsTarget(String eff) => [
@@ -612,6 +633,10 @@ class GameProvider extends ChangeNotifier {
         final attackRes = _eg.resolveAttack(bot, target, dmg, all: all);
         _eg.applyDeathPassives(all);
         await _commitAll(all, attackRes['log'] as String);
+        await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+            lastDiceResult: {'d4': roll2['d4']!, 'd6': roll2['d6']!, 'sum': dmg},
+            lastDiceLabel: 'Attaque',
+            lastDiceTimestamp: DateTime.now().millisecondsSinceEpoch);
         final tgtNow = all.where((p) => p.uid == target.uid).firstOrNull;
         if (tgtNow != null) {
           if (await _checkWin(all, justDiedId: tgtNow.alive ? null : tgtNow.uid)) return;

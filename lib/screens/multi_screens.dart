@@ -16,6 +16,7 @@ import '../widgets/theme.dart';
 import '../widgets/shine_effect.dart';
 import '../services/persistence.dart';
 import '../widgets/token_widget.dart';
+import '../widgets/player_status_widget.dart';
 import '../widgets/terrain_widget.dart';
 import '../widgets/ability_animations.dart';
 import '../data/tokens_data.dart';
@@ -122,13 +123,13 @@ class LobbyScreen extends StatelessWidget {
               BHButton(
                 label: '🤖 Ajouter un bot',
                 outlined: true,
-                onTap: () => gp.addBot(),
+                onTap: () => gp.guardedAction(() => gp.addBot()),
               ),
             ],
             const SizedBox(height:8),
             BHButton(
               label:gp.me?.isReady==true?'✓ Prêt — annuler ?':'Se marquer prêt',
-              onTap:()=>gp.setReady(!(gp.me?.isReady??false)),
+              onTap: () => gp.guardedAction(() => gp.setReady(!(gp.me?.isReady??false))),
               outlined:true,
             ),
           ])),
@@ -246,10 +247,10 @@ class _RoleRevealState extends State<RoleRevealScreen> {
               style:body(12,c:kTextDim).copyWith(fontStyle:FontStyle.italic)),
             const SizedBox(height:24),
             if (!_confirmed)
-              BHButton(label:'✅ J\'ai vu mon rôle — Continuer', gold:true, onTap: () async {
+              BHButton(label:'✅ J\'ai vu mon rôle — Continuer', gold:true, onTap: () => gp.guardedAction(() async {
                 setState(() => _confirmed = true);
                 await gp.confirmRoleReveal();
-              })
+              }))
             else
               Column(children:[
                 const SizedBox(
@@ -437,7 +438,7 @@ class _GameScreenState extends State<GameScreen> {
           final screenW = constraints.maxWidth;
           final isMobile = DisplaySettings.instance.isMobileFor(screenW);
           final boardH = isMobile
-              ? (screenH * 0.22).clamp(120.0, 190.0)
+              ? (screenH * 0.36).clamp(130.0, 280.0)
               : (screenH * 0.28).clamp(160.0, 260.0);
 
           // Plateau (commun PC / mobile)
@@ -477,18 +478,28 @@ class _GameScreenState extends State<GameScreen> {
           );
           }
 
-          // ── LAYOUT TÉLÉPHONE : plateau compact, joueurs en ligne, action max ──
+          // ── LAYOUT TÉLÉPHONE : même ordre que le solo — classement des
+          // joueurs (trié par blessures) au-dessus du plateau, puis le
+          // plateau, puis les actions, puis un journal TOUJOURS visible en
+          // bas (avant : liste non triée sous le plateau, journal caché
+          // derrière un bouton 📜 à ouvrir manuellement). ──
           if (isMobile) {
+            final sortedPlayers = List<Player>.from(gp.playerList);
+            sortedPlayers.sort((a, b) {
+              if (!a.alive && b.alive) return 1;
+              if (a.alive && !b.alive) return -1;
+              return a.wounds.compareTo(b.wounds);
+            });
             return Column(children: [
-              if (gs != null) boardWidget(),
               SizedBox(
-                height: 62,
+                height: (screenH * 0.14).clamp(78.0, 108.0),
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  children: gp.playerList.map((p) => _PlayerChip(p: p, gp: gp)).toList(),
+                  children: sortedPlayers.map((p) => _MultiPlayerStatus(p: p, gp: gp)).toList(),
                 ),
               ),
+              if (gs != null) boardWidget(),
               Expanded(
                 child: SingleChildScrollView(
                   child: Container(
@@ -497,22 +508,24 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                 ),
               ),
+              _MultiLogStrip(gp: gp),
             ]);
           }
 
-          // ── LAYOUT PC : inchangé ──
+          // ── LAYOUT PC/tablette : même structure que le solo — classement
+          // horizontal (largeur égale par joueur) au-dessus du plateau,
+          // au lieu d'une grille verticale à ratio fixe mal adaptée au
+          // widget PlayerStatusCard (qui provoquait un débordement).
           return Column(children:[
+          SizedBox(
+            height: (screenH * 0.16).clamp(85.0, 115.0),
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              children: gp.playerList.map((p) => _MultiPlayerStatus(p: p, gp: gp)).toList(),
+            ),
+          ),
           if (gs != null) boardWidget(),
-          Expanded(child: screenW > 600
-            ? GridView.count(
-                crossAxisCount: 2, childAspectRatio: 4.5,
-                padding: const EdgeInsets.all(8), mainAxisSpacing: 4, crossAxisSpacing: 4,
-                children: gp.playerList.map((p) => _PlayerRow(p: p, gp: gp)).toList(),
-              )
-            : ListView(
-                padding: const EdgeInsets.all(8),
-                children: gp.playerList.map((p) => _PlayerRow(p: p, gp: gp)).toList(),
-              )),
           ConstrainedBox(
             constraints: BoxConstraints(maxHeight: screenH * 0.45),
             child: SingleChildScrollView(
@@ -889,25 +902,24 @@ void _showEquipmentFor(BuildContext ctx, Player p) {
   ));
 }
 
-class _PlayerRow extends StatelessWidget {
-  final Player p; final GameProvider gp;
-  const _PlayerRow({required this.p,required this.gp});
-
-  Future<void> _showCard(BuildContext ctx) {
-    final c = p.character;
-    final isMe = p.uid == gp.myUid;
-    // Vision Suprême : connaissance privée permanente — le joueur qui a
-    // découvert secrètement cette identité peut la reconsulter à tout
-    // moment ensuite, comme s'il était révélé, mais seulement pour lui.
-    final knowsPrivately = gp.myUid != null && p.privatelyKnownBy.contains(gp.myUid);
-    // Un joueur MORT révèle toujours son vrai rôle en cliquant sur son
-    // jeton — même s'il n'avait jamais été révélé de son vivant. Pour
-    // SOI-MÊME : toujours la vraie carte, peu importe la révélation —
-    // sinon on voyait une fiche "mystère" en cliquant sur son propre jeton.
-    if ((!isMe && !p.revealed && p.alive && !knowsPrivately) || c == null) {
-      // Pas révélé (et encore en vie) : carte "mystère".
-      return showMysteryCardDialog(ctx, p);
-    }
+/// Affiche la fiche d'un joueur (vraie carte, mystère, ou déguisement de
+/// Jason) puis son équipement — logique PARTAGÉE utilisée par tous les
+/// widgets de liste de joueurs (PlayerStatusCard inclus), pour garantir un
+/// comportement identique peu importe où l'on touche un joueur.
+Future<void> showMultiPlayerCard(BuildContext ctx, Player p, GameProvider gp) async {
+  final c = p.character;
+  final isMe = p.uid == gp.myUid;
+  // Vision Suprême : connaissance privée permanente — le joueur qui a
+  // découvert secrètement cette identité peut la reconsulter à tout
+  // moment ensuite, comme s'il était révélé, mais seulement pour lui.
+  final knowsPrivately = gp.myUid != null && p.privatelyKnownBy.contains(gp.myUid);
+  // Un joueur MORT révèle toujours son vrai rôle en cliquant sur son
+  // jeton — même s'il n'avait jamais été révélé de son vivant. Pour
+  // SOI-MÊME : toujours la vraie carte, peu importe la révélation —
+  // sinon on voyait une fiche "mystère" en cliquant sur son propre jeton.
+  if ((!isMe && !p.revealed && p.alive && !knowsPrivately) || c == null) {
+    await showMysteryCardDialog(ctx, p);
+  } else {
     // Jason (Caméléon) : afficher la carte du personnage IMITÉ tant qu'il
     // est VIVANT — mort, il révèle sa vraie identité comme tout le monde
     // (convention "les cartes se retournent à la mort"). Pour SOI-MÊME :
@@ -921,180 +933,44 @@ class _PlayerRow extends StatelessWidget {
     final maximeTarget = (isMe && shown.id == 'maxime' && p.maximeFirstAttackerUid != null)
         ? gp.players[p.maximeFirstAttackerUid]
         : null;
-    return showFullCardDialog(ctx, shown, hpOverride: shown.hp + p.maxHpModifier,
+    await showFullCardDialog(ctx, shown, hpOverride: shown.hp + p.maxHpModifier,
       oscarXpOverride: shown.id == 'oscar' ? p.oscarXp : null,
       maximeTargetName: (isMe && shown.id == 'maxime')
         ? (maximeTarget?.name ?? 'Personne pour le moment') : null,
       megFormOverride: shown.abilityEffect == 'meg_shapeshift' ? p.megForm : null);
   }
-
-  @override
-  Widget build(BuildContext ctx) {
-    final isCurrent = p.uid == (gp.gameState?.currentPlayerId??'');
-    final isMe = p.uid == gp.myUid;
-    final t = gp.terrainOf(p);
-    final woundColor = p.wounds >= 10 ? kRed : p.wounds >= 6 ? kGold : kGreen;
-    // Jason (Caméléon) : les AUTRES joueurs voient le déguisement, pas la vraie identité.
-    // Lui-même (isMe) voit toujours la vérité.
-    final hasDisguise = !isMe && p.disguiseNameOverride != null;
-    final displayName = hasDisguise ? p.disguiseNameOverride! : p.character?.name;
-    final displayIcon = hasDisguise ? p.disguiseIconOverride : null;
-    // HP max apparent = HP du perso imité (Jason garde ses vrais PV)
-    final disguisedChar = hasDisguise && p.disguiseCharIdOverride != null
-        ? kAllCharacters.where((ch) => ch.id == p.disguiseCharIdOverride).firstOrNull
-        : null;
-    final displayMaxHp = (disguisedChar?.hp ?? p.character?.hp ?? 0) + p.maxHpModifier;
-    final knowMaxHp = (isMe || p.revealed) && p.character != null;
-    // Maxence : si LE JOUEUR QUI REGARDE CET ÉCRAN (gp.me) est ivre, SA
-    // vision de tout le monde est brouillée — jetons, camps/cartes et
-    // blessures. N'affecte QUE l'appareil de la victime.
-    final drunkVision = DrunkVision.forViewer(gp.me);
-    final drunkCard = drunkVision?.cardFor(p.uid);
-    final fc = drunkCard != null
-        ? factionColor(drunkCard.faction.name)
-        : p.revealed && p.character != null
-          ? (hasDisguise
-              ? factionColor(p.disguiseFactionOverride ?? 'neutral')
-              : factionColor(p.character!.faction.name))
-          : null;
-
-    return GestureDetector(
-      onTap: () async {
-        // Toucher un joueur montre toujours quelque chose : sa vraie carte
-        // si révélé, sinon une carte "mystère" — puis son équipement dans
-        // tous les cas (info publique, connue même sans identité).
-        await _showCard(ctx);
-        final isNilsRow = (p.copiedEffect ?? p.character?.abilityEffect) == 'store_damage_nils';
-        if ((p.equipment.isNotEmpty || isNilsRow) && ctx.mounted) {
-          _showEquipmentFor(ctx, p);
-        }
-      },
-      child: Opacity(
-      opacity:p.alive?1.0:0.35,
-      child:WoundDelta(
-      wounds: p.wounds,
-      child:PulseGlow(
-      active: isCurrent && p.alive,
-      child:Container(
-        margin:const EdgeInsets.only(bottom:6),
-        padding:const EdgeInsets.all(10),
-        decoration:surfaceDecor(border:isCurrent?kGold:kBord),
-        child:Row(children:[
-          // Jeton avec anneau de faction si révélé
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 400),
-            padding: EdgeInsets.all(p.revealed ? 2.5 : 0),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: fc != null
-                ? [BoxShadow(color: fc.withValues(alpha: 0.7), blurRadius: 8, spreadRadius: 1)]
-                : null,
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: fc != null ? Border.all(color: fc, width: 2.5) : null,
-              ),
-              child: Stack(alignment: Alignment.topRight, clipBehavior: Clip.none, children: [
-                // Jason garde toujours son jeton — seul le contour change de couleur
-                TokenWidget(tokenId: drunkVision?.tokenFor(p.uid) ?? p.token, size: 32, isDead: !p.alive),
-                if (isMe) const Positioned(top: 0, right: 0,
-                  child: Text('★', style: TextStyle(fontSize: 9, color: kGold))),
-                // Jeanne : marquage visible de tous
-                if (gp.gameState?.markedPlayerUid == p.uid)
-                  const Positioned(top: 0, left: 0,
-                    child: Text('💀', style: TextStyle(fontSize: 10))),
-              ]),
-            ),
-          ),
-          const SizedBox(width:10),
-          Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-            Row(children:[
-              Text(p.name,style:body(13,fw:FontWeight.w600)),
-              if((drunkCard != null || p.revealed) && p.character != null)...[
-                const SizedBox(width:6),
-                if (drunkCard != null)
-                  FactionBadge(drunkCard.faction.name, small: true)
-                else if (hasDisguise)
-                  FactionBadge(p.disguiseFactionOverride ?? 'neutral', small: true)
-                else
-                  FactionBadge(p.character!.faction.name,small:true),
-              ],
-              if(!p.alive) const Text(' 💀',style:TextStyle(fontSize:11)),
-            ]),
-            Text('${t?.icon??""} ${t?.name??""}',style:body(11,c:kTextSub)),
-            if (p.equipment.isNotEmpty)
-              GestureDetector(
-                onTap: () => _showEquipmentFor(ctx, p),
-                child: Padding(padding: const EdgeInsets.only(top: 2),
-                  child: Row(children: [
-                    ...p.equipment.take(4).map((eq) =>
-                      const Padding(padding: EdgeInsets.only(right: 2),
-                        child: Text('⚔', style: TextStyle(fontSize: 10, color: kTextDim)))),
-                    Text(' (${p.equipment.length})',
-                      style: body(9, c: kGold, fw: FontWeight.w700)),
-                  ]),
-                ),
-              ),
-          ])),
-          // Blessures — barre PV seulement si on connaît le PV max
-          if (!p.alive)
-            const Text('💀', style: TextStyle(fontSize: 18))
-          else if (drunkVision != null)
-            const Text('❓', style: TextStyle(fontSize: 16))
-          else if (knowMaxHp)
-            Column(crossAxisAlignment:CrossAxisAlignment.end,children:[
-              Text('${p.wounds}/$displayMaxHp',style:cinzel(12,c:woundColor)),
-              const SizedBox(height:3),
-              SizedBox(width:55,height:4,child:ClipRRect(
-                borderRadius:BorderRadius.circular(2),
-                child:LinearProgressIndicator(
-                  value:((displayMaxHp-p.wounds)/displayMaxHp).clamp(0.0,1.0),
-                  backgroundColor:kBord,valueColor:AlwaysStoppedAnimation(woundColor)))),
-            ])
-          else
-            Text('🗡 ${p.wounds}', style: cinzel(13, c: woundColor, fw: FontWeight.w700)),
-          // Felipe : en sursis — doit éliminer quelqu'un ce tour ou mourir
-          if (p.felipeOnBorrowedTime)
-            Text('⏳ SURSIS', style: cinzel(9, c: kRed, fw: FontWeight.w900)),
-          // Theo / Fifi Été : prochaine attaque +2 dégâts (buff actif)
-          if (p.bonusMaxHp > 0 &&
-              (p.copiedEffect ?? p.character?.abilityEffect) == 'no_attack_buff')
-            Text('⚡ +2 DÉGÂTS', style: cinzel(9, c: kGold, fw: FontWeight.w900)),
-          // Luc : joueur en feu — visible de tous.
-          if (p.alive && p.lucFireTurnsRemaining > 0)
-            Text('🔥 ${p.lucFireTurnsRemaining}', style: cinzel(9, c: kRed, fw: FontWeight.w900)),
-          // Inès : capacité verrouillée — info PUBLIQUE, visible de tous
-          // tant que le verrou est actif (Inès en vie).
-          if (p.alive && p.abilityLockedByUid != null)
-            const Text('🔒', style: TextStyle(fontSize: 11)),
-          // Louna : bouclier actif — insensible aux blessures ce tour.
-          if (p.alive && p.shield)
-            const Text('🛡️', style: TextStyle(fontSize: 11)),
-          // Mathieu : compteur d'attaques (3 = bonus +2 dégâts actif) —
-          // info PUBLIQUE, visible de tous.
-          if (p.alive && (p.copiedEffect ?? p.character?.abilityEffect) == 'third_attack_bonus')
-            Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) => Padding(
-              padding: const EdgeInsets.only(left: 1),
-              child: Icon(
-                p.attackCount > i ? Icons.circle : Icons.circle_outlined,
-                size: 8,
-                color: p.attackCount >= 3 ? kGold : kTextSub),
-            ))),
-          // Victor : cœur visible UNIQUEMENT si c'est LUI (le joueur
-          // connecté sur CET appareil) qui a charmé CE joueur à 100% —
-          // strictement privé pour n'importe qui d'autre.
-          Builder(builder: (_) {
-            final victorMe = gp.players.values.where((pp) =>
-                pp.uid == gp.myUid && pp.character?.id == 'victor').firstOrNull;
-            final maxed = victorMe != null && (victorMe.charmLevels[p.uid] ?? 0) >= 100;
-            return maxed ? const Text('💘', style: TextStyle(fontSize: 13)) : const SizedBox.shrink();
-          }),
-        ]),
-      ),
-    ))));
+  final isNils = (p.copiedEffect ?? p.character?.abilityEffect) == 'store_damage_nils';
+  if ((p.equipment.isNotEmpty || isNils) && ctx.mounted) {
+    _showEquipmentFor(ctx, p);
   }
 }
+
+/// Adaptateur : calcule les paramètres de PlayerStatusCard (le widget
+/// PARTAGÉ avec le solo) à partir du GameProvider — utilisé partout où un
+/// joueur doit s'afficher en multijoueur (PC comme mobile), pour un rendu
+/// visuel identique au solo.
+class _MultiPlayerStatus extends StatelessWidget {
+  final Player p; final GameProvider gp;
+  const _MultiPlayerStatus({required this.p, required this.gp});
+  @override
+  Widget build(BuildContext ctx) {
+    final drunkVision = DrunkVision.forViewer(gp.me);
+    // Victor : cœur affiché UNIQUEMENT si CE joueur est charmé à 100% ET
+    // que la personne qui regarde l'écran est Victor lui-même.
+    final victorMe = gp.me?.character?.id == 'victor' ? gp.me : null;
+    final maxed = victorMe != null && (victorMe.charmLevels[p.uid] ?? 0) >= 100;
+    return PlayerStatusCard(
+      player: p,
+      isCurrent: p.uid == gp.gameState?.currentPlayerId,
+      isMe: p.uid == gp.myUid,
+      isMarked: gp.gameState?.markedPlayerUid == p.uid,
+      victorCharmMaxed: maxed,
+      drunkVision: drunkVision,
+      onTap: (target) => showMultiPlayerCard(ctx, target, gp),
+    );
+  }
+}
+
 
 class _WaitPanel extends StatelessWidget {
   final GameProvider gp;
@@ -1121,6 +997,56 @@ class _WaitPanel extends StatelessWidget {
     }
     final bonusLeft = gs?.bonusTurnsRemaining ?? 0;
     final pta = gs?.pendingTargetAction;
+    // Carte piochée : tout le monde voit la carte tirée (image + effet),
+    // exactement comme en solo — SAUF Vision, qui reste secrète (seul
+    // celui qui pioche la connaît, comme le veut la règle du jeu).
+    if (gs?.phase == GamePhase.cardDrawn) {
+      final cardId = gs?.pendingAction;
+      final card = cardId != null ? findCardById(cardId) : null;
+      if (card != null && card.deck != DeckType.vision) {
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('${gp.currentPlayer?.name ?? "?"} pioche :',
+              style: cinzel(13, c: kGold)),
+            const SizedBox(height: 8),
+            _CardWidget(card: card),
+          ]),
+        );
+      }
+      // Vision (ou carte introuvable) : reste secrète.
+      return Padding(padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🔮', style: TextStyle(fontSize: 36)),
+          const SizedBox(height: 8),
+          Text('${gp.currentPlayer?.name ?? "?"} pioche une carte Vision (secrète)',
+            style: cinzel(13, c: kGold), textAlign: TextAlign.center),
+        ]));
+    }
+    // Terrain d'arrivée : dès qu'un joueur vient de se déplacer et doit
+    // encore activer l'effet de son terrain, tout le monde voit CE terrain
+    // — exactement comme en solo, où le plateau et le terrain courant sont
+    // toujours visibles pour tous (avant : message générique "Tour de X"
+    // sans jamais dire où il avait atterri).
+    if (gs?.phase == GamePhase.zoneEffect) {
+      final mover = gp.currentPlayer;
+      final zoneIdx = gs?.richardActivateZone ?? mover?.zoneIndex;
+      final layout = gs?.terrainLayout;
+      final terrain = (zoneIdx != null && layout != null && zoneIdx >= 0 && zoneIdx < layout.length)
+          ? layout[zoneIdx] : null;
+      return Padding(padding: const EdgeInsets.all(12),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('${mover?.name ?? "?"} arrive sur :', style: cinzel(13, c: kGold)),
+          const SizedBox(height: 8),
+          if (terrain != null) ...[
+            Text(terrain.icon, style: const TextStyle(fontSize: 40)),
+            const SizedBox(height: 4),
+            Text(terrain.name, style: cinzel(14, c: kGold2)),
+            const SizedBox(height: 2),
+            Text(terrain.keyword, style: body(11, c: kTextSub)),
+          ],
+        ]));
+    }
     if (bonusLeft > 0) {
       return Padding(padding: const EdgeInsets.all(20),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -1174,10 +1100,13 @@ class _ActionPanelState extends State<_ActionPanel> {
   GameProvider get gp => widget.gp;
 
   /// Exécute une action async en empêchant les doubles-clics (anti-spam).
+  /// Délègue désormais au garde CENTRALISÉ de GameProvider (guardedAction)
+  /// — une seule source de vérité, partagée avec tous les autres boutons
+  /// qui appellent gp.xxx() directement ailleurs dans ce fichier.
   Future<void> _act(Future<void> Function() fn) async {
     if (_busy) return;
     setState(() => _busy = true);
-    try { await fn(); } finally { if (mounted) setState(() => _busy = false); }
+    try { await gp.guardedAction(fn); } finally { if (mounted) setState(() => _busy = false); }
   }
 
   void _showJasonDisguiseChoice(BuildContext ctx) {
@@ -1399,7 +1328,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               '🔮 Joueur marqué : ${gp.players[gp.gameState!.markedPlayerUid!]?.name ?? "?"}',
               kRed),
           if(me?.revealed==false)
-            BHButton(label:'🃏 Se révéler',onTap:() async {
+            BHButton(label:'🃏 Se révéler',onTap:() => gp.guardedAction(() async {
               if (me?.character?.abilityEffect == 'chameleon_passive') {
                 _showJasonDisguiseChoice(ctx);
                 return;
@@ -1411,7 +1340,7 @@ class _ActionPanelState extends State<_ActionPanel> {
                   oscarXpOverride: gp.me!.character!.id == 'oscar' ? gp.me!.oscarXp : null,
                   megFormOverride: gp.me!.character!.abilityEffect == 'meg_shapeshift' ? gp.me!.megForm : null);
               }
-            }),
+            })),
           if ((me?.copiedEffect ?? me?.character?.abilityEffect) == 'double_move_dice' && me?.revealed == true)
             Container(
               margin: const EdgeInsets.only(top: 8),
@@ -1556,12 +1485,12 @@ class _ActionPanelState extends State<_ActionPanel> {
             const SizedBox(height: 8),
             BHButton(label: '✅ Choisir lancer 1 ($_sum)', gold: true,
               onTap: () {
-                if (hasAlbane) gp.markAlbaneUsed();
+                if (hasAlbane) gp.guardedAction(() => gp.markAlbaneUsed());
                 setState(() { _sum2 = null; _d4b = null; _d6b = null; _boussoleDecided = true; });
               }),
             BHButton(label: '✅ Choisir lancer 2 ($_sum2)', gold: true,
               onTap: () {
-                if (hasAlbane) gp.markAlbaneUsed();
+                if (hasAlbane) gp.guardedAction(() => gp.markAlbaneUsed());
                 setState(() {
                   _d4 = _d4b; _d6 = _d6b; _sum = _sum2;
                   _sum2 = null; _d4b = null; _d6b = null; _boussoleDecided = true;
@@ -2399,7 +2328,7 @@ class _ClemenceBuilderPanel extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 8),
           child: BHButton(
             label: eg.builderEffectLabel(eff),
-            onTap: () => gp.clemenceChooseEffect(eff),
+            onTap: () => gp.guardedAction(() => gp.clemenceChooseEffect(eff)),
           ),
         )),
       ]),
@@ -2438,7 +2367,7 @@ class _JeanneRewardPanel extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 8),
           child: BHButton(
             label: eg.jeanneRewardLabel(r),
-            onTap: () => gp.jeanneChooseReward(r),
+            onTap: () => gp.guardedAction(() => gp.jeanneChooseReward(r)),
           ),
         )),
       ]),
@@ -2477,7 +2406,7 @@ class _ElaiaDeckChoicePanel extends StatelessWidget {
         const SizedBox(height: 16),
         ...decks.map((d) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: BHButton(label: d.$2, onTap: () => gp.elaiaChooseDeck(d.$1)),
+          child: BHButton(label: d.$2, onTap: () => gp.guardedAction(() => gp.elaiaChooseDeck(d.$1))),
         )),
       ]),
     );
@@ -2516,10 +2445,10 @@ class _ElaiaOrderPanel extends StatelessWidget {
         ]),
         const SizedBox(height: 14),
         BHButton(label: '1️⃣ ${card1.name}  →  2️⃣ ${card2.name}', gold: true,
-          onTap: () => gp.elaiaConfirmOrder(card1.id, card2.id)),
+          onTap: () => gp.guardedAction(() => gp.elaiaConfirmOrder(card1.id, card2.id))),
         const SizedBox(height: 8),
         BHButton(label: '1️⃣ ${card2.name}  →  2️⃣ ${card1.name}', gold: true,
-          onTap: () => gp.elaiaConfirmOrder(card2.id, card1.id)),
+          onTap: () => gp.guardedAction(() => gp.elaiaConfirmOrder(card2.id, card1.id))),
       ]),
     );
   }
@@ -2570,10 +2499,10 @@ class _DamienChoicePanel extends StatelessWidget {
           style: body(12, c: kTextSub), textAlign: TextAlign.center),
         const SizedBox(height: 16),
         BHButton(label: '🥃 Alcool fort — 4 dégâts instantanés',
-          onTap: () => gp.damienServeAlcohol()),
+          onTap: () => gp.guardedAction(() => gp.damienServeAlcohol())),
         const SizedBox(height: 8),
         BHButton(label: '☠️ Poison — 3 dégâts × 2 tours (6 au total)',
-          onTap: () => gp.damienServePoison()),
+          onTap: () => gp.guardedAction(() => gp.damienServePoison())),
       ]),
     );
   }
@@ -2607,10 +2536,10 @@ class _LootChoicePanel extends StatelessWidget {
         ...dead.equipment.asMap().entries.map((e) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: BHButton(label: '📦 ${e.value.name}',
-            onTap: () => gp.lootChooseItem(e.key)),
+            onTap: () => gp.guardedAction(() => gp.lootChooseItem(e.key))),
         )),
         const SizedBox(height: 6),
-        BHButton(label: 'Ne rien prendre', outlined: true, onTap: () => gp.lootSkip()),
+        BHButton(label: 'Ne rien prendre', outlined: true, onTap: () => gp.guardedAction(() => gp.lootSkip())),
       ]),
     );
   }
@@ -2967,7 +2896,7 @@ class _MultiHaileyChoiceWidget extends StatelessWidget {
         ...offered.map((c) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: GestureDetector(
-            onTap: () => gp.haileyChoice(c.id),
+            onTap: () => gp.guardedAction(() => gp.haileyChoice(c.id)),
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -3014,7 +2943,7 @@ class _MultiChristineZoneWidget extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8),
             child: BHButton(
               label: 'Zone ${idx + 1} — ${terrain?.icon ?? ""} ${terrain?.name ?? ""}${playersHere.isNotEmpty ? "  ($playersHere)" : ""}',
-              onTap: () => gp.christineChooseZone(idx),
+              onTap: () => gp.guardedAction(() => gp.christineChooseZone(idx)),
             ),
           );
         }),
@@ -3041,7 +2970,7 @@ class _MultiTristanGiveWidget extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 8),
           child: BHButton(
             label: entry.value.name,
-            onTap: () => gp.tristanChooseGive(entry.key),
+            onTap: () => gp.guardedAction(() => gp.tristanChooseGive(entry.key)),
           ),
         )),
       ]),
@@ -3069,7 +2998,7 @@ class _MultiTristanReceiveWidget extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 8),
           child: BHButton(
             label: entry.value.name,
-            onTap: () => gp.tristanChooseReceive(entry.key),
+            onTap: () => gp.guardedAction(() => gp.tristanChooseReceive(entry.key)),
           ),
         )),
       ]),
@@ -3093,10 +3022,10 @@ class _MultiMegChoiceWidget extends StatelessWidget {
           style: body(12, c: kTextSub), textAlign: TextAlign.center),
         const SizedBox(height: 12),
         BHButton(label: '⚔️ Offensive (+1 infligé)', gold: true,
-          onTap: () => gp.megChooseForm('offense')),
+          onTap: () => gp.guardedAction(() => gp.megChooseForm('offense'))),
         const SizedBox(height: 8),
         BHButton(label: '🛡️ Défensive (-1 reçu)', outlined: true,
-          onTap: () => gp.megChooseForm('defense')),
+          onTap: () => gp.guardedAction(() => gp.megChooseForm('defense'))),
       ]),
     );
   }
@@ -3119,18 +3048,18 @@ class _MultiOscarChoiceWidget extends StatelessWidget {
         const SizedBox(height: 12),
         _MultiOscarOption(icon: '💧', label: 'Eau', cost: 3, xp: xp,
           desc: 'Vole un équipement au joueur de ton choix',
-          onTap: () => gp.oscarChoice('water')),
+          onTap: () => gp.guardedAction(() => gp.oscarChoice('water'))),
         const SizedBox(height: 8),
         _MultiOscarOption(icon: '🌿', label: 'Plante', cost: 2, xp: xp,
           desc: 'Te soigne de 2 blessures',
-          onTap: () => gp.oscarChoice('plant')),
+          onTap: () => gp.guardedAction(() => gp.oscarChoice('plant'))),
         const SizedBox(height: 8),
         _MultiOscarOption(icon: '🔥', label: 'Feu', cost: 4, xp: xp,
           desc: '+2 dégâts à ta prochaine attaque ce tour',
-          onTap: () => gp.oscarChoice('fire')),
+          onTap: () => gp.guardedAction(() => gp.oscarChoice('fire'))),
         const SizedBox(height: 10),
         BHButton(label: 'Ne rien dépenser', outlined: true,
-          onTap: () => gp.fb.setPhase(gp.roomId!, GamePhase.move, clearPending: true)),
+          onTap: () => gp.guardedAction(() => gp.fb.setPhase(gp.roomId!, GamePhase.move, clearPending: true))),
       ]),
     );
   }
@@ -3243,10 +3172,10 @@ class _MultiCasinoWidgetState extends State<_MultiCasinoWidget>
             onTap: () {
               if (_won!) {
                 widget.onDone?.call();
-                widget.gp.casinoWin();
+                widget.gp.guardedAction(() => widget.gp.casinoWin());
               } else {
                 widget.onDone?.call();
-                widget.gp.casinoLose();
+                widget.gp.guardedAction(() => widget.gp.casinoLose());
               }
             },
           ),
@@ -3515,126 +3444,34 @@ class _ScottCounterOverlayState extends State<_ScottCounterOverlay>
 }
 
 // ─── PlayerChip : version compacte pour mobile horizontal ────────────────────
-class _PlayerChip extends StatelessWidget {
-  final Player p; final GameProvider gp;
-  const _PlayerChip({required this.p, required this.gp});
-
+// Journal persistant, toujours visible en bas de l'écran mobile — sur le
+// même modèle que _LogStrip en solo (avant : caché derrière un bouton 📜,
+// il fallait l'ouvrir manuellement pour voir ce qui venait de se passer).
+class _MultiLogStrip extends StatelessWidget {
+  final GameProvider gp;
+  const _MultiLogStrip({required this.gp});
   @override
   Widget build(BuildContext ctx) {
-    final c = p.character;
-    final isMe = p.uid == gp.myUid;
-    final isMarked = gp.gameState?.markedPlayerUid == p.uid;
-    final fc = p.revealed && c != null ? factionColor(c.faction.name) : null;
-    final hasDisguiseChip = !isMe && p.disguiseNameOverride != null;
-    final disguisedCharChip = hasDisguiseChip && p.disguiseCharIdOverride != null
-        ? kAllCharacters.where((ch) => ch.id == p.disguiseCharIdOverride).firstOrNull
-        : null;
-    final displayMaxHp = (disguisedCharChip?.hp ?? c?.hp ?? 0) + p.maxHpModifier;
-    final knowMaxHp = (isMe || p.revealed) && c != null;
-    return Stack(clipBehavior: Clip.none, children: [
-      GestureDetector(
-        onTap: () async {
-          // Toucher un joueur montre toujours quelque chose : sa vraie carte
-          // si révélé OU mort (convention "les cartes se retournent à la
-          // mort"), sinon une carte "mystère" — puis son équipement dans
-          // tous les cas (info publique, connue même sans identité).
-          if ((p.revealed || !p.alive) && c != null) {
-            final shownChip = disguisedCharChip ?? c;
-            await showFullCardDialog(ctx, shownChip, hpOverride: displayMaxHp,
-              oscarXpOverride: shownChip.id == 'oscar' ? p.oscarXp : null,
-              megFormOverride: shownChip.abilityEffect == 'meg_shapeshift' ? p.megForm : null);
-          } else {
-            await showMysteryCardDialog(ctx, p);
-          }
-          final isNilsChip = (p.copiedEffect ?? p.character?.abilityEffect) == 'store_damage_nils';
-          if ((p.equipment.isNotEmpty || isNilsChip) && ctx.mounted) {
-            _showEquipmentFor(ctx, p);
-          }
-        },
-        child: Container(
-          width: 60, height: 62,
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          decoration: BoxDecoration(
-            color: isMe ? kBg3 : kBg2,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: fc != null ? fc : (isMe ? kGold : Colors.white12),
-              width: isMe ? 2 : 1),
-          ),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Stack(alignment: Alignment.topRight, clipBehavior: Clip.none, children: [
-              TokenWidget(tokenId: p.token, size: 26, isDead: !p.alive),
-              if (isMe) const Positioned(top: 0, right: 0,
-                child: Text('★', style: TextStyle(fontSize: 7, color: kGold))),
-              if (isMarked) const Positioned(top: 0, left: 0,
-                child: Text('💀', style: TextStyle(fontSize: 8))),
-            ]),
-            const SizedBox(height: 2),
-            if (!p.alive)
-              const Text('💀', style: TextStyle(fontSize: 12))
-            else if (knowMaxHp)
-              Text('${p.wounds}/$displayMaxHp',
-                style: body(9, c: p.wounds >= displayMaxHp - 2 ? kRed : kTextSub))
-            else
-              Text('${p.wounds}🩸',
-                style: body(9, c: p.wounds >= 8 ? kRed : kTextSub)),
-            // Felipe : en sursis — doit éliminer quelqu'un ce tour ou mourir
-            if (p.felipeOnBorrowedTime)
-              Text('⏳', style: body(9, c: kRed)),
-            // Theo / Fifi Été : prochaine attaque +2 dégâts (buff actif)
-            if (p.bonusMaxHp > 0 &&
-                (p.copiedEffect ?? p.character?.abilityEffect) == 'no_attack_buff')
-              Text('⚡+2', style: body(8, c: kGold)),
-            // Luc : joueur en feu — visible de tous.
-            if (p.alive && p.lucFireTurnsRemaining > 0)
-              Text('🔥${p.lucFireTurnsRemaining}', style: body(8, c: kRed)),
-            // Inès : capacité verrouillée — info PUBLIQUE, visible de tous
-            // tant que le verrou est actif (Inès en vie).
-            if (p.alive && p.abilityLockedByUid != null)
-              Text('🔒', style: body(9, c: kTextSub)),
-            // Louna : bouclier actif — insensible aux blessures ce tour.
-            if (p.alive && p.shield)
-              Text('🛡️', style: body(9, c: kTextSub)),
-            // Mathieu : compteur d'attaques (3 = bonus +2 dégâts actif) —
-            // info PUBLIQUE, visible de tous.
-            if (p.alive && (p.copiedEffect ?? p.character?.abilityEffect) == 'third_attack_bonus')
-              Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) => Padding(
-                padding: const EdgeInsets.only(left: 1),
-                child: Icon(
-                  p.attackCount > i ? Icons.circle : Icons.circle_outlined,
-                  size: 6,
-                  color: p.attackCount >= 3 ? kGold : kTextSub),
-              ))),
-            // Victor : cœur visible UNIQUEMENT si c'est LUI (le joueur
-            // connecté sur CET appareil) qui a charmé CE joueur à 100%.
-            Builder(builder: (_) {
-              final victorMe = gp.players.values.where((pp) =>
-                  pp.uid == gp.myUid && pp.character?.id == 'victor').firstOrNull;
-              final maxed = victorMe != null && (victorMe.charmLevels[p.uid] ?? 0) >= 100;
-              return maxed ? const Text('💘', style: TextStyle(fontSize: 9)) : const SizedBox.shrink();
+    final logs = gp.log.reversed.take(2).toList();
+    return Container(
+      color: kBg1,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+        children: logs.map((entry) {
+          final sep = entry.indexOf('||');
+          final cls = sep >= 0 ? entry.substring(0, sep) : '';
+          final msg = sep >= 0 ? entry.substring(sep + 2) : entry;
+          return Text(msg,
+            style: TextStyle(fontSize: 11, color: switch (cls) {
+              'death' => kRed, 'important' => kGold,
+              'player' => kGreen, _ => kTextSub,
             }),
-          ]),
-        ),
-      ),
-      // Badge équipement — tap pour voir la liste (info publique)
-      if (p.equipment.isNotEmpty)
-        Positioned(bottom: 1, left: 3,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _showEquipmentFor(ctx, p),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(
-                color: kGold, borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: kBg1, width: 1)),
-              child: Text('⚔${p.equipment.length}',
-                style: cinzel(8, c: const Color(0xFF1A0D00), fw: FontWeight.w900)),
-            ),
-          ),
-        ),
-    ]);
+            maxLines: 1, overflow: TextOverflow.ellipsis);
+        }).toList()),
+    );
   }
 }
+
 
 // ═══════════════════════════════════════════════════════════
 // FIFI — Sélecteur de dés (multijoueur)
