@@ -38,6 +38,11 @@ void main() async {
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
   ));
+  // Mode plein écran immersif : masque la barre de statut ET la barre de
+  // navigation Android (boutons retour/accueil/récents) — un balayage
+  // depuis le bord de l'écran les fait réapparaître temporairement avant
+  // de se cacher à nouveau, comportement standard pour un jeu.
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   runApp(
     ChangeNotifierProvider(
       create: (_) => GameProvider(firebaseEnabled: true)..init(),

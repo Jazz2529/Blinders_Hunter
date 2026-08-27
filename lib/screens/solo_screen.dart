@@ -1845,7 +1845,7 @@ class _GameLayout extends StatelessWidget {
 
           // ── Gauche : plateau + classement ────────────────────
           SizedBox(width: leftW, child: Column(children: [
-            SizedBox(height: (h * 0.16).clamp(85, 115),
+            SizedBox(height: (h * 0.17).clamp(95, 125),
               child: _HpLeaderboard(ctrl: ctrl)),
             Expanded(child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 0, 4, 8),
@@ -1868,7 +1868,7 @@ class _GameLayout extends StatelessWidget {
       } else {
         // ── Layout mobile : colonne ─────────────────────────────
         return Column(children: [
-          SizedBox(height: (h * 0.14).clamp(78, 108),
+          SizedBox(height: (h * 0.16).clamp(100, 130),
             child: _HpLeaderboard(ctrl: ctrl)),
           SizedBox(height: (h * 0.38).clamp(130, 280),
             child: _MiniBoard(ctrl: ctrl)),

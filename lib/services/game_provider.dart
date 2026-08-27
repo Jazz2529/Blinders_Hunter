@@ -148,6 +148,26 @@ class GameProvider extends ChangeNotifier {
     await _fb.removeBot(roomId!, botUid);
   }
 
+  /// Quitte une partie EN COURS — le joueur est remplacé par un bot (qui
+  /// continue à sa place avec le même personnage/PV/équipement) plutôt que
+  /// de simplement bloquer la partie pour tout le monde. Accessible à
+  /// n'importe quel joueur, pas seulement l'hôte.
+  Future<void> leaveGameAsBot() async {
+    if (roomId == null || myUid == null) return;
+    await _fb.convertPlayerToBot(roomId!, myUid!);
+    Prefs.clearRoom();
+    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel();
+    _pSub = _gsSub = _stSub = _rSub = _rcSub = _logSub = _privLogSub = _hostSub = null;
+    _fb.stopPollingRoom(roomId!);
+    roomId = null; myUid = null; hostId = null;
+    gameState = null; players = {};
+    roomStatus = 'lobby';
+    gameResult = null;
+    log = [];
+    privateLog = [];
+    notifyListeners();
+  }
+
   /// Reprend une partie en cours après fermeture de l'appli.
   /// Retourne false si la salle n'existe plus ou est terminée.
   Future<bool> resumeRoom(String rid, String uid) async {
@@ -771,6 +791,7 @@ class GameProvider extends ChangeNotifier {
     _pSub = _gsSub = _stSub = _rSub = _rcSub = _logSub = _privLogSub = _hostSub = null;
     if (roomId != null) {
       try { await _fb.leaveRoom(roomId!); } catch (_) {}
+      _fb.stopPollingRoom(roomId!);
     }
     roomId = null;
     hostId = null;

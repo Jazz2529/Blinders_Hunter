@@ -407,6 +407,11 @@ class _GameScreenState extends State<GameScreen> {
         backgroundColor:kBg0,
         appBar:AppBar(
           backgroundColor:kBg2,elevation:0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Quitter la partie',
+            onPressed: () => _confirmLeaveGame(ctx, gp),
+          ),
           title:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Text(isMyTurn?'⚔️ Ton tour':'⌛ Tour de ${gp.currentPlayer?.name??"—"}',
               style:cinzel(15,c:isMyTurn?kGold2:kTextSub)),
@@ -492,7 +497,7 @@ class _GameScreenState extends State<GameScreen> {
             });
             return Column(children: [
               SizedBox(
-                height: (screenH * 0.14).clamp(78.0, 108.0),
+                height: (screenH * 0.16).clamp(100.0, 130.0),
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -518,7 +523,7 @@ class _GameScreenState extends State<GameScreen> {
           // widget PlayerStatusCard (qui provoquait un débordement).
           return Column(children:[
           SizedBox(
-            height: (screenH * 0.16).clamp(85.0, 115.0),
+            height: (screenH * 0.17).clamp(95.0, 125.0),
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -906,6 +911,34 @@ void _showEquipmentFor(BuildContext ctx, Player p) {
 /// Jason) puis son équipement — logique PARTAGÉE utilisée par tous les
 /// widgets de liste de joueurs (PlayerStatusCard inclus), pour garantir un
 /// comportement identique peu importe où l'on touche un joueur.
+/// Confirmation avant de quitter une partie EN COURS — le joueur est
+/// remplacé par un bot qui continue à sa place (personnage/PV/équipement
+/// conservés), la partie n'est pas bloquée pour les autres.
+Future<void> _confirmLeaveGame(BuildContext ctx, GameProvider gp) async {
+  final confirmed = await showDialog<bool>(context: ctx, builder: (dctx) => AlertDialog(
+    backgroundColor: kBg2,
+    title: Text('⚠️ Quitter la partie ?', style: cinzel(15, c: kGold)),
+    content: Text(
+      'Un bot prendra ta place et continuera à jouer avec ton personnage '
+      'actuel — la partie se poursuit normalement pour les autres joueurs. '
+      'Tu ne pourras pas revenir dans cette partie.',
+      style: body(13)),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(dctx, false),
+        child: Text('Annuler', style: cinzel(12, c: kTextSub)),
+      ),
+      TextButton(
+        onPressed: () => Navigator.pop(dctx, true),
+        child: Text('Quitter', style: cinzel(12, c: kRed, fw: FontWeight.w900)),
+      ),
+    ],
+  ));
+  if (confirmed == true) {
+    await gp.leaveGameAsBot();
+  }
+}
+
 Future<void> showMultiPlayerCard(BuildContext ctx, Player p, GameProvider gp) async {
   final c = p.character;
   final isMe = p.uid == gp.myUid;
@@ -979,104 +1012,94 @@ class _WaitPanel extends StatelessWidget {
   @override
   Widget build(BuildContext ctx) {
     final gs = gp.gameState;
+    final mover = gp.currentPlayer;
     final punishTargetUid = gs?.pendingPunishTargetUid;
-    if (punishTargetUid != null && punishTargetUid != gp.myUid) {
-      final target = gp.players[punishTargetUid];
-      return Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('\u23f3', style: TextStyle(fontSize: 36)),
-          const SizedBox(height: 8),
-          Text('En attente de ${target?.name ?? "\u2014"}\u2026',
-            style: cinzel(14, c: kGold), textAlign: TextAlign.center),
-          const SizedBox(height: 4),
-          Text('Il doit choisir entre donner un \u00e9quipement ou subir 1 blessure',
-            style: body(11, c: kTextSub), textAlign: TextAlign.center),
-        ]),
-      );
-    }
     final bonusLeft = gs?.bonusTurnsRemaining ?? 0;
     final pta = gs?.pendingTargetAction;
-    // Carte piochée : tout le monde voit la carte tirée (image + effet),
-    // exactement comme en solo — SAUF Vision, qui reste secrète (seul
-    // celui qui pioche la connaît, comme le veut la règle du jeu).
-    if (gs?.phase == GamePhase.cardDrawn) {
+
+    // ── Texte de statut + contenu spécifique selon la situation ──────────
+    // Même principe que _BotPanel en solo : jeton + texte + barre de
+    // progression TOUJOURS visibles, puis un contenu qui varie selon ce
+    // qui se passe réellement (carte piochée, terrain d'arrivée, tour
+    // bonus de Ninja, choix de zones de Richard II, ou à défaut le
+    // dernier message du journal) — pour un ressenti identique au solo,
+    // que ce soit un bot OU un autre joueur humain qui joue.
+    String statusText;
+    Widget? extraContent;
+
+    if (punishTargetUid != null && punishTargetUid != gp.myUid) {
+      final target = gp.players[punishTargetUid];
+      statusText = 'En attente de ${target?.name ?? "\u2014"}\u2026';
+      extraContent = Text(
+        'Il doit choisir entre donner un équipement ou subir 1 blessure',
+        style: body(11, c: kTextSub), textAlign: TextAlign.center);
+    } else if (gs?.phase == GamePhase.cardDrawn) {
+      // Carte piochée : tout le monde voit la carte tirée (image + effet),
+      // exactement comme en solo — SAUF Vision, qui reste secrète (seul
+      // celui qui pioche la connaît, comme le veut la règle du jeu).
       final cardId = gs?.pendingAction;
       final card = cardId != null ? findCardById(cardId) : null;
       if (card != null && card.deck != DeckType.vision) {
-        return Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('${gp.currentPlayer?.name ?? "?"} pioche :',
-              style: cinzel(13, c: kGold)),
-            const SizedBox(height: 8),
-            _CardWidget(card: card),
-          ]),
-        );
+        statusText = '${mover?.name ?? "?"} pioche :';
+        extraContent = _CardWidget(card: card);
+      } else {
+        statusText = '${mover?.name ?? "?"} pioche une carte Vision (secrète)';
+        extraContent = const Text('🔮', style: TextStyle(fontSize: 36));
       }
-      // Vision (ou carte introuvable) : reste secrète.
-      return Padding(padding: const EdgeInsets.all(20),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('🔮', style: TextStyle(fontSize: 36)),
-          const SizedBox(height: 8),
-          Text('${gp.currentPlayer?.name ?? "?"} pioche une carte Vision (secrète)',
-            style: cinzel(13, c: kGold), textAlign: TextAlign.center),
-        ]));
-    }
-    // Terrain d'arrivée : dès qu'un joueur vient de se déplacer et doit
-    // encore activer l'effet de son terrain, tout le monde voit CE terrain
-    // — exactement comme en solo, où le plateau et le terrain courant sont
-    // toujours visibles pour tous (avant : message générique "Tour de X"
-    // sans jamais dire où il avait atterri).
-    if (gs?.phase == GamePhase.zoneEffect) {
-      final mover = gp.currentPlayer;
+    } else if (gs?.phase == GamePhase.zoneEffect) {
+      // Terrain d'arrivée : tout le monde voit CE terrain — exactement
+      // comme en solo, où le plateau et le terrain courant sont toujours
+      // visibles pour tous.
       final zoneIdx = gs?.richardActivateZone ?? mover?.zoneIndex;
       final layout = gs?.terrainLayout;
       final terrain = (zoneIdx != null && layout != null && zoneIdx >= 0 && zoneIdx < layout.length)
           ? layout[zoneIdx] : null;
-      return Padding(padding: const EdgeInsets.all(12),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('${mover?.name ?? "?"} arrive sur :', style: cinzel(13, c: kGold)),
-          const SizedBox(height: 8),
-          if (terrain != null) ...[
-            Text(terrain.icon, style: const TextStyle(fontSize: 40)),
-            const SizedBox(height: 4),
-            Text(terrain.name, style: cinzel(14, c: kGold2)),
-            const SizedBox(height: 2),
-            Text(terrain.keyword, style: body(11, c: kTextSub)),
-          ],
-        ]));
+      statusText = '${mover?.name ?? "?"} arrive sur :';
+      extraContent = terrain == null ? null : Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(terrain.icon, style: const TextStyle(fontSize: 36)),
+        const SizedBox(height: 2),
+        Text(terrain.name, style: cinzel(13, c: kGold2)),
+        Text(terrain.keyword, style: body(11, c: kTextSub)),
+      ]);
+    } else if (bonusLeft > 0) {
+      statusText = '${mover?.name ?? "Ninja"} rejoue !';
+      extraContent = Text('$bonusLeft tour(s) bonus restant(s)', style: body(12, c: kTextSub));
+    } else if (pta == 'swap_zone_pick1' || pta == 'swap_zone_pick2') {
+      statusText = '${mover?.name ?? "Richard II"} choisit des zones\u2026';
+      extraContent = Text('Les terrains vont bientôt s\'échanger !',
+        style: body(11, c: kTextSub), textAlign: TextAlign.center);
+    } else {
+      // Repli générique : le DERNIER message du journal (décrit toujours
+      // ce qui vient concrètement de se passer) plutôt que le nom brut,
+      // illisible, de la phase (ex: "ability").
+      statusText = '${mover?.name ?? "\u2014"} réfléchit\u2026';
+      String? lastMsg;
+      if (gp.log.isNotEmpty) {
+        final raw = gp.log.last;
+        final sep = raw.indexOf('||');
+        lastMsg = sep >= 0 ? raw.substring(sep + 2) : raw;
+      }
+      extraContent = lastMsg == null ? null : Text(lastMsg,
+        style: body(12, c: kTextSub), textAlign: TextAlign.center,
+        maxLines: 2, overflow: TextOverflow.ellipsis);
     }
-    if (bonusLeft > 0) {
-      return Padding(padding: const EdgeInsets.all(20),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('🥷', style: TextStyle(fontSize: 40)),
-          const SizedBox(height: 8),
-          Text('${gp.currentPlayer?.name ?? "Ninja"} rejoue !',
-            style: cinzel(16, c: const Color(0xFFAA1144))),
-          Text('$bonusLeft tour(s) bonus restant(s)', style: body(12, c: kTextSub)),
-        ]));
-    }
-    if (pta == 'swap_zone_pick1' || pta == 'swap_zone_pick2') {
-      return Padding(padding: const EdgeInsets.all(20),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('👑', style: TextStyle(fontSize: 40)),
-          const SizedBox(height: 8),
-          Text('${gp.currentPlayer?.name ?? "Richard II"} choisit des zones…',
-            style: cinzel(14, c: kGold)),
-          Text('Les terrains vont bientôt s\'échanger !',
-            style: body(11, c: kTextSub), textAlign: TextAlign.center),
-        ]));
-    }
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('\u23f3', style: TextStyle(fontSize: 40)),
-        const SizedBox(height: 8),
-        Text('Tour de ${gp.currentPlayer?.name ?? "\u2014"}', style: cinzel(16, c: kGold)),
-        Text(gp.phase.name, style: body(12, c: kTextSub)),
-      ]),
-    );
+
+    // ── Structure commune, identique à _BotPanel (solo) ──────────────────
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      const SizedBox(height: 10),
+      TokenWidget(tokenId: mover?.token ?? '🔵', size: 48),
+      const SizedBox(height: 4),
+      Text(statusText, style: cinzel(13, c: kTextSub), textAlign: TextAlign.center),
+      const SizedBox(height: 12),
+      const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 20),
+        child: LinearProgressIndicator(backgroundColor: kBord2, color: kGold, minHeight: 4),
+      ),
+      if (extraContent != null) ...[
+        const SizedBox(height: 10),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: extraContent),
+      ],
+    ]);
   }
 }
 class _ActionPanel extends StatefulWidget {

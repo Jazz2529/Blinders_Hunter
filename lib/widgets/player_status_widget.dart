@@ -29,7 +29,14 @@ class _PlayerStatusCardState extends State<PlayerStatusCard>
   @override
   void initState() {
     super.initState();
-    _flashAc = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    // IMPORTANT : sans valeur initiale explicite, un AnimationController
+    // démarre à 0.0 — soit le DÉBUT du dégradé (rouge à 60% d'opacité) !
+    // Ça affichait donc du rouge en PERMANENCE sur TOUTES les cartes, même
+    // quand rien ne clignote. On force l'état de repos à la fin du
+    // dégradé (transparent), et on ne démarre l'animation depuis le début
+    // (rouge) QUE si isFlashing est vraiment actif.
+    _flashAc = AnimationController(vsync: this, duration: const Duration(milliseconds: 600),
+        value: widget.isFlashing ? 0.0 : 1.0);
     _flashColor = ColorTween(begin: kRed.withValues(alpha: 0.6), end: Colors.transparent)
         .animate(_flashAc);
     if (widget.isFlashing) _flashAc.forward(from: 0);
@@ -87,8 +94,17 @@ class _PlayerStatusCardState extends State<PlayerStatusCard>
           decoration: BoxDecoration(
             color: _flashColor.value ?? (widget.isCurrent ? kGold.withValues(alpha: 0.12) : null),
             borderRadius: BorderRadius.circular(8),
-            border: widget.isCurrent ? Border.all(color: kGold, width: 1.5) : null,
           ),
+          // IMPORTANT : la bordure dorée du joueur courant vit dans
+          // foregroundDecoration (peinte PAR-DESSUS, sans influencer la
+          // taille du conteneur) plutôt que dans `decoration` — sinon le
+          // Container grossit de 3px (1.5px de chaque côté) rien que pour
+          // cette bordure, ce qui suffisait à faire déborder la carte
+          // UNIQUEMENT quand c'était notre tour.
+          foregroundDecoration: widget.isCurrent ? BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: kGold, width: 1.5),
+          ) : null,
           child: child,
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -173,14 +189,24 @@ class _PlayerStatusCardState extends State<PlayerStatusCard>
           if (p.equipment.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 1,
-                children: p.equipment.map((eq) => Tooltip(
-                  message: eq.name,
-                  child: Text(_equipIcon(eq.effect),
-                    style: const TextStyle(fontSize: 9)),
-                )).toList(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Limité à 3 icônes sur une seule ligne (jamais 2 lignes,
+                  // qui dépassaient la hauteur disponible) — le surplus est
+                  // condensé en "+N".
+                  ...p.equipment.take(3).map((eq) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 1),
+                    child: Tooltip(
+                      message: eq.name,
+                      child: Text(_equipIcon(eq.effect),
+                        style: const TextStyle(fontSize: 9)),
+                    ),
+                  )),
+                  if (p.equipment.length > 3)
+                    Text('+${p.equipment.length - 3}',
+                      style: const TextStyle(fontSize: 8, color: kTextSub)),
+                ],
               ),
             ),
         ]),

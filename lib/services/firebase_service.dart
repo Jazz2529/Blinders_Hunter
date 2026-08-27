@@ -171,6 +171,34 @@ class FirebaseService {
     await _put('rooms/$roomId/players/$botUid', bot.toJson());
   }
 
+  /// Convertit un joueur (mi-partie, en cours de jeu) en bot — appelé quand
+  /// un joueur quitte la partie, pour qu'elle puisse continuer sans lui. Ne
+  /// touche à rien d'autre (personnage, PV, équipement conservés) : seul
+  /// `isBot` passe à `true`, ce qui suffit pour que le mécanisme de
+  /// pilotage des bots (déjà générique) prenne le relais automatiquement.
+  /// IMPORTANT : contrairement à leaveRoom(), on ne supprime PAS le joueur
+  /// — le supprimer casserait l'ordre des tours et perdrait sa progression.
+  Future<void> convertPlayerToBot(String roomId, String uid) async {
+    await _put('rooms/$roomId/players/$uid/isBot', true);
+
+    // Si le joueur qui part était l'hôte, transférer le rôle à un autre
+    // joueur HUMAIN — sinon plus personne ne peut piloter les bots
+    // (le pilotage n'est actif que sur l'appareil de l'hôte).
+    final currentHost = await _get('rooms/$roomId/hostId');
+    if (currentHost == uid) {
+      final playersData = await _get('rooms/$roomId/players');
+      if (playersData != null) {
+        final players = Map<String, dynamic>.from(playersData as Map);
+        final humans = players.entries
+            .where((e) => e.key != uid && !((e.value as Map)['isBot'] == true))
+            .map((e) => e.key).toList();
+        if (humans.isNotEmpty) {
+          await _put('rooms/$roomId/hostId', humans.first);
+        }
+      }
+    }
+  }
+
   /// Retire un bot de la salle (lobby uniquement, hôte).
   Future<void> removeBot(String roomId, String botUid) async {
     await _delete('rooms/$roomId/players/$botUid');
@@ -281,10 +309,11 @@ class FirebaseService {
 
   /// Nombre de joueurs ayant confirmé avoir vu leur rôle
   Stream<int> watchRoleConfirms(String roomId) {
-    return _poll('rooms/$roomId/roleConfirms', (data) {
+    return _pollRoom(roomId).map((room) {
+      final data = room?['roleConfirms'];
       if (data == null) return 0;
       return Map<String, dynamic>.from(data as Map).length;
-    });
+    }).distinct();
   }
 
   // ─────────────────────────────────────────────
@@ -383,17 +412,19 @@ class FirebaseService {
   }
 
   Stream<List<String>> watchPrivateLog(String roomId, String uid) {
-    return _poll('rooms/$roomId/privateLogs/$uid', (data) {
+    return _pollRoom(roomId).map((room) {
+      final data = room?['privateLogs']?[uid];
       if (data == null) return <String>[];
       return List<dynamic>.from(data as List).map((e) => e as String).toList();
-    });
+    }).distinct((a, b) => a.length == b.length && (a.isEmpty || a.last == b.last));
   }
 
   Stream<List<String>> watchLog(String roomId) {
-    return _poll('rooms/$roomId/log', (data) {
+    return _pollRoom(roomId).map((room) {
+      final data = room?['log'];
       if (data == null) return <String>[];
       return List<dynamic>.from(data as List).map((e) => e as String).toList();
-    });
+    }).distinct((a, b) => a.length == b.length && (a.isEmpty || a.last == b.last));
   }
 
   /// Met à jour la phase ET le joueur courant / actions en attente
@@ -566,22 +597,44 @@ class FirebaseService {
   // STREAMS — POLLING TEMPS QUASI-RÉEL
   // ─────────────────────────────────────────────
 
-  /// Sondage périodique d'un chemin Firebase ; s'arrête quand le Stream est annulé.
-  Stream<T> _poll<T>(String path, T Function(dynamic) parse,
-      {Duration interval = const Duration(milliseconds: 1200)}) async* {
-    while (true) {
-      try {
-        final data = await _get(path);
-        yield parse(data);
-      } catch (_) {
-        // ignore les erreurs réseau ponctuelles, on retentera au prochain tour
+  /// À appeler quand on quitte une salle — sans ça, le sondage en arrière-
+  /// plan (la boucle `while(true)`) continuerait indéfiniment même après
+  /// que plus personne n'écoute, gaspillant réseau et mémoire sur une
+  /// session longue avec plusieurs parties.
+  void stopPollingRoom(String roomId) {
+    _roomPolls.remove(roomId);
+  }
+
+
+  // ── Sondage UNIFIÉ de toute la room ─────────────────────────────────────
+  // Avant : players/gameState/status/result/log/privateLogs/hostId étaient
+  // sondés INDÉPENDAMMENT (jusqu'à 8 requêtes HTTP séparées toutes les
+  // 1,2s !), ce qui multipliait la charge réseau et la latence perçue —
+  // cause principale du lag ressenti en multijoueur. Un seul sondage de
+  // `rooms/$roomId` (qui contient déjà TOUT en un seul document) suffit ;
+  // chaque watchX() en dérive juste la portion qui l'intéresse, sans
+  // requête HTTP supplémentaire. `.distinct()` évite en plus de renotifier
+  // les écouteurs quand la valeur extraite n'a pas changé d'un cycle à
+  // l'autre (même si LE RESTE de la room, lui, a changé).
+  final Map<String, Stream<Map<String, dynamic>?>> _roomPolls = {};
+  Stream<Map<String, dynamic>?> _pollRoom(String roomId,
+      {Duration interval = const Duration(milliseconds: 900)}) {
+    return _roomPolls.putIfAbsent(roomId, () async* {
+      while (true) {
+        try {
+          final data = await _get('rooms/$roomId');
+          yield data != null ? Map<String, dynamic>.from(data as Map) : null;
+        } catch (_) {
+          // ignore les erreurs réseau ponctuelles, on retentera au prochain tour
+        }
+        await Future.delayed(interval);
       }
-      await Future.delayed(interval);
-    }
+    }().asBroadcastStream());
   }
 
   Stream<Map<String, Player>> watchPlayers(String roomId) {
-    return _poll('rooms/$roomId/players', (data) {
+    return _pollRoom(roomId).map((room) {
+      final data = room?['players'];
       if (data == null) return <String, Player>{};
       final map = Map<String, dynamic>.from(data as Map);
       return map.map((uid, p) => MapEntry(
@@ -592,7 +645,8 @@ class FirebaseService {
   }
 
   Stream<GameState?> watchGameState(String roomId) {
-    return _poll('rooms/$roomId/gameState', (data) {
+    return _pollRoom(roomId).map((room) {
+      final data = room?['gameState'];
       if (data == null) return null;
       return GameState.fromJson(Map<String, dynamic>.from(data as Map));
     });
@@ -600,7 +654,7 @@ class FirebaseService {
 
   /// Écoute le statut de la room (lobby/playing/finished)
   Stream<String> watchStatus(String roomId) {
-    return _poll('rooms/$roomId/status', (data) => data as String? ?? 'lobby');
+    return _pollRoom(roomId).map((room) => room?['status'] as String? ?? 'lobby').distinct();
   }
 
   /// Surveille l'hôte en continu — nécessaire pour que TOUS les clients
@@ -608,11 +662,12 @@ class FirebaseService {
   /// leur `hostId` local reste périmé et personne ne peut plus lancer la
   /// partie ni piloter les bots).
   Stream<String?> watchHostId(String roomId) {
-    return _poll('rooms/$roomId/hostId', (data) => data as String?);
+    return _pollRoom(roomId).map((room) => room?['hostId'] as String?).distinct();
   }
 
   Stream<Map<String, dynamic>?> watchResult(String roomId) {
-    return _poll('rooms/$roomId/result', (data) {
+    return _pollRoom(roomId).map((room) {
+      final data = room?['result'];
       if (data == null) return null;
       return Map<String, dynamic>.from(data as Map);
     });

@@ -1,5 +1,6 @@
 // lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/game_provider.dart';
 import '../services/display_settings.dart';
@@ -198,6 +199,9 @@ class _HomeScreenState extends State<HomeScreen>
             onTap: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const ShopScreen()))),
           const SizedBox(height: 10),
+          BHButton(label: '🚪 Quitter l\'application', outlined: true,
+            onTap: () => _confirmQuit(context)),
+          const SizedBox(height: 10),
           TextButton(
             onPressed: _newIdentity,
             child: Text('🔄 Nouvelle identité (test multi-fenêtres)',
@@ -257,6 +261,32 @@ class _HomeScreenState extends State<HomeScreen>
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Nouvelle identité générée — tu peux rejoindre une salle comme un autre joueur.'),
         backgroundColor: Color(0xFF1C1309)));
+    }
+  }
+
+  Future<void> _confirmQuit(BuildContext ctx) async {
+    final confirmed = await showDialog<bool>(context: ctx, builder: (dctx) => AlertDialog(
+      backgroundColor: kBg2,
+      title: Text('Quitter l\'application ?', style: cinzel(15, c: kGold)),
+      content: Text('Toute partie en cours (solo ou multijoueur) sera perdue.',
+        style: body(13)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dctx, false),
+          child: Text('Annuler', style: cinzel(12, c: kTextSub)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(dctx, true),
+          child: Text('Quitter', style: cinzel(12, c: kRed, fw: FontWeight.w900)),
+        ),
+      ],
+    ));
+    // SystemNavigator.pop() est l'API recommandée cross-platform : ferme
+    // proprement sur Android, et sur iOS se contente de minimiser
+    // l'application (Apple déconseille la fermeture forcée par le code —
+    // ce comportement reste conforme à leurs directives).
+    if (confirmed == true) {
+      await SystemNavigator.pop();
     }
   }
 }
