@@ -619,17 +619,19 @@ class FirebaseService {
   final Map<String, Stream<Map<String, dynamic>?>> _roomPolls = {};
   Stream<Map<String, dynamic>?> _pollRoom(String roomId,
       {Duration interval = const Duration(milliseconds: 900)}) {
-    return _roomPolls.putIfAbsent(roomId, () async* {
-      while (true) {
-        try {
-          final data = await _get('rooms/$roomId');
-          yield data != null ? Map<String, dynamic>.from(data as Map) : null;
-        } catch (_) {
-          // ignore les erreurs réseau ponctuelles, on retentera au prochain tour
+    return _roomPolls.putIfAbsent(roomId, () {
+      return (() async* {
+        while (true) {
+          try {
+            final data = await _get('rooms/$roomId');
+            yield data != null ? Map<String, dynamic>.from(data as Map) : null;
+          } catch (_) {
+            // ignore les erreurs réseau ponctuelles, on retentera au prochain tour
+          }
+          await Future.delayed(interval);
         }
-        await Future.delayed(interval);
-      }
-    }().asBroadcastStream());
+      }()).asBroadcastStream();
+    });
   }
 
   Stream<Map<String, Player>> watchPlayers(String roomId) {
