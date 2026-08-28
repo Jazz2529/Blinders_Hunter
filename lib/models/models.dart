@@ -475,6 +475,8 @@ class GameState {
   final Map<String, int>? abilityDiceResult;
   final Map<String, int>? scottCounterDice; // dés de la contre-attaque de Scott, pour affichage
   final Map<String, int>? lastDiceResult; // dernier jet de dés (attaque/déplacement/carte) — visible de tous
+  final String? lastDrawnCardId; // dernière carte piochée (non-Vision) — visible de tous, sur le même
+  final int? lastDrawnCardTimestamp; // principe que lastDiceResult, indépendant de la phase de jeu
   final String? lastDiceLabel;            // libellé du jet ('Déplacement', 'Attaque', etc.)
   final int? lastDiceTimestamp;           // ms depuis epoch au moment du jet
   final int? turnStartedAt;               // ms epoch — début du tour courant (timer AFK)
@@ -544,6 +546,8 @@ class GameState {
     this.abilityDiceResult,
     this.scottCounterDice,
     this.lastDiceResult,
+    this.lastDrawnCardId,
+    this.lastDrawnCardTimestamp,
     this.lastDiceLabel,
     this.lastDiceTimestamp,
     this.turnStartedAt,
@@ -601,6 +605,8 @@ class GameState {
     'abilityDiceResult': abilityDiceResult,
     'scottCounterDice': scottCounterDice,
     'lastDiceResult': lastDiceResult,
+    'lastDrawnCardId': lastDrawnCardId,
+    'lastDrawnCardTimestamp': lastDrawnCardTimestamp,
     'lastDiceLabel': lastDiceLabel,
     'lastDiceTimestamp': lastDiceTimestamp,
     'turnStartedAt': turnStartedAt,
@@ -673,6 +679,8 @@ class GameState {
         : null,
     lastDiceLabel: j['lastDiceLabel'] as String?,
     lastDiceTimestamp: j['lastDiceTimestamp'] as int?,
+    lastDrawnCardId: j['lastDrawnCardId'] as String?,
+    lastDrawnCardTimestamp: j['lastDrawnCardTimestamp'] as int?,
     turnStartedAt: j['turnStartedAt'] as int?,
     pendingPunishActorUid: j['pendingPunishActorUid'] as String?,
     pendingPunishTargetUid: j['pendingPunishTargetUid'] as String?,

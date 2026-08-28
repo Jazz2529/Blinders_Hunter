@@ -461,6 +461,8 @@ class FirebaseService {
     int? fifiAtkResult,
     Map<String, int>? scottCounterDice,
     Map<String, int>? lastDiceResult,
+    String? lastDrawnCardId,
+    int? lastDrawnCardTimestamp,
     String? lastDiceLabel,
     int? lastDiceTimestamp,
     int? elaiaStep,
@@ -538,6 +540,8 @@ class FirebaseService {
     if (fifiAtkResult != null)  updates['fifiAtkResult']  = fifiAtkResult;
     if (scottCounterDice != null) updates['scottCounterDice'] = scottCounterDice;
     if (lastDiceResult != null) updates['lastDiceResult'] = lastDiceResult;
+    if (lastDrawnCardId != null) updates['lastDrawnCardId'] = lastDrawnCardId;
+    if (lastDrawnCardTimestamp != null) updates['lastDrawnCardTimestamp'] = lastDrawnCardTimestamp;
     if (lastDiceLabel != null) updates['lastDiceLabel'] = lastDiceLabel;
     if (lastDiceTimestamp != null) updates['lastDiceTimestamp'] = lastDiceTimestamp;
     if (elaiaStep != null) updates['elaiaStep'] = elaiaStep;

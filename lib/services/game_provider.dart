@@ -43,6 +43,15 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await fn();
+      // IMPORTANT : de nombreuses actions ne mettent à jour QUE Firestore
+      // (via _fb.setPhase) sans synchroniser le cache LOCAL immédiatement
+      // (contrairement à _commitAll/_commitPlayer, corrigés séparément) —
+      // sans cette marge, le bouton redevenait cliquable AVANT que le
+      // sondage réseau (~900ms) n'ait rattrapé le nouvel état, permettant
+      // de le presser une deuxième fois sur la base d'un affichage encore
+      // périmé. Cette pause laisse le temps à au moins un cycle de
+      // sondage de passer avant de débloquer l'interface.
+      await Future.delayed(const Duration(milliseconds: 1000));
     } finally {
       _actionBusy = false;
       notifyListeners();
@@ -358,6 +367,13 @@ class GameProvider extends ChangeNotifier {
           bot.revealed = true;
           await _commitAll(all, '🃏 ${bot.name} révèle sa carte');
         }
+        // Diffuse l'animation de révélation plein écran à TOUS les
+        // joueurs, comme pour un joueur humain (voir revealSelf) — ce
+        // branchement manquait ENTIÈREMENT pour les bots, qui ne
+        // déclenchaient donc jamais cette animation en se révélant.
+        await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+            publicRevealUid: bot.uid,
+            publicRevealTimestamp: DateTime.now().millisecondsSinceEpoch);
         // Jeanne et Clémence : leur mécanisme se déclenche DÈS la révélation
         // (pas via un bouton "capacité" plus tard) — sans ce branchement, un
         // bot jouant ces personnages ne déclenchait jamais son pouvoir.
@@ -734,21 +750,17 @@ class GameProvider extends ChangeNotifier {
         (gameState?.deckPiles ?? const {}).map(
             (k, v) => MapEntry(k, List<String>.from(v))));
     final card = _eg.drawCard(deck, forcedQueue: queue, deckPiles: piles);
+    // Persiste l'état du paquet (quelle carte a été piochée de la pile) —
+    // sans ça, l'ordre du paquet ne serait jamais sauvegardé pour les
+    // pioches de bots.
+    await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.move,
+        forcedDeckQueue: queue, deckPiles: piles);
     var all = _mutableAll();
     var bot = all.where((p) => p.uid == botUid).firstOrNull;
     if (bot == null || !bot.alive) return;
     await _fb.addLog(roomId!,
         deck == DeckType.vision ? '🔮 ${bot.name} pioche une carte Vision (secrète)'
                                  : '🃏 ${bot.name} pioche : ${card.name}');
-    // IMPORTANT : transition visible par GamePhase.cardDrawn AVANT de
-    // résoudre — sans ça, les bots piochaient ET résolvaient en une seule
-    // étape sans jamais laisser de fenêtre observable aux autres clients,
-    // qui ne voyaient donc jamais l'image de la carte (contrairement à un
-    // joueur humain). La pause de 1,8s laisse le temps au sondage réseau
-    // de la voir avant de continuer.
-    await _fb.setPhase(roomId!, GamePhase.cardDrawn,
-        forcedDeckQueue: queue, deckPiles: piles, pendingAction: card.id);
-    await Future.delayed(const Duration(milliseconds: 1800));
     Player? cardTarget;
     if (_cardNeedsTarget(card.effect)) {
       cardTarget = _ai.bestTarget(bot, all, _botDifficulty, context: card.effect);
@@ -759,16 +771,21 @@ class GameProvider extends ChangeNotifier {
           res['needsSecondTarget'] != true && res['needsEquipChoice'] != true) {
         _eg.applyDeathPassives(all);
         await _commitAll(all, res['log'] as String? ?? '');
-        // IMPORTANT : nettoyer pendingAction (posé plus haut pour afficher
-        // la carte) est OBLIGATOIRE ici — sans ça, il restait bloqué à
-        // l'ID de cette carte pour le RESTE DE LA PARTIE, ce qui empêchait
-        // _maybeDriveBot() de piloter QUOI QUE CE SOIT (son garde-fou
-        // refuse d'agir tant que pendingAction != null), gelant tous les
-        // bots. Le forçage de tour (AFK) qui se déclenchait ensuite pour
-        // débloquer la partie provoquait alors une résolution en double.
-        if (!(await _checkWin(all))) {
-          await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.move, clearPending: true);
+        // IMPORTANT : résolution INSTANTANÉE, comme à l'origine — on ne
+        // touche JAMAIS à `phase`/`pendingAction` ici (une version
+        // précédente le faisait via un délai artificiel + transition de
+        // phase temporaire, ce qui a fini par désynchroniser le pilotage
+        // des bots : plusieurs tours d'affilée, blocages). L'affichage de
+        // la carte passe désormais par un champ DÉDIÉ et INDÉPENDANT de la
+        // phase de jeu (lastDrawnCardId/Timestamp), exactement sur le
+        // modèle de lastDiceResult qui fonctionne déjà de façon fiable —
+        // aucun risque pour la machine à états du tour du bot.
+        if (deck != DeckType.vision) {
+          await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.move,
+              lastDrawnCardId: card.id,
+              lastDrawnCardTimestamp: DateTime.now().millisecondsSinceEpoch);
         }
+        await _checkWin(all);
       }
     }
   }

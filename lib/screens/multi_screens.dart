@@ -405,6 +405,10 @@ class _GameScreenState extends State<GameScreen> {
       final diceResult = gs?.abilityDiceResult;
       final lastDice = gs?.lastDiceResult;
       final lastLabel = gs?.lastDiceLabel;
+      final lastCardId = gs?.lastDrawnCardId;
+      final lastCard = lastCardId != null ? findCardById(lastCardId) : null;
+      final cardTs = gs?.lastDrawnCardTimestamp ?? 0;
+      final cardAge = DateTime.now().millisecondsSinceEpoch - cardTs;
       final baseScaffold = Scaffold(
         backgroundColor:kBg0,
         appBar:AppBar(
@@ -589,7 +593,7 @@ class _GameScreenState extends State<GameScreen> {
               allPlayers: gp.players.values.toList(),
               onDone: () {})
           : const SizedBox.shrink();
-      if (overlay == null && diceResult == null && lastDice == null) {
+      if (overlay == null && diceResult == null && lastDice == null && lastCard == null) {
         return Stack(children: [baseScaffold, turnBanner, burningRope, revealFullScreen]);
       }
 
@@ -609,6 +613,10 @@ class _GameScreenState extends State<GameScreen> {
             label: lastLabel ?? '🎲',
             timestamp: gs?.lastDiceTimestamp ?? 0,
           ),
+        // Carte piochée par un bot — visible de tous, indépendamment de la
+        // phase de jeu (voir _LastCardBanner : même principe que les dés).
+        if (lastCard != null && cardAge < 4000)
+          _LastCardBanner(card: lastCard, timestamp: cardTs),
         if (overlay == 'oceane_notes')        OceaneNotesOverlay(onDone: clearOverlay),
         if (overlay == 'raph_petals')         RaphPetalsOverlay(onDone: clearOverlay),
         if (overlay == 'monkey_demon_eyes')   MonkeyDemonEyesOverlay(onDone: clearOverlay),
@@ -2834,6 +2842,60 @@ class _LastDiceBannerState extends State<_LastDiceBanner>
                 ),
               ]),
             ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Bannière de carte piochée par un bot — sur le même modèle que
+// _LastDiceBanner ci-dessus : totalement indépendante de GamePhase, pas de
+// risque pour la machine à états du tour du bot.
+class _LastCardBanner extends StatefulWidget {
+  final GameCard card;
+  final int timestamp;
+  const _LastCardBanner({required this.card, required this.timestamp});
+  @override State<_LastCardBanner> createState() => _LastCardBannerState();
+}
+class _LastCardBannerState extends State<_LastCardBanner>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ac;
+  late Animation<double> _opacity;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _ac = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
+    _opacity = CurvedAnimation(parent: _ac, curve: Curves.easeIn);
+    _ac.forward();
+    // Auto-dismiss après 4 secondes (le temps de bien voir la carte)
+    final remaining = 4000 - (DateTime.now().millisecondsSinceEpoch - widget.timestamp);
+    final delay = remaining.clamp(500, 4000);
+    _timer = Timer(Duration(milliseconds: delay), () {
+      if (mounted) _ac.reverse();
+    });
+  }
+
+  @override void dispose() { _timer?.cancel(); _ac.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext ctx) {
+    return Positioned(
+      top: 56, left: 0, right: 0,
+      child: Center(
+        child: FadeTransition(
+          opacity: _opacity,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: kBg2.withValues(alpha: 0.97),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: kGold, width: 2),
+              boxShadow: [BoxShadow(color: kGold.withValues(alpha: 0.3), blurRadius: 12)],
+            ),
+            child: _CardWidget(card: widget.card),
           ),
         ),
       ),
