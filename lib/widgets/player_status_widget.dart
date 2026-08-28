@@ -170,8 +170,9 @@ class _PlayerStatusCardState extends State<PlayerStatusCard>
               if (p.alive && p.shield)
                 const Text('🛡️', style: TextStyle(fontSize: 10)),
               // Mathieu : compteur d'attaques (3 = bonus +2 dégâts permanent
-              // actif) — info PUBLIQUE, visible de tous, comme le feu de Luc.
-              if (p.alive && (p.copiedEffect ?? p.character?.abilityEffect) == 'third_attack_bonus')
+              // actif) — visible de tous UNE FOIS RÉVÉLÉ seulement, sinon
+              // ça révélerait indirectement son identité.
+              if (p.alive && p.revealed && (p.copiedEffect ?? p.character?.abilityEffect) == 'third_attack_bonus')
                 Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) => Padding(
                   padding: const EdgeInsets.only(left: 1),
                   child: Icon(

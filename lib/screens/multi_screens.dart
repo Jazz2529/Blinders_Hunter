@@ -570,13 +570,22 @@ class _GameScreenState extends State<GameScreen> {
       // rejoue une révélation déjà ancienne.
       final revealFresh = revealQuoteUid != null &&
           (DateTime.now().millisecondsSinceEpoch - revealTs) < 5000;
+      final revealingPlayer = revealQuoteUid != null ? gp.players[revealQuoteUid] : null;
+      // IMPORTANT : si ce joueur n'est pas encore dans le cache local à cet
+      // instant précis (ex: mise à jour reçue via un cycle de sondage
+      // différent), on ne tente PAS d'afficher l'animation plutôt que de
+      // forcer un déballage nul qui plante silencieusement — c'était très
+      // probablement la cause de "je n'ai pas l'animation des autres
+      // joueurs" : l'échec était invisible (pas de crash visible), juste
+      // l'animation qui ne s'affichait jamais.
       final showPublicReveal = revealFresh && publicRevealKey != null &&
+          revealingPlayer != null &&
           _shownPublicRevealFor != publicRevealKey;
       if (showPublicReveal) _shownPublicRevealFor = publicRevealKey;
       final revealFullScreen = showPublicReveal
           ? RevealFullScreen(
               key: ValueKey('reveal_$publicRevealKey'),
-              player: gp.players[revealQuoteUid]!,
+              player: revealingPlayer,
               allPlayers: gp.players.values.toList(),
               onDone: () {})
           : const SizedBox.shrink();
@@ -865,9 +874,11 @@ void _showEquipmentFor(BuildContext ctx, Player p) {
             style: cinzel(13, c: kGold2, fw: FontWeight.w900),
             overflow: TextOverflow.ellipsis)),
         ]),
-        if (isNils) ...[
+        if (isNils && p.revealed) ...[
           const SizedBox(height: 12),
-          // Compteur public — visible de tous, révélé ou non.
+          // Compteur visible de tous UNE FOIS RÉVÉLÉ seulement — avant ça,
+          // ça révélerait indirectement son identité (Nils) à tout le
+          // monde, ce qui n'est pas normal.
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),

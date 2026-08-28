@@ -2166,10 +2166,11 @@ class _HpLeaderboard extends StatelessWidget {
               style: cinzel(13, c: kGold2, fw: FontWeight.w900),
               overflow: TextOverflow.ellipsis)),
           ]),
-          if (isNils) ...[
+          if (isNils && p.revealed) ...[
             const SizedBox(height: 12),
-            // Compteur public — visible de tous, révélé ou non, comme
-            // demandé : "blessures stockées" par Nils.
+            // Compteur visible de tous UNE FOIS RÉVÉLÉ seulement — avant
+            // ça, ça révélerait indirectement son identité (Nils) à tout
+            // le monde, ce qui n'est pas normal.
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),

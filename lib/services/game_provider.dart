@@ -688,11 +688,29 @@ class GameProvider extends ChangeNotifier {
         if (bot.revealed) bot.attackCount++;
         final attackRes = _eg.resolveAttack(bot, target, dmg, all: all);
         _eg.applyDeathPassives(all);
-        await _commitAll(all, attackRes['log'] as String);
+        // Gège le Fantôme : attaque automatiquement en plus dès qu'un
+        // Hunter révélé attaque — ce mécanisme manquait ENTIÈREMENT ici,
+        // donc ne se déclenchait jamais sur les attaques de bots (le cas
+        // le plus fréquent en jeu), alors qu'il fonctionnait déjà pour un
+        // joueur humain (voir attackPlayer un peu plus bas).
+        final (gegeLog, gegeTriggered) = bot.bazooka
+            ? _eg.applyGegePassiveBazooka(bot, all)
+            : _eg.applyGegePassiveEx(bot, target, all);
+        var fullLog = attackRes['log'] as String;
+        if (gegeLog != null) fullLog = '$fullLog\n$gegeLog';
+        // Gège se déclenche aussi si CE bot subit lui-même une contre-
+        // attaque de Scott (rôles inversés — Scott devient l'attaquant).
+        bool gegeTriggered2 = false;
+        if (attackRes['scottCountered'] == true && bot.alive) {
+          final (gegeLog2, t2) = _eg.applyGegePassiveEx(target, bot, all);
+          if (gegeLog2 != null) { fullLog = '$fullLog\n$gegeLog2'; gegeTriggered2 = t2; }
+        }
+        await _commitAll(all, fullLog);
         await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
             lastDiceResult: {'d4': roll2['d4']!, 'd6': roll2['d6']!, 'sum': dmg},
             lastDiceLabel: 'Attaque',
-            lastDiceTimestamp: DateTime.now().millisecondsSinceEpoch);
+            lastDiceTimestamp: DateTime.now().millisecondsSinceEpoch,
+            abilityOverlay: (gegeTriggered || gegeTriggered2) ? 'gege_ghost' : null);
         final tgtNow = all.where((p) => p.uid == target.uid).firstOrNull;
         if (tgtNow != null) {
           if (await _checkWin(all, justDiedId: tgtNow.alive ? null : tgtNow.uid)) return;
@@ -716,13 +734,21 @@ class GameProvider extends ChangeNotifier {
         (gameState?.deckPiles ?? const {}).map(
             (k, v) => MapEntry(k, List<String>.from(v))));
     final card = _eg.drawCard(deck, forcedQueue: queue, deckPiles: piles);
-    await _fb.setPhase(roomId!, gameState!.phase, forcedDeckQueue: queue, deckPiles: piles);
     var all = _mutableAll();
     var bot = all.where((p) => p.uid == botUid).firstOrNull;
     if (bot == null || !bot.alive) return;
     await _fb.addLog(roomId!,
         deck == DeckType.vision ? '🔮 ${bot.name} pioche une carte Vision (secrète)'
                                  : '🃏 ${bot.name} pioche : ${card.name}');
+    // IMPORTANT : transition visible par GamePhase.cardDrawn AVANT de
+    // résoudre — sans ça, les bots piochaient ET résolvaient en une seule
+    // étape sans jamais laisser de fenêtre observable aux autres clients,
+    // qui ne voyaient donc jamais l'image de la carte (contrairement à un
+    // joueur humain). La pause de 1,8s laisse le temps au sondage réseau
+    // de la voir avant de continuer.
+    await _fb.setPhase(roomId!, GamePhase.cardDrawn,
+        forcedDeckQueue: queue, deckPiles: piles, pendingAction: card.id);
+    await Future.delayed(const Duration(milliseconds: 1800));
     Player? cardTarget;
     if (_cardNeedsTarget(card.effect)) {
       cardTarget = _ai.bestTarget(bot, all, _botDifficulty, context: card.effect);
@@ -733,7 +759,16 @@ class GameProvider extends ChangeNotifier {
           res['needsSecondTarget'] != true && res['needsEquipChoice'] != true) {
         _eg.applyDeathPassives(all);
         await _commitAll(all, res['log'] as String? ?? '');
-        await _checkWin(all);
+        // IMPORTANT : nettoyer pendingAction (posé plus haut pour afficher
+        // la carte) est OBLIGATOIRE ici — sans ça, il restait bloqué à
+        // l'ID de cette carte pour le RESTE DE LA PARTIE, ce qui empêchait
+        // _maybeDriveBot() de piloter QUOI QUE CE SOIT (son garde-fou
+        // refuse d'agir tant que pendingAction != null), gelant tous les
+        // bots. Le forçage de tour (AFK) qui se déclenchait ensuite pour
+        // débloquer la partie provoquait alors une résolution en double.
+        if (!(await _checkWin(all))) {
+          await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.move, clearPending: true);
+        }
       }
     }
   }
