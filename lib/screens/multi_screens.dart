@@ -17,6 +17,7 @@ import '../widgets/shine_effect.dart';
 import '../services/persistence.dart';
 import '../widgets/token_widget.dart';
 import '../widgets/player_status_widget.dart';
+import '../widgets/reveal_screen.dart';
 import '../widgets/terrain_widget.dart';
 import '../widgets/ability_animations.dart';
 import '../data/tokens_data.dart';
@@ -81,7 +82,7 @@ class LobbyScreen extends StatelessWidget {
           Expanded(child:ListView(padding:const EdgeInsets.all(14),children:[
             const SectionLabel('JOUEURS'),
             ...gp.players.values.map((p)=>_PlayerTile(p:p,isMe:p.uid==gp.myUid,
-              canRemove: gp.isHost, onRemove: () => gp.removeBot(p.uid))),
+              canRemove: gp.isHost, onRemove: () => gp.guardedAction(() => gp.removeBot(p.uid)))),
             const SizedBox(height:16),
             const SectionLabel('TON JETON'),
             const SizedBox(height:10),
@@ -94,7 +95,7 @@ class LobbyScreen extends StatelessWidget {
                     .any((p) => p.uid != gp.myUid && p.token == t.id);
                 final sel = t.id == gp.me?.token;
                 return GestureDetector(
-                  onTap: usedByOther ? null : () => gp.changeToken(t.id),
+                  onTap: usedByOther ? null : () => gp.guardedAction(() => gp.changeToken(t.id)),
                   child: Opacity(
                     opacity: usedByOther ? 0.25 : 1.0,
                     child: AnimatedContainer(
@@ -330,6 +331,7 @@ class _GameScreenState extends State<GameScreen> {
   // re-renders répétés (polling REST) tant que l'état pending reste actif.
   static String? _shownPunishFor;
   static String? _shownRevealFor;
+  static String? _shownPublicRevealFor;
 
   @override
   void dispose() {
@@ -556,19 +558,30 @@ class _GameScreenState extends State<GameScreen> {
       }
       final scottInGame = gp.players.values.any((p) => p.alive && p.character?.id == 'scott');
       final burningRope = BurningRopeTimer(secondsLeft: ropeSecondsLeft, scottInGame: scottInGame);
-      // Réplique de révélation — visible/audible de tous, quelques secondes
+      // Révélation — animation plein écran PARTAGÉE avec le solo (jetons,
+      // interactions entre personnages, etc.), visible de TOUS les
+      // joueurs dès que N'IMPORTE QUI se révèle — avant : une simple
+      // bannière de citation textuelle, bien moins riche.
       final revealQuoteUid = gs?.publicRevealUid;
       final revealTs = gs?.publicRevealTimestamp ?? 0;
+      final publicRevealKey = revealQuoteUid != null ? '${revealQuoteUid}_$revealTs' : null;
+      // Fenêtre de fraîcheur de 5s (l'animation dure ~4s en interne) — évite
+      // qu'un client qui vient de se connecter ou de se reconnecter ne
+      // rejoue une révélation déjà ancienne.
       final revealFresh = revealQuoteUid != null &&
-          (DateTime.now().millisecondsSinceEpoch - revealTs) < 4500;
-      final revealQuoteBanner = revealFresh
-          ? _RevealQuoteBanner(
-              key: ValueKey('reveal_${revealQuoteUid}_$revealTs'),
-              player: gp.players[revealQuoteUid],
-              allPlayers: gp.players.values.toList())
+          (DateTime.now().millisecondsSinceEpoch - revealTs) < 5000;
+      final showPublicReveal = revealFresh && publicRevealKey != null &&
+          _shownPublicRevealFor != publicRevealKey;
+      if (showPublicReveal) _shownPublicRevealFor = publicRevealKey;
+      final revealFullScreen = showPublicReveal
+          ? RevealFullScreen(
+              key: ValueKey('reveal_$publicRevealKey'),
+              player: gp.players[revealQuoteUid]!,
+              allPlayers: gp.players.values.toList(),
+              onDone: () {})
           : const SizedBox.shrink();
       if (overlay == null && diceResult == null && lastDice == null) {
-        return Stack(children: [baseScaffold, turnBanner, burningRope, revealQuoteBanner]);
+        return Stack(children: [baseScaffold, turnBanner, burningRope, revealFullScreen]);
       }
 
       void clearOverlay() => gp.clearAbilityOverlay();
@@ -643,7 +656,7 @@ class _GameScreenState extends State<GameScreen> {
         if (overlay == 'maxence_drunk')        MaxenceDrunkOverlay(onDone: clearOverlay),
         turnBanner,
         burningRope,
-        revealQuoteBanner,
+        revealFullScreen,
       ]);
     },
   ));
@@ -665,11 +678,11 @@ class _GameScreenState extends State<GameScreen> {
         actions: [
           if (hasEquip)
             TextButton(
-              onPressed: () { Navigator.pop(dctx); gp.resolvePunishChoice(true); },
+              onPressed: () { Navigator.pop(dctx); gp.guardedAction(() => gp.resolvePunishChoice(true)); },
               child: Text('⚔️ Donner un équipement', style: cinzel(12, c: kGold)),
             ),
           TextButton(
-            onPressed: () { Navigator.pop(dctx); gp.resolvePunishChoice(false); },
+            onPressed: () { Navigator.pop(dctx); gp.guardedAction(() => gp.resolvePunishChoice(false)); },
             child: Text('🩸 Subir 1 blessure', style: cinzel(12, c: kRed)),
           ),
         ],
@@ -1143,7 +1156,7 @@ class _ActionPanelState extends State<_ActionPanel> {
         .toList();
     if (hunters.isEmpty || shadows.isEmpty) {
       // Cas extrême : pas assez de variété en jeu, révélation normale
-      gp.revealSelf();
+      gp.guardedAction(() => gp.revealSelf());
       return;
     }
     final hunterPick = hunters[Random().nextInt(hunters.length)];
@@ -1155,11 +1168,11 @@ class _ActionPanelState extends State<_ActionPanel> {
         style: body(12, c: kTextSub)),
       actions: [
         TextButton(
-          onPressed: () { Navigator.pop(dctx); gp.revealAsDisguise(hunterPick); },
+          onPressed: () { Navigator.pop(dctx); gp.guardedAction(() => gp.revealAsDisguise(hunterPick)); },
           child: Text('${hunterPick.icon} ${hunterPick.name} (Hunter)', style: cinzel(12, c: kGold)),
         ),
         TextButton(
-          onPressed: () { Navigator.pop(dctx); gp.revealAsDisguise(shadowPick); },
+          onPressed: () { Navigator.pop(dctx); gp.guardedAction(() => gp.revealAsDisguise(shadowPick)); },
           child: Text('${shadowPick.icon} ${shadowPick.name} (Shadow)', style: cinzel(12, c: kRed)),
         ),
       ],
@@ -1212,7 +1225,7 @@ class _ActionPanelState extends State<_ActionPanel> {
                 onTap: selected.length == 2 ? () {
                   final list = selected.toList();
                   Navigator.pop(dctx2);
-                  gp.remiCraftEquipment(list[0], list[1]);
+                  gp.guardedAction(() => gp.remiCraftEquipment(list[0], list[1]));
                 } : null,
               ),
             ]),
@@ -1230,17 +1243,17 @@ class _ActionPanelState extends State<_ActionPanel> {
         style: body(13)),
       actions: [
         TextButton(
-          onPressed: () async {
+          onPressed: () => gp.guardedAction(() async {
             Navigator.pop(dctx);
             await gp.requestTarget('damage2_or_heal1');
-          },
+          }),
           child: Text('⚔️ Attaquer', style: cinzel(12, c: kRed)),
         ),
         TextButton(
-          onPressed: () async {
+          onPressed: () => gp.guardedAction(() async {
             Navigator.pop(dctx);
             await gp.useAbility();
-          },
+          }),
           child: Text('💚 Se soigner', style: cinzel(12, c: kGreen)),
         ),
       ],
@@ -1251,13 +1264,25 @@ class _ActionPanelState extends State<_ActionPanel> {
 
   @override
   Widget build(BuildContext ctx) {
-    return Padding(
-      padding:const EdgeInsets.all(14),
-      child:Column(mainAxisSize:MainAxisSize.min,children:[
-        Text(_phaseLabel(),style:cinzel(11,c:kGold,ls:2)),
-        const SizedBox(height:10),
-        ..._buildActions(ctx),
-      ]),
+    // Seconde couche de protection anti-spam : pendant qu'une action est en
+    // cours (gp.actionBusy), TOUS les boutons de ce panneau sont
+    // visuellement et interactivement désactivés d'un coup — impossible de
+    // déclencher un second appui, même très rapide, avant que le premier
+    // ne soit terminé.
+    final busy = gp.actionBusy;
+    return AbsorbPointer(
+      absorbing: busy,
+      child: Opacity(
+        opacity: busy ? 0.55 : 1.0,
+        child: Padding(
+          padding:const EdgeInsets.all(14),
+          child:Column(mainAxisSize:MainAxisSize.min,children:[
+            Text(_phaseLabel(),style:cinzel(11,c:kGold,ls:2)),
+            const SizedBox(height:10),
+            ..._buildActions(ctx),
+          ]),
+        ),
+      ),
     );
   }
 
@@ -1284,7 +1309,7 @@ class _ActionPanelState extends State<_ActionPanel> {
           style: body(13, c: const Color(0xFFB8860B)))];
       } else if (lootKillerUid == gp.myUid) {
         // plus rien à récupérer pour ce mort — passer au suivant silencieusement
-        gp.lootSkip();
+        gp.guardedAction(() => gp.lootSkip());
       }
     }
     switch (gp.phase) {
@@ -1396,9 +1421,12 @@ class _ActionPanelState extends State<_ActionPanel> {
                   : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'craft_equipment_remi'
                     ? () => _showRemiCraftDialog(ctx)
                     : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'casino_bet'
-                      ? () { setState(() => _casinoActive = true); gp.useAbility(); }
+                      ? () => gp.guardedAction(() async {
+                          setState(() => _casinoActive = true);
+                          await gp.useAbility();
+                        })
                       : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'hailey_copy_hunter'
-                        ? () => gp.haileyOpenChoice()
+                        ? () => gp.guardedAction(() => gp.haileyOpenChoice())
                         : () => _act(gp.useAbility)),
             if ((me?.copiedEffect ?? me?.character?.abilityEffect) == 'meg_shapeshift' && me?.megForm != null)
               Padding(
@@ -1460,7 +1488,10 @@ class _ActionPanelState extends State<_ActionPanel> {
             if (others.isEmpty) Text('Aucun autre joueur en vie.', style: body(13, c: kTextSub)),
             ...others.map((t) => BHButton(
               label: '${t.token} ${t.name}',
-              onTap: () { setState(() => _showingSwapTargets = false); gp.swapPosition(t); },
+              // Pas de remise à zéro locale ici — la section disparaît de
+              // toute façon dès que la phase change réellement (même
+              // principe que pour le déplacement/l'attaque).
+              onTap: () => _act(() => gp.swapPosition(t)),
             )),
             BHButton(label: 'Annuler', outlined: true,
               onTap: () => setState(() => _showingSwapTargets = false)),
@@ -1881,7 +1912,13 @@ class _ActionPanelState extends State<_ActionPanel> {
             )
           // Une attaque en attente de confirmation (dés déjà lancés) DOIT
           // être résolue — impossible de terminer le tour pour la contourner.
-          else if (_atkDmg != null)
+          // IMPORTANT : on vérifie aussi `!alreadyAttacked` — sinon, comme
+          // _atkDmg n'est plus remis à zéro immédiatement après confirmation
+          // (pour éviter un autre bug où l'interface "revenait en arrière"
+          // pendant le court délai réseau), cet avertissement restait
+          // bloqué indéfiniment après une attaque pourtant déjà validée,
+          // sans aucun bouton pour continuer.
+          else if (_atkDmg != null && !alreadyAttacked)
             Container(
               margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(color: kRed.withValues(alpha: 0.08),
@@ -1920,7 +1957,7 @@ class _ActionPanelState extends State<_ActionPanel> {
     final t = gp.gameState!.terrainLayout[i];
     return BHButton(
       label: '${t.icon} ${t.num} — ${t.name}',
-      onTap: () => _act(() async { gp.moveTo(i, diceSum: _sum!, d4: _d4!, d6: _d6!); _resetDice(); }),
+      onTap: () => _act(() => gp.moveTo(i, diceSum: _sum!, d4: _d4!, d6: _d6!)),
     );
   });
 
@@ -1933,7 +1970,7 @@ class _ActionPanelState extends State<_ActionPanel> {
     final t = layout[idx];
     return BHButton(
       label: '→ ${t.icon} ${t.name}  (${t.keyword})',
-      onTap: () => _act(() async { gp.moveTo(idx, diceSum: _sum!, d4: _d4!, d6: _d6!); _resetDice(); }),
+      onTap: () => _act(() => gp.moveTo(idx, diceSum: _sum!, d4: _d4!, d6: _d6!)),
     );
   }
 
@@ -2001,8 +2038,13 @@ class _ActionPanelState extends State<_ActionPanel> {
 
   Future<void> _confirmAttack() async {
     if(_atkTargetId==null||_atkDmg==null) return;
+    // IMPORTANT : pas de remise à zéro locale ici après l'écriture — la
+    // section d'attaque disparaît de toute façon dès que la phase change
+    // réellement (case GamePhase.attack). Effacer l'état local tout de
+    // suite créait une fenêtre où l'interface retombait brièvement sur
+    // "lancer les dés" avant que le sondage réseau ne rattrape le
+    // changement de phase (même bug que pour le déplacement).
     await gp.attackPlayer(_atkTargetId!, _atkDmg!, d4: _atkD4 ?? 0, d6: _atkD6 ?? 0);
-    setState((){_atkD4=_atkD6=_atkDmg=_atkD4b=_atkD6b=null;_atkTargetId=null;_emilienRerolledThisTurn=false;});
   }
 }
 
@@ -2886,7 +2928,7 @@ class _MultiBaptisteAmountWidgetState extends State<_MultiBaptisteAmountWidget> 
           style: body(11, c: kTextDim), textAlign: TextAlign.center),
         const SizedBox(height: 14),
         BHButton(label: 'Confirmer le sacrifice', danger: true,
-          onTap: () => widget.gp.baptisteConfirmAmount(_amount!)),
+          onTap: () => widget.gp.guardedAction(() => widget.gp.baptisteConfirmAmount(_amount!))),
       ]),
     );
   }
@@ -3546,7 +3588,7 @@ class _MultiFifiDiceWidgetState extends State<_MultiFifiDiceWidget> {
         BHButton(
           label: '✅ Confirmer — Dépl. $_move · Atk. $_atk',
           gold: true,
-          onTap: () => widget.gp.fifiConfirmChoices(_move, _atk),
+          onTap: () => widget.gp.guardedAction(() => widget.gp.fifiConfirmChoices(_move, _atk)),
         ),
       ]),
     );

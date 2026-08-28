@@ -30,13 +30,22 @@ class GameProvider extends ChangeNotifier {
   // protection au niveau du provider, partagé par TOUS les boutons peu
   // importe le widget qui les affiche.
   bool _actionBusy = false;
+  /// Exposé publiquement (et réactif via notifyListeners) pour que
+  /// l'interface puisse désactiver VISUELLEMENT les boutons pendant
+  /// qu'une action est en cours — seconde couche de protection en plus du
+  /// verrou logique ci-dessous, qui empêchait bien un DEUXIÈME appel de
+  /// s'exécuter mais ne rendait jamais le bouton visuellement désactivé
+  /// (l'utilisateur pouvait donc continuer à appuyer dessus sans retour).
+  bool get actionBusy => _actionBusy;
   Future<void> guardedAction(Future<void> Function() fn) async {
     if (_actionBusy) return;
     _actionBusy = true;
+    notifyListeners();
     try {
       await fn();
     } finally {
       _actionBusy = false;
+      notifyListeners();
     }
   }
   final bool firebaseEnabled;
@@ -204,7 +213,7 @@ class GameProvider extends ChangeNotifier {
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors','luc_ignite','baptiste_revive',
     'lock_ability_while_alive','steal_max_hp','maxence_drunk',
-    'store_damage_nils',
+    'store_damage_nils','d4_bonus_attack',
   ].contains(eff);
 
   bool _cardNeedsTarget(String eff) => [
@@ -398,6 +407,13 @@ class GameProvider extends ChangeNotifier {
           x.uid != bot!.uid && x.alive && x.revealed && x.character != null &&
           !GameEngine.uncopyableAbilities.contains(x.character!.abilityEffect)).toList();
         if (candidates.isNotEmpty) target = candidates[Random().nextInt(candidates.length)];
+      } else if (eff == 'd4_bonus_attack') {
+        // Vlad (bot) : portée limitée aux zones ADJACENTES — bestTarget()
+        // générique ne convient pas ici (pas de notion de proximité).
+        final adjZones = kAdjacences[bot!.zoneIndex];
+        final candidates = all.where((x) =>
+          x.uid != bot!.uid && x.alive && adjZones.contains(x.zoneIndex)).toList();
+        if (candidates.isNotEmpty) target = candidates[Random().nextInt(candidates.length)];
       } else if (needsTarget) target = _ai.bestTarget(bot, all, _botDifficulty, context: eff);
       // Christine (bot) : tire une zone adjacente au hasard elle-même, puisque
       // le moteur exige désormais un choix explicite (humain OU bot).
@@ -435,6 +451,26 @@ class GameProvider extends ChangeNotifier {
             if (t2now != null && !t2now.alive) {
               if (await _checkWin(all, justDiedId: t2now.uid)) return;
             }
+          }
+        } else if (abLog == 'damien_target_chosen' && target != null) {
+          // Damien (bot) : choisit algorithmiquement — alcool si ça peut
+          // tuer d'un coup, sinon poison (dégâts totaux plus élevés sur la
+          // durée) — même heuristique que le bot en solo.
+          final dmTarget = target; // capture non-nullable : Dart ne propage
+          // pas la vérification `target != null` à l'intérieur d'une
+          // fermeture (le `.where((p) => ...)` plus bas), d'où l'erreur.
+          final remainingHp = _eg.effectiveMaxHp(dmTarget) - dmTarget.wounds;
+          final String resolveLog;
+          if (remainingHp <= 4) {
+            resolveLog = _eg.damienServeAlcohol(bot, dmTarget);
+          } else {
+            resolveLog = _eg.damienServePoison(bot, dmTarget);
+          }
+          _eg.applyDeathPassives(all);
+          await _commitAll(all, resolveLog);
+          final tNow = all.where((p) => p.uid == dmTarget.uid).firstOrNull;
+          if (tNow != null && !tNow.alive) {
+            if (await _checkWin(all, justDiedId: tNow.uid)) return;
           }
         } else if (abLog == 'trigger_terrain') {
           _eg.applyDeathPassives(all);

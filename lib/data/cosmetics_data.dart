@@ -391,6 +391,26 @@ const List<CosmeticItem> kCosmeticsCatalog = [
   CosmeticItem(id: 'terrain_9_laboratoire', name: 'Laboratoire',
     category: CosmeticCategory.terrain, targetId: 'damage9', cost: 250,
     imagePath: 'assets/images/terrains/laboratoire9.png'),
+
+  CosmeticItem(id: 'terrain_vision_serre', name: 'Serre Botanique',
+    category: CosmeticCategory.terrain, targetId: 'vision', cost: 250,
+    imagePath: 'assets/images/terrains/serre23.png'),
+  CosmeticItem(id: 'terrain_lumiere_labo', name: 'Laboratoire Alchimie',
+    category: CosmeticCategory.terrain, targetId: 'lumiere', cost: 250,
+    imagePath: 'assets/images/terrains/labo6.png'),
+  CosmeticItem(id: 'terrain_steal_sanctuaire', name: 'Sanctuaire du Crépuscule',
+    category: CosmeticCategory.terrain, targetId: 'steal', cost: 250,
+    imagePath: 'assets/images/terrains/sanctuaire10.png'),
+     CosmeticItem(id: 'terrain_5_astral', name: 'Atelier Astral',
+    category: CosmeticCategory.terrain, targetId: 'choice', cost: 250,
+    imagePath: 'assets/images/terrains/astral45.png'),
+  CosmeticItem(id: 'terrain_tenebre_egout', name: 'Egout',
+    category: CosmeticCategory.terrain, targetId: 'tenebres', cost: 250,
+    imagePath: 'assets/images/terrains/egout8.png'),
+  CosmeticItem(id: 'terrain_9_salon2', name: 'Salon 2',
+    category: CosmeticCategory.terrain, targetId: 'damage9', cost: 250,
+    imagePath: 'assets/images/terrains/salon29.png'),
+
 ];
 
 List<CosmeticItem> cosmeticsFor(CosmeticCategory cat, String targetId) =>

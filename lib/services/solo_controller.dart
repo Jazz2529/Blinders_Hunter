@@ -213,7 +213,12 @@ class AiBrain {
       case 'd4_all':               return true; // touche tout le monde, toujours pertinent
       case 'aoe_zone6':            return othersAlive;
       case 'd6_global_attack':     return othersAlive;
-      case 'd4_bonus_attack':      return othersAlive;
+      case 'd4_bonus_attack':
+        // Vlad : portée limitée aux zones ADJACENTES — un adversaire vivant
+        // quelque part sur le plateau ne suffit pas, il faut qu'il soit à
+        // portée, sinon le bot gâcherait sa capacité pour rien.
+        return all.any((p) => p.alive && p.uid != bot.uid &&
+            kAdjacences[bot.zoneIndex].contains(p.zoneIndex));
       case 'damage2_then_heal3':   return othersAlive;
       case 'd6_lifesteal':         return othersAlive;
       case 'damage3_give_dague':   return othersAlive;
@@ -655,6 +660,12 @@ class SoloController extends ChangeNotifier {
         final candidates = state!.players.where((x) =>
           x.uid != bot.uid && x.alive && x.revealed && x.character != null &&
           !GameEngine.uncopyableAbilities.contains(x.character!.abilityEffect)).toList();
+        if (candidates.isNotEmpty) target = candidates[_rng.nextInt(candidates.length)];
+      } else if (bot.character!.abilityEffect == 'd4_bonus_attack') {
+        // Vlad (bot) : portée limitée aux zones ADJACENTES.
+        final adjZones = kAdjacences[bot.zoneIndex];
+        final candidates = state!.players.where((x) =>
+          x.uid != bot.uid && x.alive && adjZones.contains(x.zoneIndex)).toList();
         if (candidates.isNotEmpty) target = candidates[_rng.nextInt(candidates.length)];
       } else if (needsTarget) {
         target = _ai.bestTarget(bot, state!.players, difficulty, context: bot.character!.abilityEffect);
@@ -2815,7 +2826,7 @@ class SoloController extends ChangeNotifier {
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors',
     'lock_ability_while_alive','steal_max_hp','luc_ignite','baptiste_revive','maxence_drunk',
-    'store_damage_nils',
+    'store_damage_nils','d4_bonus_attack',
   ].contains(eff);
 
   // Liste synchronisée avec le switch needsTarget de resolveCard() —

@@ -11,6 +11,8 @@ import 'screens/multi_screens.dart';
 import 'screens/solo_screen.dart';
 import 'models/models.dart';
 import 'widgets/theme.dart';
+import 'widgets/token_widget.dart';
+import 'data/characters_data.dart';
 
 /// Autorise le glisser-défiler avec la souris (et le trackpad/stylet) en plus
 /// du tactile. Sans ça, sur PC, les listes horizontales (jetons, résolutions
@@ -197,69 +199,239 @@ class _GameOverScreen extends StatefulWidget {
   @override State<_GameOverScreen> createState() => _GameOverScreenState();
 }
 
-class _GameOverScreenState extends State<_GameOverScreen> {
+class _GameOverScreenState extends State<_GameOverScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _bgAc;
+  late AnimationController _contentAc;
+
   @override
   void initState() {
     super.initState();
-    // Couper la musique de partie et jouer le son de victoire/défaite —
-    // sans ça la musique de jeu continuait de tourner indéfiniment sur
-    // l'écran de fin de partie en multijoueur.
     final result = widget.gp.gameResult!;
     final winnerIds = List<String>.from(result['winnerIds'] as List? ?? []);
     final iWon = winnerIds.contains(widget.gp.myUid);
     if (iWon) audio.playWin(); else audio.playLose();
     audio.fadeOutMusic();
+
+    // Enregistrer la partie dans l'historique local (déjà fait ailleurs
+    // via _recordMultiResult, cette partie ne fait que gérer l'animation).
+    _bgAc = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _contentAc = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _bgAc.forward().then((_) => _contentAc.forward());
   }
+
+  @override void dispose() { _bgAc.dispose(); _contentAc.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
     final gp = widget.gp;
     final result = gp.gameResult!;
     final winnerIds = List<String>.from(result['winnerIds'] as List? ?? []);
-    final winners = gp.players.values.where((p) => winnerIds.contains(p.uid)).toList();
-    final iWon = winnerIds.contains(gp.myUid);
+    final allPlayers = gp.players.values.toList();
+    final winners = allPlayers.where((p) => winnerIds.contains(p.uid)).toList();
+    final losers = allPlayers.where((p) => !winnerIds.contains(p.uid)).toList();
+
+    String winFaction = '';
+    if (winners.isNotEmpty) {
+      winFaction = winners.first.character?.faction.name ?? '';
+    }
+    final fc = factionColor(winFaction.isEmpty ? 'hunter' : winFaction);
+    final fbg = factionBg(winFaction.isEmpty ? 'hunter' : winFaction);
+
+    final factionLabel = switch (winFaction) {
+      'hunter'  => 'LES HUNTERS',
+      'shadow'  => 'LES SHADOWS',
+      'neutral' => 'LES NEUTRES',
+      _         => 'LES JOUEURS',
+    };
+    final factionEmoji = switch (winFaction) {
+      'hunter' => '🔵', 'shadow' => '🔴', 'neutral' => '🟡', _ => '⚔️',
+    };
+
     return Scaffold(
-      backgroundColor: kBg0,
-      body: SafeArea(child: Center(child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text(iWon ? '🏆' : '💀', style: const TextStyle(fontSize: 72)),
-          const SizedBox(height: 12),
-          Text(iWon ? 'VICTOIRE !' : 'DÉFAITE',
-            style: cinzel(32, c: iWon ? kGold2 : kRed, fw: FontWeight.w900)),
-          const SizedBox(height: 8),
-          Text(result['reason'] as String? ?? '',
-            textAlign: TextAlign.center, style: body(15, c: kTextSub)),
-          const SizedBox(height: 24),
-          ...winners.map((w) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(w.token, style: const TextStyle(fontSize: 22)),
-              const SizedBox(width: 8),
-              Text(w.name, style: body(16, fw: FontWeight.w600)),
-            ]),
-          )),
-          const SizedBox(height: 32),
-          if (gp.myUid == gp.hostId) ...[
-            BHButton(label: '🔄 Rejouer avec les mêmes joueurs', gold: true,
-              onTap: () => gp.restartGame()),
-            const SizedBox(height: 8),
-          ] else
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text('L\'hôte peut relancer une partie avec les mêmes joueurs.',
-                style: body(11, c: kTextDim), textAlign: TextAlign.center),
+      backgroundColor: Colors.black,
+      body: FadeTransition(
+        opacity: CurvedAnimation(parent: _bgAc, curve: Curves.easeIn),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.topCenter, radius: 1.5,
+              colors: [fc.withValues(alpha: 0.25), Colors.black],
             ),
-          BHButton(label: '↺ Menu principal',
-            onTap: () async {
-              await gp.leaveRoomAndReset();
-              if (context.mounted) {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
-              }
-            }),
-        ]),
-      ))),
+          ),
+          child: SafeArea(
+            child: FadeTransition(
+              opacity: CurvedAnimation(parent: _contentAc, curve: Curves.easeIn),
+              child: LayoutBuilder(builder: (bctx, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: IntrinsicHeight(
+                      child: Column(children: [
+                        const SizedBox(height: 24),
+
+                // ── Titre victoire ───────────────────────────────
+                Column(children: [
+                  Text(factionEmoji, style: const TextStyle(fontSize: 64)),
+                  const SizedBox(height: 8),
+                  Text(factionLabel, style: cinzel(32, c: fc, fw: FontWeight.w900).copyWith(
+                    shadows: [Shadow(color: fc.withValues(alpha: 0.8), blurRadius: 24)])),
+                  const SizedBox(height: 4),
+                  Text('ONT GAGNÉ !', style: cinzel(22, c: kGold2, fw: FontWeight.w700, ls: 4)),
+                  const SizedBox(height: 8),
+                  Text(result['reason'] as String? ?? '', style: body(13, c: kTextSub),
+                    textAlign: TextAlign.center,
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                ]),
+
+                const SizedBox(height: 24),
+
+                // ── Cartes des gagnants (centrées) ─────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 10, runSpacing: 10,
+                    children: winners.map((w) {
+                      final c2 = w.character;
+                      final imgPath = c2 != null ? effectiveCharacterImagePath(c2.id) : null;
+                      final wFc = factionColor(c2?.faction.name ?? '');
+                      final isDead = !w.alive;
+                      return Container(
+                        width: 120,
+                        decoration: BoxDecoration(
+                          color: kBg2,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: isDead ? kTextDim : wFc, width: 2.5),
+                          boxShadow: isDead ? null
+                            : [BoxShadow(color: wFc.withValues(alpha: 0.4), blurRadius: 10)],
+                        ),
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                            child: SizedBox(
+                              height: 130, width: double.infinity,
+                              child: Stack(fit: StackFit.expand, children: [
+                                ColorFiltered(
+                                  colorFilter: isDead
+                                    ? const ColorFilter.matrix(<double>[
+                                        0.2126, 0.7152, 0.0722, 0, 0,
+                                        0.2126, 0.7152, 0.0722, 0, 0,
+                                        0.2126, 0.7152, 0.0722, 0, 0,
+                                        0, 0, 0, 1, 0,
+                                      ])
+                                    : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+                                  child: imgPath != null
+                                    ? Image.asset(imgPath, fit: BoxFit.cover,
+                                        cacheHeight: 520,
+                                        errorBuilder: (_, __, ___) => Container(color: fbg,
+                                          child: Center(child: Text(c2?.icon ?? '?',
+                                            style: const TextStyle(fontSize: 40)))))
+                                    : Container(color: fbg, child: Center(
+                                        child: Text(c2?.icon ?? '?', style: const TextStyle(fontSize: 40)))),
+                                ),
+                                if (isDead) ...[
+                                  Container(color: Colors.black.withValues(alpha: 0.45)),
+                                  const Center(child: Text('🪦', style: TextStyle(fontSize: 36))),
+                                ],
+                              ]),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(7),
+                            child: Column(children: [
+                              Text(c2?.name ?? w.name,
+                                style: cinzel(11, c: isDead ? kTextDim : wFc, fw: FontWeight.w700),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis),
+                              const SizedBox(height: 3),
+                              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                TokenWidget(tokenId: w.token, size: 16),
+                                const SizedBox(width: 4),
+                                Flexible(child: Text(w.name,
+                                  style: body(9, c: kTextSub),
+                                  overflow: TextOverflow.ellipsis)),
+                              ]),
+                            ]),
+                          ),
+                        ]),
+                      );
+                    }).toList(),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // ── Perdants ─────────────────────────────────────
+                if (losers.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(children: [
+                      Text('ÉLIMINÉS', style: cinzel(10, c: kTextDim, ls: 3)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8, runSpacing: 6, alignment: WrapAlignment.center,
+                        children: losers.map((p) => Row(mainAxisSize: MainAxisSize.min, children: [
+                          TokenWidget(tokenId: p.token, size: 22, isDead: true),
+                          const SizedBox(width: 4),
+                          Text(p.name, style: body(11, c: kTextDim)),
+                        ])).toList(),
+                      ),
+                    ]),
+                  ),
+
+                const SizedBox(height: 24),
+
+                // ── Boutons ───────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  child: Column(children: [
+                    if (gp.myUid == gp.hostId) ...[
+                      GestureDetector(
+                        onTap: () => gp.restartGame(),
+                        child: Container(
+                          width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: fc.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: fc, width: 2)),
+                          child: Text('↺ Rejouer avec les mêmes joueurs', textAlign: TextAlign.center,
+                            style: cinzel(16, c: fc, fw: FontWeight.w700))),
+                      ),
+                      const SizedBox(height: 8),
+                    ] else
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text('L\'hôte peut relancer une partie avec les mêmes joueurs.',
+                          style: body(11, c: kTextDim), textAlign: TextAlign.center),
+                      ),
+                    GestureDetector(
+                      onTap: () async {
+                        await gp.leaveRoomAndReset();
+                        if (context.mounted) {
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(builder: (_) => const HomeScreen()), (_) => false);
+                        }
+                      },
+                      child: Container(
+                        width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: kBord2)),
+                        child: Text('🏠 Menu principal', textAlign: TextAlign.center,
+                          style: cinzel(14, c: kTextSub))),
+                    ),
+                  ]),
+                ),
+                      ]),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
