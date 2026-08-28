@@ -3441,6 +3441,11 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
               Padding(padding: const EdgeInsets.all(20),
                 child: Text('Aucun Hunter disponible à copier cette partie.',
                   style: body(12, c: kTextDim), textAlign: TextAlign.center)),
+            // Sécurité supplémentaire : ce Dialog a une hauteur FIXE
+            // (maxHeight: 480) sans défilement — si le contenu dépasse
+            // malgré la limite de lignes ci-dessus, il peut au moins
+            // défiler plutôt que déborder.
+            Flexible(child: SingleChildScrollView(child: Column(children: [
             ...offered.map((c) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: GestureDetector(
@@ -3459,12 +3464,17 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                     const SizedBox(width: 10),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(c.name, style: cinzel(13, c: kGold2, fw: FontWeight.w700)),
-                      Text(c.ability, style: body(11, c: kTextSub)),
+                      // IMPORTANT : certaines capacités ont une description
+                      // longue — sans limite, ça pouvait faire déborder ce
+                      // Dialog à hauteur FIXE (480px max, sans défilement).
+                      Text(c.ability, style: body(11, c: kTextSub),
+                        maxLines: 3, overflow: TextOverflow.ellipsis),
                     ])),
                   ]),
                 ),
               ),
             )),
+            ]))),
           ]),
         ),
       ),

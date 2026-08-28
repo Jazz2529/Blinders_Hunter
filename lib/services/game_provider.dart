@@ -1338,6 +1338,7 @@ class GameProvider extends ChangeNotifier {
     final me = all.firstWhere((p) => p.uid == myUid);
     me.abilityUsed = true;
     await _fb.updatePlayer(roomId!, me);
+    players = Map<String, Player>.from(players)..[me.uid] = me;
     await _fb.addLog(roomId!, '⏱ ${me.name} utilise son pouvoir — meilleur lancer choisi !');
   }
 
@@ -1446,6 +1447,7 @@ class GameProvider extends ChangeNotifier {
       // Sauvegarder l'état du joueur (abilityUsed) séparément
       final p = all.firstWhere((pp) => pp.uid == myUid);
       await _fb.updatePlayer(roomId!, p);
+      players = Map<String, Player>.from(players)..[p.uid] = p;
       return;
     }
     if (log == 'swap_zones') {
@@ -1850,8 +1852,12 @@ class GameProvider extends ChangeNotifier {
       log = res['log'] as String;
       if (res['scottCountered'] == true) {
         scottCountered = true;
-        counterDice = {'d4': res['counterD4'] as int, 'd6': res['counterD6'] as int,
-          'dmg': res['counterDmg'] as int};
+        // Cast défensif : évite un crash (écran rouge) si jamais l'un de
+        // ces champs venait à manquer pour une raison imprévue (Tommy
+        // ayant copié le pouvoir de Scott, contre-attaque en chaîne, etc.).
+        counterDice = {'d4': (res['counterD4'] as int?) ?? 0,
+          'd6': (res['counterD6'] as int?) ?? 0,
+          'dmg': (res['counterDmg'] as int?) ?? 0};
       }
     }
     // Gège le Fantôme : variante Bazooka (AoE, un seul jet) si l'attaquant a
@@ -1986,6 +1992,7 @@ class GameProvider extends ChangeNotifier {
     // auparavant.
     p.attackedLastOwnTurn = gameState?.hasAttacked ?? false;
     await _fb.updatePlayer(roomId!, p);
+    players = Map<String, Player>.from(players)..[p.uid] = p;
     await _fb.addLog(roomId!, '⏩ ${p.name} termine son tour');
     // Effacer fifiGoldenTurn
     if (gameState?.fifiGoldenTurn == true) {
@@ -2036,11 +2043,24 @@ class GameProvider extends ChangeNotifier {
   Future<void> _commitPlayer(Player p, String log) async {
     await _fb.updatePlayer(roomId!, p);
     await _fb.addLog(roomId!, log);
+    // IMPORTANT : met aussi à jour le cache LOCAL immédiatement — sans ça,
+    // un tour de bot qui enchaîne plusieurs actions (déplacement, pioche,
+    // capacité, attaque...) et qui relit l'état à chaque étape repartait
+    // systématiquement d'un instantané PÉRIMÉ (le sondage réseau, toutes
+    // les ~900ms, n'ayant pas encore rattrapé l'écriture précédente) — la
+    // dernière écriture écrasait alors purement et simplement ce qui
+    // venait d'être fait juste avant (par exemple, un équipement pioché
+    // disparaissait sans raison apparente).
+    players = Map<String, Player>.from(players)..[p.uid] = p;
+    notifyListeners();
   }
 
   Future<void> _commitAll(List<Player> all, String log) async {
     await _fb.updatePlayers(roomId!, all);
     await _fb.addLog(roomId!, log);
+    // Même correctif que _commitPlayer ci-dessus, pour la même raison.
+    players = { for (final p in all) p.uid: p };
+    notifyListeners();
   }
 
   Future<bool> _checkWin(List<Player> all, {String? justDiedId,
@@ -2055,6 +2075,7 @@ class GameProvider extends ChangeNotifier {
         // Commit les changements (soins killer + Jeanne)
         await _fb.updatePlayers(roomId!, all);
         await _fb.addLog(roomId!, log);
+        players = { for (final p in all) p.uid: p };
         // Bannière plein écran — bien visible, pas juste une ligne de journal
         final killerP = all.where((p) => p.uid == killerUid).firstOrNull;
         final deadP = all.where((p) => p.uid == justDiedId).firstOrNull;

@@ -2972,7 +2972,11 @@ class _MultiHaileyChoiceWidget extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(c.name, style: cinzel(13, c: kGold2, fw: FontWeight.w700)),
-                  Text(c.ability, style: body(11, c: kTextSub)),
+                  // IMPORTANT : certaines capacités ont une description
+                  // longue — sans limite, ça pouvait faire déborder ce
+                  // conteneur (overflow) selon le Hunter proposé.
+                  Text(c.ability, style: body(11, c: kTextSub),
+                    maxLines: 3, overflow: TextOverflow.ellipsis),
                 ])),
               ]),
             ),
