@@ -2116,6 +2116,15 @@ class _HpLeaderboard extends StatelessWidget {
     final displayChar = (!isMe && p.alive && p.disguiseCharIdOverride != null)
         ? kAllCharacters.where((ch) => ch.id == p.disguiseCharIdOverride).firstOrNull ?? c
         : c;
+    // Maxence : ivresse — si LE JOUEUR HUMAIN (qui regarde cet écran) est
+    // ivre, la carte affichée pour un AUTRE joueur est celle "hallucinée"
+    // (fausse identité), qui prend le pas sur tout le reste (révélation,
+    // déguisement de Jason, etc.) — impossible de savoir qui est qui tant
+    // que l'effet dure.
+    final humanViewer = ctrl.state?.players.where((pp) => !pp.isBot).firstOrNull;
+    final drunkVision = DrunkVision.forViewer(humanViewer);
+    final drunkChar = (!isMe && drunkVision != null) ? drunkVision.cardFor(p.uid) : null;
+    final effectiveChar = drunkChar ?? displayChar;
     final isNils = (p.copiedEffect ?? c?.abilityEffect) == 'store_damage_nils';
     // Vision Suprême : connaissance privée permanente — le joueur qui a
     // découvert secrètement cette identité peut la reconsulter à tout
@@ -2126,16 +2135,17 @@ class _HpLeaderboard extends StatelessWidget {
     // jeton — même s'il n'avait jamais été révélé de son vivant (convention
     // "les cartes se retournent à la mort", comme sur un vrai plateau).
     // Pour SOI-MÊME : toujours la vraie carte, peu importe la révélation.
-    if ((isMe || p.revealed || !p.alive || knowsPrivately) && displayChar != null) {
-      final maximeTarget = (isMe && displayChar.id == 'maxime' && p.maximeFirstAttackerUid != null)
+    if ((isMe || p.revealed || !p.alive || knowsPrivately || drunkChar != null) && effectiveChar != null) {
+      final maximeTarget = (isMe && effectiveChar.id == 'maxime' && p.maximeFirstAttackerUid != null)
           ? ctrl.state?.players.where((pp) => pp.uid == p.maximeFirstAttackerUid).firstOrNull
           : null;
-      showFullCardDialog(ctx, displayChar, hpOverride: displayChar.hp + p.maxHpModifier,
-        oscarXpOverride: displayChar.id == 'oscar' ? p.oscarXp : null,
-        maximeTargetName: (isMe && displayChar.id == 'maxime')
+      showFullCardDialog(ctx, effectiveChar, hpOverride: effectiveChar.hp + p.maxHpModifier,
+        oscarXpOverride: drunkChar == null && effectiveChar.id == 'oscar' ? p.oscarXp : null,
+        maximeTargetName: (isMe && effectiveChar.id == 'maxime')
           ? (maximeTarget?.name ?? 'Personne pour le moment') : null,
-        megFormOverride: displayChar.abilityEffect == 'meg_shapeshift' ? p.megForm : null).then((_) {
-        if ((p.equipment.isNotEmpty || isNils) && ctx.mounted) _showEquipmentForSolo(ctx, p);
+        megFormOverride: drunkChar == null && effectiveChar.abilityEffect == 'meg_shapeshift' ? p.megForm : null,
+        mathieuAttackCount: drunkChar == null && (p.copiedEffect ?? effectiveChar.abilityEffect) == 'third_attack_bonus' ? p.attackCount : null).then((_) {
+        if (drunkChar == null && (p.equipment.isNotEmpty || isNils) && ctx.mounted) _showEquipmentForSolo(ctx, p);
       });
     } else {
       // Pas révélé (et encore en vie) : carte "mystère" (silhouette +
@@ -2238,13 +2248,19 @@ class _MiniBoard extends StatelessWidget {
     final s = ctrl.state!;
     final human = s.players.firstWhere((p) => !p.isBot, orElse: () => s.current);
     final humanZone = human.zoneIndex;
+    // Maxence : si le joueur humain est ivre, le plateau lui-même doit
+    // aussi montrer des jetons et des camps brouillés — pas seulement la
+    // barre de blessures (PlayerStatusCard), qui était le seul endroit
+    // couvert jusqu'ici.
+    final drunkVision = DrunkVision.forViewer(human);
 
     final playerData = s.players.where((p) => p.alive).map((p) => {
       'zoneIndex': p.zoneIndex,
-      'tokenId': p.token,
+      'tokenId': drunkVision?.tokenFor(p.uid) ?? p.token,
       'alive': p.alive,
-      'revealed': p.revealed,
-      'faction': p.disguiseFactionOverride ?? p.character?.faction.name ?? '',
+      'revealed': drunkVision != null ? true : p.revealed,
+      'faction': drunkVision?.cardFor(p.uid).faction.name ??
+          (p.disguiseFactionOverride ?? p.character?.faction.name ?? ''),
     }).toList();
 
     return Container(

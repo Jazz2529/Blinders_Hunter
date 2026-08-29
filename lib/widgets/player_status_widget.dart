@@ -138,7 +138,10 @@ class _PlayerStatusCardState extends State<PlayerStatusCard>
           const SizedBox(height: 2),
           SizedBox(
             width: 58,
-            child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+            // Maxence : ivresse — le pseudo réel est aussi caché, remplacé
+            // par le nom du personnage "halluciné" (cohérent avec le
+            // camp/l'anneau déjà brouillés juste au-dessus).
+            child: Text(drunkCard?.name ?? p.name, maxLines: 1, overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 10, fontFamily: 'Cinzel',
                 fontWeight: isMe ? FontWeight.w900 : FontWeight.w600,
@@ -169,17 +172,10 @@ class _PlayerStatusCardState extends State<PlayerStatusCard>
               // info publique visible de tous comme le feu de Luc.
               if (p.alive && p.shield)
                 const Text('🛡️', style: TextStyle(fontSize: 10)),
-              // Mathieu : compteur d'attaques (3 = bonus +2 dégâts permanent
-              // actif) — visible de tous UNE FOIS RÉVÉLÉ seulement, sinon
-              // ça révélerait indirectement son identité.
-              if (p.alive && p.revealed && (p.copiedEffect ?? p.character?.abilityEffect) == 'third_attack_bonus')
-                Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (i) => Padding(
-                  padding: const EdgeInsets.only(left: 1),
-                  child: Icon(
-                    p.attackCount > i ? Icons.circle : Icons.circle_outlined,
-                    size: 7,
-                    color: p.attackCount >= 3 ? kGold : kTextSub),
-                ))),
+              // Mathieu : compteur d'attaques affiché désormais sur SA
+              // carte personnage (tap pour l'ouvrir) plutôt qu'ici — les 3
+              // ronds provoquaient un débordement dès qu'il avait aussi de
+              // l'équipement à afficher sur cette barre compacte.
               // Victor : cœur affiché UNIQUEMENT si CE joueur est charmé à
               // 100% ET que la personne qui regarde l'écran est Victor lui-même
               // — cette info reste strictement privée pour tous les autres.

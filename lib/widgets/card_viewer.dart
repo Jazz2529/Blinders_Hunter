@@ -11,7 +11,7 @@ import 'shine_effect.dart';
 /// panneau d'infos : nom, faction, PV, capacité et condition de victoire.
 /// Sur écran étroit (téléphone), l'illustration passe au-dessus du texte.
 /// Tap n'importe où pour fermer.
-Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride, int? oscarXpOverride, String? maximeTargetName, String? megFormOverride}) {
+Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride, int? oscarXpOverride, String? maximeTargetName, String? megFormOverride, int? mathieuAttackCount}) {
   return showDialog(
     context: ctx,
     barrierColor: Colors.black.withValues(alpha: 0.88),
@@ -23,8 +23,8 @@ Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverr
         behavior: HitTestBehavior.opaque,
         child: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride)
-                   : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride),
+            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount)
+                   : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount),
             const SizedBox(height: 12),
             Text('Touche l\'écran pour fermer', style: body(12, c: kTextDim)),
           ]),
@@ -212,7 +212,8 @@ class _WideLayout extends StatelessWidget {
   final int? oscarXpOverride;
   final String? maximeTargetName;
   final String? megFormOverride;
-  const _WideLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride});
+  final int? mathieuAttackCount;
+  const _WideLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount});
 
   @override
   Widget build(BuildContext ctx) {
@@ -231,7 +232,7 @@ class _WideLayout extends StatelessWidget {
       SizedBox(width: 320,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: imgH),
-          child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride),
+          child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount),
         )),
     ]);
   }
@@ -245,7 +246,8 @@ class _NarrowLayout extends StatelessWidget {
   final int? oscarXpOverride;
   final String? maximeTargetName;
   final String? megFormOverride;
-  const _NarrowLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride});
+  final int? mathieuAttackCount;
+  const _NarrowLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount});
 
   @override
   Widget build(BuildContext ctx) {
@@ -262,7 +264,7 @@ class _NarrowLayout extends StatelessWidget {
       child: Column(children: [
         _CardImage(c: c, w: imgW, h: imgH),
         const SizedBox(height: 12),
-        Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride)),
+        Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount)),
       ]),
     );
   }
@@ -292,15 +294,15 @@ class _CardImage extends StatelessWidget {
         child: ShineOverlay(
           tier: tier,
           child: imgPath != null
-              ? Image.asset(imgPath, fit: BoxFit.contain,
+              ? SmoothAssetImage(imgPath, fit: BoxFit.contain,
                   // Limite la résolution de décodage à ~2x la taille affichée
                   // — sans ça, une image source haute résolution peut faire
                   // échouer le chargement sur un appareil à RAM limitée.
                   cacheWidth: (w * 2).round(),
                   cacheHeight: (h * 2).round(),
-                  errorBuilder: (_, __, ___) => Container(color: fbg,
-                      child: Center(child: Text(c.icon,
-                          style: const TextStyle(fontSize: 84)))))
+                  placeholderColor: fbg,
+                  placeholderIcon: c.icon,
+                  width: w, height: h)
               : Container(color: fbg,
                   child: Center(child: Text(c.icon,
                       style: const TextStyle(fontSize: 84)))),
@@ -318,7 +320,8 @@ class _InfoPanel extends StatelessWidget {
   final int? oscarXpOverride;
   final String? maximeTargetName;
   final String? megFormOverride;
-  const _InfoPanel({required this.c, required this.fc, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride});
+  final int? mathieuAttackCount;
+  const _InfoPanel({required this.c, required this.fc, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount});
 
   @override
   Widget build(BuildContext ctx) {
@@ -367,6 +370,29 @@ class _InfoPanel extends StatelessWidget {
                     border: Border.all(color: kGold, width: 1.5)),
                   child: Text('🧪 $oscarXpOverride / 13 XP',
                     style: cinzel(14, c: kGold2, fw: FontWeight.w900)),
+                )),
+              ],
+              // Mathieu : compteur d'attaques (3 = bonus +2 dégâts permanent
+              // actif) — déplacé ici (sur la carte) plutôt que sur la barre
+              // de joueurs, où les 3 ronds provoquaient un débordement dès
+              // qu'il avait aussi de l'équipement à afficher.
+              if (mathieuAttackCount != null) ...[
+                const SizedBox(height: 8),
+                Center(child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: kGold.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: kGold, width: 1.5)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('⚔️ ', style: cinzel(13, c: kGold2)),
+                    ...List.generate(3, (i) => Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Icon(
+                        mathieuAttackCount! > i ? Icons.circle : Icons.circle_outlined,
+                        size: 14,
+                        color: mathieuAttackCount! >= 3 ? kGold : kTextSub),
+                    )),
+                  ]),
                 )),
               ],
               // Maxime : rappelle qui est le premier joueur à l'avoir blessé

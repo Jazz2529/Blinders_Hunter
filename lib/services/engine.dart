@@ -172,7 +172,7 @@ class GameEngine with AbilityEngine {
     if (effectiveAbility(attacker) != 'victor_charm') return;
     if (!attacker.revealed) return;
     final curTarget = attacker.charmLevels[target.uid] ?? 0;
-    attacker.charmLevels[target.uid] = (curTarget + 20).clamp(0, 100).toInt();
+    attacker.charmLevels[target.uid] = (curTarget + 30).clamp(0, 100).toInt();
     if (all == null) return;
     for (final other in all) {
       if (other.uid == attacker.uid || !other.alive) continue;
@@ -1024,6 +1024,14 @@ class GameEngine with AbilityEngine {
     if (attacker.lanceLonginus && dmg > 0 &&
         attacker.character?.faction == Faction.hunter && attacker.revealed) dmg += 2;
     if (dmg > 0) dmg += attacker.equipment.where((e) => e.effect == 'dague_voleur').length;
+    // Épée du Ninja : +2 dégâts — désormais ajoutée EN AMONT (comme les
+    // autres bonus ci-dessus), avant même le stockage éventuel de Nils.
+    // Avant, ce bonus était appliqué APRÈS coup via un second appel à
+    // applyDamage() — un chemin que Nils (qui intercepte et stocke AVANT
+    // ce point) ne pouvait jamais atteindre, perdant donc ce bonus s'il
+    // portait cette épée. Alignée sur resolveAttack (multijoueur), qui ne
+    // souffrait pas de ce problème.
+    if (attacker.epeeNinja && dmg > 0) dmg += 2;
     // NOTE : la réduction de la Sainte Tunique se fait déjà correctement
     // DANS applyDamage(), en vérifiant le porteur qui SUBIT les dégâts (la
     // cible), pas l'attaquant — une ligne ici vérifiait à tort la Tunique de
@@ -1134,14 +1142,11 @@ class GameEngine with AbilityEngine {
 
     final actual = applyDamage(target, dmg);
     if (!target.alive) target.killedByUid = attacker.uid;
-    if (actual > 0 && attacker.epeeNinja) {
-      applyDamage(target, 2);
-      if (!target.alive) target.killedByUid = attacker.uid;
-    }
-    // Oscar : cumule 1 XP par blessure infligée en attaque (toute source
-    // confondue — dégâts de base et bonus type Épée Ninja).
+    // Oscar : cumule 1 XP par blessure infligée en attaque — le bonus de
+    // l'Épée du Ninja est désormais déjà inclus dans `actual` (voir plus
+    // haut), plus besoin de l'ajouter une seconde fois séparément.
     if (effectiveAbility(attacker) == 'oscar_xp_spend' && attacker.revealed && actual > 0) {
-      attacker.oscarXp += actual + (attacker.epeeNinja ? 2 : 0);
+      attacker.oscarXp += actual;
     }
     // Victor : charme la cible et tous les joueurs présents sur sa zone —
     // se déclenche à chaque attaque, quel que soit le résultat des dégâts.

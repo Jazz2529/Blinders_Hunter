@@ -197,7 +197,7 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'third_attack_bonus', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
-  CharacterCard(id:'maxence', name:'Maxence', faction:Faction.shadow, hp:12, icon:'🩸',
+  CharacterCard(id:'maxence', name:'Maxence', faction:Faction.shadow, hp:13, icon:'🩸',
     ability:'Unique: choisissez un joueur et rendez-le ivre pendant 2 tours — sur son écran, tous les jetons changent aléatoirement d\'apparence, les camps et cartes personnages affichés sont aléatoires, et les blessures de tous les joueurs sont masquées.',
     abilityEffect:'maxence_drunk', abilityRepeatable:false,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
@@ -312,7 +312,7 @@ const List<CharacterCard> kAllCharacters = [
     winEffect:'three_same_color_equip'),
 
   CharacterCard(id:'victor', name:'Victor', faction:Faction.neutral, hp:13, icon:'💘',
-    ability:'Passif révélé: une fois révélé, chaque attaque augmente de 20% la barre de charme du joueur attaqué, et de 10% celle de tous les joueurs sur votre zone. À 100%, un joueur ne peut plus vous attaquer. Vous seul voyez ces barres.',
+    ability:'Passif révélé: une fois révélé, chaque attaque augmente de 30% la barre de charme du joueur attaqué, et de 10% celle de tous les joueurs sur votre zone. À 100%, un joueur ne peut plus vous attaquer. Vous seul voyez ces barres.',
     abilityEffect:'victor_charm', abilityRepeatable:true,
     winCondition:'Avoir charmé 2 joueurs à 100%', winEffect:'victor_charm2'),  
 

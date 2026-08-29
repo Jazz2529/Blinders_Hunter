@@ -613,10 +613,9 @@ class _GameScreenState extends State<GameScreen> {
             label: lastLabel ?? '🎲',
             timestamp: gs?.lastDiceTimestamp ?? 0,
           ),
-        // Carte piochée par un bot — visible de tous, indépendamment de la
-        // phase de jeu (voir _LastCardBanner : même principe que les dés).
-        if (lastCard != null && cardAge < 4000)
-          _LastCardBanner(card: lastCard, timestamp: cardTs),
+        // Carte piochée par un bot : affichée dans le panneau d'action/
+        // attente (voir _WaitPanel), au MÊME EMPLACEMENT qu'en solo — plus
+        // ici en bannière flottante, un endroit différent du solo.
         if (overlay == 'oceane_notes')        OceaneNotesOverlay(onDone: clearOverlay),
         if (overlay == 'raph_petals')         RaphPetalsOverlay(onDone: clearOverlay),
         if (overlay == 'monkey_demon_eyes')   MonkeyDemonEyesOverlay(onDone: clearOverlay),
@@ -978,11 +977,16 @@ Future<void> showMultiPlayerCard(BuildContext ctx, Player p, GameProvider gp) as
   // découvert secrètement cette identité peut la reconsulter à tout
   // moment ensuite, comme s'il était révélé, mais seulement pour lui.
   final knowsPrivately = gp.myUid != null && p.privatelyKnownBy.contains(gp.myUid);
+  // Maxence : ivresse — si LE JOUEUR QUI REGARDE (gp.me) est ivre, la
+  // carte affichée pour un AUTRE joueur est celle "hallucinée", qui prend
+  // le pas sur tout le reste (révélation, mystère, déguisement de Jason).
+  final drunkVision = DrunkVision.forViewer(gp.me);
+  final drunkChar = (!isMe && drunkVision != null) ? drunkVision.cardFor(p.uid) : null;
   // Un joueur MORT révèle toujours son vrai rôle en cliquant sur son
   // jeton — même s'il n'avait jamais été révélé de son vivant. Pour
   // SOI-MÊME : toujours la vraie carte, peu importe la révélation —
   // sinon on voyait une fiche "mystère" en cliquant sur son propre jeton.
-  if ((!isMe && !p.revealed && p.alive && !knowsPrivately) || c == null) {
+  if (drunkChar == null && ((!isMe && !p.revealed && p.alive && !knowsPrivately) || c == null)) {
     await showMysteryCardDialog(ctx, p);
   } else {
     // Jason (Caméléon) : afficher la carte du personnage IMITÉ tant qu'il
@@ -994,18 +998,19 @@ Future<void> showMultiPlayerCard(BuildContext ctx, Player p, GameProvider gp) as
     final disguisedChar = disguisedCharId != null
         ? kAllCharacters.where((ch) => ch.id == disguisedCharId).firstOrNull
         : null;
-    final shown = (hasDisguise && disguisedChar != null) ? disguisedChar : c;
+    final shown = drunkChar ?? ((hasDisguise && disguisedChar != null) ? disguisedChar : c!);
     final maximeTarget = (isMe && shown.id == 'maxime' && p.maximeFirstAttackerUid != null)
         ? gp.players[p.maximeFirstAttackerUid]
         : null;
     await showFullCardDialog(ctx, shown, hpOverride: shown.hp + p.maxHpModifier,
-      oscarXpOverride: shown.id == 'oscar' ? p.oscarXp : null,
+      oscarXpOverride: drunkChar == null && shown.id == 'oscar' ? p.oscarXp : null,
       maximeTargetName: (isMe && shown.id == 'maxime')
         ? (maximeTarget?.name ?? 'Personne pour le moment') : null,
-      megFormOverride: shown.abilityEffect == 'meg_shapeshift' ? p.megForm : null);
+      megFormOverride: drunkChar == null && shown.abilityEffect == 'meg_shapeshift' ? p.megForm : null,
+      mathieuAttackCount: drunkChar == null && (p.copiedEffect ?? shown.abilityEffect) == 'third_attack_bonus' ? p.attackCount : null);
   }
   final isNils = (p.copiedEffect ?? p.character?.abilityEffect) == 'store_damage_nils';
-  if ((p.equipment.isNotEmpty || isNils) && ctx.mounted) {
+  if (drunkChar == null && (p.equipment.isNotEmpty || isNils) && ctx.mounted) {
     _showEquipmentFor(ctx, p);
   }
 }
@@ -1065,6 +1070,18 @@ class _WaitPanel extends StatelessWidget {
       extraContent = Text(
         'Il doit choisir entre donner un équipement ou subir 1 blessure',
         style: body(11, c: kTextSub), textAlign: TextAlign.center);
+    } else if (gs?.lastDrawnCardId != null &&
+        (DateTime.now().millisecondsSinceEpoch - (gs?.lastDrawnCardTimestamp ?? 0)) < 4000) {
+      // Carte piochée par un BOT : même emplacement que pour un joueur
+      // humain (voir le cas GamePhase.cardDrawn juste en dessous) — avant,
+      // ça s'affichait dans une bannière flottante en haut de l'écran, un
+      // endroit différent de celui du solo. Champ dédié (lastDrawnCardId),
+      // indépendant de la phase de jeu par sécurité (voir _LastCardBanner
+      // dans les overlays, retiré ci-dessous au profit de cet emplacement
+      // unique et cohérent).
+      final card = findCardById(gs!.lastDrawnCardId!);
+      statusText = '${mover?.name ?? "?"} pioche :';
+      extraContent = card != null ? _CardWidget(card: card) : null;
     } else if (gs?.phase == GamePhase.cardDrawn) {
       // Carte piochée : tout le monde voit la carte tirée (image + effet),
       // exactement comme en solo — SAUF Vision, qui reste secrète (seul
@@ -1405,7 +1422,8 @@ class _ActionPanelState extends State<_ActionPanel> {
                 showFullCardDialog(ctx, gp.me!.character!,
                   hpOverride: gp.me!.character!.hp + gp.me!.maxHpModifier,
                   oscarXpOverride: gp.me!.character!.id == 'oscar' ? gp.me!.oscarXp : null,
-                  megFormOverride: gp.me!.character!.abilityEffect == 'meg_shapeshift' ? gp.me!.megForm : null);
+                  megFormOverride: gp.me!.character!.abilityEffect == 'meg_shapeshift' ? gp.me!.megForm : null,
+                  mathieuAttackCount: (gp.me!.copiedEffect ?? gp.me!.character!.abilityEffect) == 'third_attack_bonus' ? gp.me!.attackCount : null);
               }
             })),
           if ((me?.copiedEffect ?? me?.character?.abilityEffect) == 'double_move_dice' && me?.revealed == true)
