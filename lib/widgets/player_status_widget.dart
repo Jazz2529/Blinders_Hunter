@@ -155,23 +155,32 @@ class _PlayerStatusCardState extends State<PlayerStatusCard>
               style: TextStyle(fontSize: 11, fontFamily: 'Cinzel',
                 fontWeight: FontWeight.w700, color: woundColor)),
           ),
-          Wrap(
-            alignment: WrapAlignment.center,
+          // IMPORTANT : Row (une seule ligne garantie) plutôt que Wrap —
+          // avec plusieurs badges actifs en même temps (feu + cadenas +
+          // bouclier + cœur), un Wrap pouvait retomber sur 2 lignes dans
+          // cette largeur étroite, ajoutant une hauteur imprévisible qui
+          // faisait déborder la carte (typiquement : joueur révélé + feu
+          // de Luc + équipement en même temps).
+          Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               // Luc : joueur en feu — visible de tous, aucune info cachée ici
               // contrairement au charme de Victor.
               if (p.alive && p.lucFireTurnsRemaining > 0)
-                Text('🔥 ${p.lucFireTurnsRemaining}',
-                  style: const TextStyle(fontSize: 8, fontFamily: 'Cinzel',
-                    fontWeight: FontWeight.w900, color: kRed)),
+                Padding(padding: const EdgeInsets.symmetric(horizontal: 1),
+                  child: Text('🔥${p.lucFireTurnsRemaining}',
+                    style: const TextStyle(fontSize: 8, fontFamily: 'Cinzel',
+                      fontWeight: FontWeight.w900, color: kRed))),
               // Inès : capacité verrouillée — info PUBLIQUE, visible de tous
               // tant que le verrou est actif (Inès en vie).
               if (p.alive && p.abilityLockedByUid != null)
-                const Text('🔒', style: TextStyle(fontSize: 10)),
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 1),
+                  child: Text('🔒', style: TextStyle(fontSize: 9))),
               // Louna : bouclier actif — insensible aux blessures ce tour,
               // info publique visible de tous comme le feu de Luc.
               if (p.alive && p.shield)
-                const Text('🛡️', style: TextStyle(fontSize: 10)),
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 1),
+                  child: Text('🛡️', style: TextStyle(fontSize: 9))),
               // Mathieu : compteur d'attaques affiché désormais sur SA
               // carte personnage (tap pour l'ouvrir) plutôt qu'ici — les 3
               // ronds provoquaient un débordement dès qu'il avait aussi de
@@ -179,8 +188,9 @@ class _PlayerStatusCardState extends State<PlayerStatusCard>
               // Victor : cœur affiché UNIQUEMENT si CE joueur est charmé à
               // 100% ET que la personne qui regarde l'écran est Victor lui-même
               // — cette info reste strictement privée pour tous les autres.
-              if (widget.victorCharmMaxed) const Text('💘',
-                style: TextStyle(fontSize: 10)),
+              if (widget.victorCharmMaxed)
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 1),
+                  child: Text('💘', style: TextStyle(fontSize: 9))),
             ],
           ),
           if (p.equipment.isNotEmpty)

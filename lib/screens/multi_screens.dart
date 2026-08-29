@@ -503,7 +503,7 @@ class _GameScreenState extends State<GameScreen> {
             });
             return Column(children: [
               SizedBox(
-                height: (screenH * 0.16).clamp(100.0, 130.0),
+                height: (screenH * 0.18).clamp(123.0, 153.0),
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -529,7 +529,7 @@ class _GameScreenState extends State<GameScreen> {
           // widget PlayerStatusCard (qui provoquait un débordement).
           return Column(children:[
           SizedBox(
-            height: (screenH * 0.17).clamp(95.0, 125.0),
+            height: (screenH * 0.19).clamp(118.0, 148.0),
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
