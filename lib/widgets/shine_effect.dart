@@ -1,18 +1,20 @@
 // lib/widgets/shine_effect.dart
 // Badge étoile en haut à droite des cartes personnage, selon le nombre de
 // victoires jouées avec ce personnage :
+//   1+ victoire    → étoile de bronze
 //   10+ victoires  → étoile argentée
-//   100+ victoires → étoile dorée
-//   500+ victoires → étoile arc-en-ciel
+//   50+ victoires  → étoile dorée
+//   100+ victoires → étoile arc-en-ciel
 
 import 'package:flutter/material.dart';
 
-enum ShineTier { none, silver, gold, rainbow }
+enum ShineTier { none, bronze, silver, gold, rainbow }
 
 ShineTier shineTierFor(int gamesPlayed) {
-  if (gamesPlayed >= 500) return ShineTier.rainbow;
-  if (gamesPlayed >= 100) return ShineTier.gold;
+  if (gamesPlayed >= 100) return ShineTier.rainbow;
+  if (gamesPlayed >= 50) return ShineTier.gold;
   if (gamesPlayed >= 10) return ShineTier.silver;
+  if (gamesPlayed >= 1) return ShineTier.bronze;
   return ShineTier.none;
 }
 
@@ -43,6 +45,7 @@ class _StarBadge extends StatelessWidget {
   final ShineTier tier;
   const _StarBadge({required this.tier});
 
+  static const _bronzeColors = [Color(0xFFCD8B5E), Color(0xFF8C5A32)];
   static const _silverColors = [Color(0xFFE8E8E8), Color(0xFFB0B0B0)];
   static const _goldColors = [Color(0xFFFFF3B0), Color(0xFFD4A017)];
   static const _rainbowColors = [
@@ -55,7 +58,8 @@ class _StarBadge extends StatelessWidget {
     final colors = switch (tier) {
       ShineTier.gold => _goldColors,
       ShineTier.rainbow => _rainbowColors,
-      _ => _silverColors,
+      ShineTier.silver => _silverColors,
+      _ => _bronzeColors,
     };
     return Container(
       padding: const EdgeInsets.all(4),

@@ -1884,7 +1884,16 @@ class GameProvider extends ChangeNotifier {
     Map<String, int>? counterDice;
     String log;
     if (attacker.bazooka) {
-      final bazTargets = _eg.attackTargets(attacker, all, gameState!.terrainLayout);
+      var bazTargets = _eg.attackTargets(attacker, all, gameState!.terrainLayout);
+      // Sabre Hanté Masamune (hache) : si aucune cible accessible, l'attaque
+      // se rabat sur soi-même — même garde-fou que le getter `attackTargets`
+      // (utilisé par l'interface pour proposer le bouton). Sans ce même
+      // repli ICI, la liste réelle utilisée pour résoudre l'attaque restait
+      // VIDE alors que l'interface affichait "s'attaquer soi-même" comme
+      // possible : la volée de bazooka ne touchait alors personne, pas même
+      // l'attaquant, et le tour restait bloqué en boucle.
+      final hasRevolver = attacker.equipment.any((e) => e.effect == 'revolver_tenebres');
+      if (bazTargets.isEmpty && attacker.hache && !hasRevolver) bazTargets = [attacker];
       final bazDmg = baseDmg + attacker.equipment.where((e) => e.effect == 'dague_voleur').length; // Dague(s) du Voleur
       // Carla : si elle porte le bazooka, ses cibles Hunter révélées sont
       // soignées du même montant que les dégâts qui auraient été infligés

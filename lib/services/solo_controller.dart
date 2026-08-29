@@ -2555,7 +2555,16 @@ class SoloController extends ChangeNotifier {
   void humanBazookaAttack(int dmg) async {
     if (state == null) return;
     final attacker = state!.current;
-    final targets = _eg.attackTargets(attacker, state!.players, state!.terrainLayout);
+    var targets = _eg.attackTargets(attacker, state!.players, state!.terrainLayout);
+    // Sabre Hanté Masamune (hache) : si aucune cible accessible, l'attaque
+    // se rabat sur soi-même — même garde-fou que humanAttackTargets
+    // (utilisé par l'interface pour proposer le bouton bazooka). Sans ce
+    // même repli ICI, la liste réelle utilisée pour résoudre l'attaque
+    // restait VIDE alors que l'interface avait affiché le bouton "tout
+    // attaquer" comme possible : la fonction s'arrêtait alors en silence
+    // sans même marquer l'attaque comme faite, bloquant le tour en boucle.
+    final hasRevolver = attacker.equipment.any((e) => e.effect == 'revolver_tenebres');
+    if (targets.isEmpty && attacker.hache && !hasRevolver) targets = [attacker];
     if (targets.isEmpty) { notifyListeners(); return; }
 
     // Snapshot des vivants avant l'attaque — pour ne jamais ré-attribuer à
