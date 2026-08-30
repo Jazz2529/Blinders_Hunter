@@ -1,6 +1,7 @@
 // lib/data/game_data.dart
 // VERSION 24 PERSONNAGES — sélection de test
 
+import 'dart:math';
 import '../models/models.dart';
 
 // ─── 24 personnages sélectionnés ─────────────────────────────────────────────
@@ -329,11 +330,31 @@ const List<Terrain> kAllTerrains = [
   Terrain(num:'10',  id:5, name:'Chambre',       effect:'steal',    desc:'Volez une carte équipement',  icon:'🗼'),
 ];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-Map<String, int> getRoleConfig(int n) {
-  if (n <= 4) return {'hunters': 2, 'shadows': 1, 'neutrals': 1};
-  if (n == 5) return {'hunters': 2, 'shadows': 2, 'neutrals': 1};
-  return {'hunters': 3, 'shadows': 3, 'neutrals': 1};
+// --- Helpers ---------------------------------------------------------------
+/// Répartition des camps selon le nombre de joueurs :
+/// - Impair (3, 5, 7...) : 1 Neutre + moitié Hunters + moitié Shadows
+///   (le reste, forcément pair, se partage à égalité entre les 2 camps).
+/// - Pair à 4 : UNIQUEMENT 2 Hunters / 2 Shadows — pas de variante avec
+///   Neutre (introduire 1 ou 2 Neutres avec seulement 4 joueurs laisserait
+///   des camps trop réduits pour être intéressants).
+/// - Pair à 6+ : tirage au hasard entre deux formats à chaque partie —
+///   soit un pur duel (moitié Hunters / moitié Shadows, sans Neutre),
+///   soit 2 Neutres fixes + le reste partagé à égalité entre les 2 camps.
+Map<String, int> getRoleConfig(int n, [Random? rng]) {
+  if (n.isOdd) {
+    final half = (n - 1) ~/ 2;
+    return {'hunters': half, 'shadows': half, 'neutrals': 1};
+  }
+  if (n <= 4) {
+    return {'hunters': n ~/ 2, 'shadows': n ~/ 2, 'neutrals': 0};
+  }
+  // Pair, 6 joueurs ou plus : choix aléatoire entre les deux formats.
+  final r = rng ?? Random();
+  if (r.nextBool()) {
+    return {'hunters': n ~/ 2, 'shadows': n ~/ 2, 'neutrals': 0};
+  }
+  final halfMinusNeutrals = (n - 2) ~/ 2;
+  return {'hunters': halfMinusNeutrals, 'shadows': halfMinusNeutrals, 'neutrals': 2};
 }
 
 // ─── Adjacences terrain ───────────────────────────────────────────────────────

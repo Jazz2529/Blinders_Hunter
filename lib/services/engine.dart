@@ -2189,8 +2189,8 @@ class GameEngine with AbilityEngine {
     String? forcedCharId,
   }) {
     final n = players.length;
-    final cfg = getRoleConfig(n);
     final rng = Random();
+    final cfg = getRoleConfig(n, rng);
 
     // Filtrer selon la pool si définie
     List<CharacterCard> availHunters = kAllCharacters.where((c) => c.faction == Faction.hunter).toList();
