@@ -275,6 +275,16 @@ class GameProvider extends ChangeNotifier {
     final cur = players[curId];
     await _fb.addLog(roomId!,
         '⏰ Temps écoulé — le tour de ${cur?.name ?? "?"} est passé automatiquement');
+    // IMPORTANT : convertir aussi ce joueur en bot, pas seulement sauter
+    // son tour — sans ça, un joueur qui a fermé l'application ou perdu la
+    // connexion (l'architecture actuelle, par sondage HTTP, ne permet pas
+    // de détecter une vraie déconnexion en temps réel) obligeait à
+    // attendre à NOUVEAU 2 minutes à CHAQUE tour suivant, indéfiniment.
+    // Une fois converti, _maybeDriveBot() prend automatiquement le relais
+    // pour la suite de la partie.
+    if (cur != null && !cur.isBot) {
+      await _fb.convertPlayerToBot(roomId!, cur.uid);
+    }
     final order = gs.playerOrder;
     int next = (order.indexOf(curId) + 1) % order.length;
     while (!(players[order[next]]?.alive ?? false)) {

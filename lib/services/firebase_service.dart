@@ -303,7 +303,16 @@ class FirebaseService {
         : <String>{};
 
     if (playerIds.isNotEmpty && playerIds.difference(confirmedIds).isEmpty) {
-      await _patch('rooms/$roomId/gameState', {'phase': GamePhase.ability.name});
+      // IMPORTANT : fixer turnStartedAt ICI est OBLIGATOIRE — sans ça, ce
+      // champ restait à `null` pour le TOUT PREMIER tour de chaque partie
+      // (le constructeur de GameState dans startGame() ne le fixe pas non
+      // plus), et _maybeForceTurn() refuse d'agir tant qu'il est nul :
+      // le minuteur de 2 minutes ne se déclenchait donc JAMAIS pour le
+      // premier tour, laissant l'impression que "la corde ne fait rien".
+      await _patch('rooms/$roomId/gameState', {
+        'phase': GamePhase.ability.name,
+        'turnStartedAt': DateTime.now().millisecondsSinceEpoch,
+      });
     }
   }
 
@@ -357,6 +366,7 @@ class FirebaseService {
       currentPlayerId: playerOrder.first,
       playerOrder: playerOrder,
       terrainLayout: terrainLayout,
+      turnStartedAt: DateTime.now().millisecondsSinceEpoch,
     );
 
     final Map<String, dynamic> updates = {

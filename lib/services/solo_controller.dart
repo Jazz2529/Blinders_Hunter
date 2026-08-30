@@ -571,6 +571,69 @@ class SoloController extends ChangeNotifier {
   }
 
   // ─── Bot ────────────────────────────────
+  /// Applique l'effet du terrain sur lequel se trouve CE bot — extrait du
+  /// flux normal de _playBot() pour être réutilisable par Peio (réactive
+  /// l'effet de son propre terrain) et Richard II (réactive l'effet du
+  /// terrain qu'il vient d'échanger), qui doivent déclencher CE MÊME
+  /// traitement en dehors de leur propre déplacement normal.
+  Future<void> _botApplyTerrainEffectFor(Player bot, AiDifficulty difficulty) async {
+    final terrain = state!.terrainLayout[bot.zoneIndex];
+    if (terrain.effect == 'choice') {
+      final deck = _ai.bestDeck(bot, difficulty);
+      state!.pendingCard = _eg.drawCard(deck, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
+      state!.pendingCardIsSecret = (deck == DeckType.vision);
+    } else if (terrain.effect == 'vision')   {
+      state!.pendingCard = _eg.drawCard(DeckType.vision, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
+      state!.pendingCardIsSecret = true;
+    } else if (terrain.effect == 'lumiere')  {
+      state!.pendingCard = _eg.drawCard(DeckType.lumiere, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
+      state!.pendingCardIsSecret = false;
+    } else if (terrain.effect == 'tenebres') {
+      state!.pendingCard = _eg.drawCard(DeckType.tenebres, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
+      state!.pendingCardIsSecret = false;
+    }
+    else if (terrain.effect == 'damage9')    {
+      final t = _ai.bestTarget(bot, state!.players, difficulty);
+      if (t != null) {
+        _eg.applyDamage(t, 2, isTerrain9Dmg: true);
+        if (!t.alive) t.killedByUid = bot.uid; // sinon aucun butin possible
+        _eg.applyDeathPassives(state!.players); // sinon Fanny (et autres passifs de mort) ne se déclenchent jamais sur ce kill
+        _log('🏹 ${bot.name} inflige 2 à ${t.name}');
+        await _checkWin(justDiedId: t.alive?null:t.uid);
+      }
+    }
+    else if (terrain.effect == 'steal') {
+      final t = _ai.bestTarget(bot, state!.players, difficulty, context: 'steal');
+      if (t != null && t.equipment.isNotEmpty) {
+        final e = t.equipment.removeAt(_rng.nextInt(t.equipment.length));
+        bot.equipment.add(e);
+        _eg.equipPassivePublic(bot, e);
+        _eg.recalcPassives(t); // sinon la victime garde à tort les passifs de l'objet volé (ex: Sniper)
+        _log('🗼 ${bot.name} vole "${e.name}" à ${t.name}');
+      }
+    }
+    // Carte éventuellement piochée par ce terrain — résolue immédiatement
+    // (mêmes règles que la carte piochée pendant le déplacement normal).
+    if (state!.pendingCard != null) {
+      final card = state!.pendingCard!;
+      if (_ai.shouldApplyCard(card, bot, difficulty)) {
+        Player? target;
+        if (_cardNeedsTarget(card.effect)) {
+          target = _ai.bestTarget(bot, state!.players, difficulty, context: card.effect);
+        }
+        if (target != null || !_cardNeedsTarget(card.effect)) {
+          final res = _eg.resolveCard(card, bot, state!.players, state!.terrainLayout, target: target);
+          if (res['needsTarget'] != true) {
+            _log(res['log'] as String);
+            await _checkWin();
+          }
+        }
+      }
+      state!.pendingCard = null;
+    }
+  }
+
+
   Future<void> _playBot(Player bot) async {
     state!.botThinking = true; notifyListeners();
     const d = Duration(milliseconds: 1500);
@@ -778,6 +841,103 @@ class SoloController extends ChangeNotifier {
           state!.abilityOverlay = 'baptiste_revive';
           _log(resolveLog);
         }
+      } else if (log == 'trigger_terrain') {
+        // Peio (bot) : mécanisme ENTIÈREMENT absent auparavant — le signal
+        // se contentait d'être affiché tel quel comme texte de journal,
+        // sans jamais réactiver l'effet du terrain.
+        _log("🧌 ${bot.name} subit 1 blessure → réactive l'effet du terrain");
+        state!.abilityOverlay = 'peio_terrain';
+        await _botApplyTerrainEffectFor(bot, difficulty);
+      } else if (log == 'bonus_turns_zero') {
+        // Ninja (bot) : aucun joueur mort — pouvoir sans effet, mais il
+        // fallait au moins le dire clairement plutôt que d'afficher le
+        // signal brut.
+        _log('🥷 Ninja : aucun joueur mort, pouvoir sans effet.');
+      } else if (log.startsWith('bonus_turns:')) {
+        // Ninja (bot) : mécanisme ENTIÈREMENT absent auparavant — les
+        // tours bonus n'étaient jamais réellement accordés.
+        final deadCount = int.tryParse(log.split(':')[1]) ?? 0;
+        state!.bonusTurnsRemaining = deadCount;
+        state!.abilityOverlay = 'ninja_shadow';
+        _log('🥷 ${bot.name} active son pouvoir — $deadCount tour(s) bonus !');
+      } else if (log == 'oscar_choice') {
+        // Oscar (bot) : mécanisme ENTIÈREMENT absent auparavant — son XP
+        // n'était jamais réellement dépensée. Choisit la meilleure option
+        // accessible selon son XP actuelle.
+        var choice = '';
+        Player? waterTarget;
+        if (bot.oscarXp >= 4) {
+          choice = 'fire';
+        } else if (bot.oscarXp >= 3) {
+          final withEquip = state!.players.where((p) =>
+              p.uid != bot.uid && p.alive && p.equipment.isNotEmpty).toList();
+          if (withEquip.isNotEmpty) {
+            choice = 'water';
+            waterTarget = withEquip[_rng.nextInt(withEquip.length)];
+          } else if (bot.oscarXp >= 2) {
+            choice = 'plant';
+          }
+        } else if (bot.oscarXp >= 2) {
+          choice = 'plant';
+        }
+        if (choice.isNotEmpty) {
+          final resolveLog = _eg.applyAbility(bot, state!.players, state!.terrainLayout,
+              target: waterTarget, extra: choice);
+          if (resolveLog != 'oscar_not_enough') {
+            state!.abilityOverlay = choice == 'water' ? 'oscar_water'
+                : choice == 'plant' ? 'oscar_plant' : 'oscar_fire';
+            _log(resolveLog);
+          }
+        }
+      } else if (log == 'choose_all_dice') {
+        // Fifi (bot) : mécanisme ENTIÈREMENT absent auparavant — le tour
+        // parfait (dés au maximum) n'était jamais réellement activé.
+        state!.fifiGoldenTurn = true;
+        state!.abilityOverlay = 'fifi_golden';
+        _log('🍀 ${bot.name} — tour parfait, dés au maximum !');
+      } else if (log == 'swap_zones') {
+        // Richard II (bot) : mécanisme ENTIÈREMENT absent auparavant — il
+        // n'échangeait jamais réellement de zone.
+        final richardStartZone = bot.zoneIndex;
+        final z2 = _ai.bestZone(bot, state!.players, state!.terrainLayout, difficulty);
+        if (z2 != richardStartZone) {
+          for (final p in state!.players) {
+            if (p.zoneIndex == richardStartZone) p.zoneIndex = z2;
+            else if (p.zoneIndex == z2) p.zoneIndex = richardStartZone;
+          }
+          final tmp = state!.terrainLayout[richardStartZone];
+          state!.terrainLayout[richardStartZone] = state!.terrainLayout[z2];
+          state!.terrainLayout[z2] = tmp;
+          final t1name = state!.terrainLayout[richardStartZone].name;
+          final t2name = state!.terrainLayout[z2].name;
+          state!.abilityOverlay = 'richard2_swap';
+          _log('👑 ${bot.name} échange $t2name ↔ $t1name !');
+          await _botApplyTerrainEffectFor(bot, difficulty);
+        }
+      } else if (log == 'casino_bet') {
+        // Mr Casino (bot) : mécanisme ENTIÈREMENT absent auparavant — il
+        // ne pariait ni ne gagnait/perdait jamais réellement.
+        final betOdd = _rng.nextBool();
+        final d6 = _eg.rollD6();
+        final wonBet = betOdd == (d6 % 2 == 1);
+        if (wonBet) {
+          final t2 = _ai.bestTarget(bot, state!.players, difficulty);
+          if (t2 != null) {
+            _eg.applyDamage(t2, 3);
+            if (!t2.alive) t2.killedByUid = bot.uid;
+            _eg.applyDeathPassives(state!.players);
+            state!.abilityOverlay = 'casino_win';
+            _log('🎰 ${bot.name} gagne son pari ($d6) et inflige 3 blessures à ${t2.name} !');
+            await _checkWin(justDiedId: t2.alive ? null : t2.uid);
+          }
+        } else {
+          _eg.applyDamage(bot, 2);
+          if (!bot.alive) bot.killedByUid = bot.uid;
+          _eg.applyDeathPassives(state!.players);
+          _log('🎰 ${bot.name} perd son pari ($d6) — subit 2 blessures');
+          await _checkWin(justDiedId: bot.alive ? null : bot.uid);
+          if (bot.alive) state!.abilityOverlay = 'casino_lose';
+        }
       } else if (log != 'cible_requise') {
         _log(log);
       }
@@ -816,44 +976,7 @@ class SoloController extends ChangeNotifier {
     // Effet terrain
     await Future.delayed(d);
     if (_stopped) return;
-    final terrain = state!.terrainLayout[bot.zoneIndex];
-    if (terrain.effect == 'choice') {
-      final deck = _ai.bestDeck(bot, difficulty);
-      state!.pendingCard = _eg.drawCard(deck, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
-      state!.pendingCardIsSecret = (deck == DeckType.vision);
-    } else if (terrain.effect == 'vision')   {
-      state!.pendingCard = _eg.drawCard(DeckType.vision, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
-      state!.pendingCardIsSecret = true;
-    } else if (terrain.effect == 'lumiere')  {
-      state!.pendingCard = _eg.drawCard(DeckType.lumiere, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
-      state!.pendingCardIsSecret = false;
-    } else if (terrain.effect == 'tenebres') {
-      state!.pendingCard = _eg.drawCard(DeckType.tenebres, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
-      state!.pendingCardIsSecret = false;
-    }
-    else if (terrain.effect == 'damage9')    {
-      final t = _ai.bestTarget(bot, state!.players, difficulty);
-      if (t != null) {
-        _eg.applyDamage(t, 2, isTerrain9Dmg: true);
-        if (!t.alive) t.killedByUid = bot.uid; // sinon aucun butin possible
-        _eg.applyDeathPassives(state!.players); // sinon Fanny (et autres passifs de mort) ne se déclenchent jamais sur ce kill
-        _log('🏹 ${bot.name} inflige 2 à ${t.name}');
-        await _checkWin(justDiedId: t.alive?null:t.uid);
-      }
-    }
-    else if (terrain.effect == 'steal') {
-      final t = _ai.bestTarget(bot, state!.players, difficulty, context: 'steal');
-      if (t != null && t.equipment.isNotEmpty) {
-        final e = t.equipment.removeAt(_rng.nextInt(t.equipment.length));
-        bot.equipment.add(e);
-        _eg.equipPassivePublic(bot, e);
-        _eg.recalcPassives(t); // sinon la victime garde à tort les passifs de l'objet volé (ex: Sniper)
-        _log('🗼 ${bot.name} vole "${e.name}" à ${t.name}');
-      }
-    }
-    if (state!.pendingCard != null) {
-      // Vision card details are secret — only log damage results after apply
-    }
+    await _botApplyTerrainEffectFor(bot, difficulty);
     notifyListeners();
     if (state!.isOver) { state!.botThinking = false; notifyListeners(); return; }
 
@@ -926,8 +1049,10 @@ class SoloController extends ChangeNotifier {
         }
         if (attackRes['scottCountered'] == true) {
           state!.abilityOverlay = 'scott_counter';
-          state!.scottCounterDice = {'d4': attackRes['counterD4'] as int,
-            'd6': attackRes['counterD6'] as int, 'dmg': attackRes['counterDmg'] as int};
+          // Cast défensif (voir le même correctif en multijoueur) — évite
+          // un crash si l'un de ces champs venait à manquer.
+          state!.scottCounterDice = {'d4': (attackRes['counterD4'] as int?) ?? 0,
+            'd6': (attackRes['counterD6'] as int?) ?? 0, 'dmg': (attackRes['counterDmg'] as int?) ?? 0};
         }
         if (!target.alive) { _log('💀 ${target.name} est éliminé !', cls: 'death'); }
         // Pas de flash rouge en plus si la bannière "CONTRE-ATTAQUE" de Scott
@@ -2512,8 +2637,10 @@ class SoloController extends ChangeNotifier {
     // Scott contre-attaque : animation
     if (res['scottCountered'] == true) {
       state!.abilityOverlay = 'scott_counter';
-      state!.scottCounterDice = {'d4': res['counterD4'] as int,
-        'd6': res['counterD6'] as int, 'dmg': res['counterDmg'] as int};
+      // Cast défensif (voir le même correctif en multijoueur) — évite un
+      // crash si l'un de ces champs venait à manquer.
+      state!.scottCounterDice = {'d4': (res['counterD4'] as int?) ?? 0,
+        'd6': (res['counterD6'] as int?) ?? 0, 'dmg': (res['counterDmg'] as int?) ?? 0};
     }
     // Gège le Fantôme : attaque automatiquement la même cible
     final (gegeLog, gegeTriggered) = _eg.applyGegePassiveEx(attacker, target, state!.players);
