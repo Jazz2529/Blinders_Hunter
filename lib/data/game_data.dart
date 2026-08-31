@@ -69,7 +69,7 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'felipe_passive', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'), 
 
-  CharacterCard(id:'fijacked', name:'Fijacked', faction:Faction.hunter, hp:11, icon:'🏺',
+  CharacterCard(id:'fijacked', name:'Fijacked', faction:Faction.hunter, hp:10, icon:'🏺',
     ability:'Passif révélé: au début de votre tour, soignez 1 blessure par équipement possédé',
     abilityEffect:'heal_per_equip_eot', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
@@ -238,7 +238,7 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'no_attack_buff', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
-  CharacterCard(id:'tom', name:'Tom', faction:Faction.shadow, hp:14, icon:'💀',
+  CharacterCard(id:'tom', name:'Tom', faction:Faction.shadow, hp:12, icon:'💀',
     ability:'Passif révélé: chaque attaque vous inflige 1 blessure, mais lui inflige 2 dégâts de plus.',
     abilityEffect:'maxence_selfharm_boost', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
@@ -288,7 +288,7 @@ const List<CharacterCard> kAllCharacters = [
   CharacterCard(id:'maxime', name:'Maxime', faction:Faction.neutral, hp:11, icon:'🗡️',
     ability:'Passif: votre première attaque après vous être révélé inflige le double de blessures.',
     abilityEffect:'maxime_double_first', abilityRepeatable:true,
-    winCondition:'Éliminer le premier joueur à vous avoir infligé des blessures cette partie',
+    winCondition:'Éliminer le premier joueur à vous avoir infligé des blessures avec une attaque cette partie',
     winEffect:'maxime_kill_first_attacker'),  
 
   CharacterCard(id:'oscar', name:'Oscar', faction:Faction.neutral, hp:13, icon:'🧪',
@@ -379,7 +379,7 @@ const List<GameCard> kLumiereCards = [
   GameCard(id:'L08',name:'Toge Sainte',deck:DeckType.lumiere,type:CardType.equipement,
     effect:'sainte_tunique',text:'Vos attaques infligent 1 blessure de moins et les blessures reçues sont réduites de 1'),
   GameCard(id:'L09',name:'Broche de Chance',deck:DeckType.lumiere,type:CardType.equipement,
-    effect:'terrain9_dmg_immune',text:'La Forêt Hantée (terrain 9) ne peut pas vous infliger de blessures (mais peut toujours vous soigner)'),
+    effect:'terrain9_dmg_immune',text:'La Cuisine (terrain 9) ne peut pas vous infliger de blessures'),
   GameCard(id:'L10',name:'Bénédiction',deck:DeckType.lumiere,type:CardType.utilisation,
     effect:'heal_other_d6',text:'Choisissez un joueur autre que vous — D6 — il se soigne d\'autant'),
   GameCard(id:'L11',name:'Boussole Mystique',deck:DeckType.lumiere,type:CardType.equipement,
