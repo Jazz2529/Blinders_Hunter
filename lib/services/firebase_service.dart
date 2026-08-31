@@ -403,6 +403,14 @@ class FirebaseService {
     await _put('rooms/$roomId/players/${player.uid}', player.toJson());
   }
 
+  /// Synchronise le skin de carte personnage équipé par CE joueur (choisi
+  /// localement en boutique) — mise à jour ciblée d'un seul champ plutôt
+  /// que réécrire tout le joueur, pour rester léger et sûr même si
+  /// d'autres champs changent en même temps ailleurs.
+  Future<void> setEquippedSkin(String roomId, String uid, String? skinId) async {
+    await _patch('rooms/$roomId/players/$uid', {'equippedCharacterSkin': skinId});
+  }
+
   /// Met à jour plusieurs joueurs en une seule requête
   Future<void> updatePlayers(String roomId, List<Player> players) async {
     final Map<String, dynamic> updates = {};
@@ -458,9 +466,11 @@ class FirebaseService {
     Map<String, int>? abilityDiceResult,
     String? pendingPunishActorUid,
     String? pendingPunishTargetUid,
+    int? pendingPunishTimestamp,
     String? privateRevealTargetUid,
     String? privateRevealForUid,
     String? forcedAttackerUid,
+    String? stealTargetUid,
     bool? peioReturnToMove,
     int? builderStep,
     String? builderEffect1,
@@ -514,9 +524,11 @@ class FirebaseService {
       updates['pendingDamage'] = null;
       updates['pendingPunishActorUid'] = null;
       updates['pendingPunishTargetUid'] = null;
+      updates['pendingPunishTimestamp'] = null;
       updates['privateRevealTargetUid'] = null;
       updates['privateRevealForUid'] = null;
       updates['forcedAttackerUid'] = null;
+      updates['stealTargetUid'] = null;
       updates['damienTargetUid'] = null;
       updates['lootKillerUid'] = null;
       updates['lootDeadQueue'] = <String>[];
@@ -535,9 +547,11 @@ class FirebaseService {
     if (abilityDiceResult != null) updates['abilityDiceResult'] = abilityDiceResult;
     if (pendingPunishActorUid != null) updates['pendingPunishActorUid'] = pendingPunishActorUid;
     if (pendingPunishTargetUid != null) updates['pendingPunishTargetUid'] = pendingPunishTargetUid;
+    if (pendingPunishTimestamp != null) updates['pendingPunishTimestamp'] = pendingPunishTimestamp;
     if (privateRevealTargetUid != null) updates['privateRevealTargetUid'] = privateRevealTargetUid;
     if (privateRevealForUid != null) updates['privateRevealForUid'] = privateRevealForUid;
     if (forcedAttackerUid != null) updates['forcedAttackerUid'] = forcedAttackerUid;
+    if (stealTargetUid != null) updates['stealTargetUid'] = stealTargetUid;
     if (peioReturnToMove != null) updates['peioReturnToMove'] = peioReturnToMove;
     if (builderStep != null) updates['builderStep'] = builderStep;
     if (builderEffect1 != null) updates['builderEffect1'] = builderEffect1;

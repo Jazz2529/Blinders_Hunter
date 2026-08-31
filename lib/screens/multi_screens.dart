@@ -395,8 +395,16 @@ class _GameScreenState extends State<GameScreen> {
       }).toList();
 
       // Divination X ou Y : si JE suis la cible en attente, propose le choix.
-      final punishKey = gs?.pendingPunishTargetUid;
-      if (punishKey == gp.myUid && gs?.pendingPunishActorUid != null &&
+      // IMPORTANT : la clé inclut l'horodatage de CET événement précis, pas
+      // seulement l'UID de la cible — sinon, si le MÊME joueur était visé
+      // deux fois par des cartes Vision rapprochées, le sondage réseau
+      // pouvait ne jamais observer l'état "nettoyé" intermédiaire entre les
+      // deux, et la seconde punition ne déclenchait alors jamais son
+      // dialogue (c'était très probablement la cause du bug rapporté).
+      final punishTargetUidRaw = gs?.pendingPunishTargetUid;
+      final punishTs = gs?.pendingPunishTimestamp ?? 0;
+      final punishKey = punishTargetUidRaw != null ? '${punishTargetUidRaw}_$punishTs' : null;
+      if (punishTargetUidRaw == gp.myUid && gs?.pendingPunishActorUid != null &&
           _shownPunishFor != punishKey) {
         _shownPunishFor = punishKey;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -539,30 +547,43 @@ class _GameScreenState extends State<GameScreen> {
             ]);
           }
 
-          // ── LAYOUT PC/tablette : même structure que le solo — classement
-          // horizontal (largeur égale par joueur) au-dessus du plateau,
-          // au lieu d'une grille verticale à ratio fixe mal adaptée au
-          // widget PlayerStatusCard (qui provoquait un débordement).
-          return Column(children:[
-          SizedBox(
-            height: (screenH * 0.19).clamp(118.0, 148.0),
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              children: gp.playerList.map((p) => _MultiPlayerStatus(p: p, gp: gp)).toList(),
+          // ── LAYOUT PC/tablette : disposition CÔTE À CÔTE plutôt qu'un
+          // simple empilement vertical identique au mobile — sur un écran
+          // large, empiler verticalement gâchait tout l'espace horizontal
+          // disponible sur les côtés, ET le journal persistant n'était
+          // même pas affiché (seulement présent côté mobile). Colonne de
+          // gauche : classement des joueurs + plateau + journal, plus
+          // grande puisqu'elle profite de toute la largeur. Colonne de
+          // droite, largeur fixe : le panneau d'action, sur toute la
+          // hauteur de l'écran (plus besoin de le restreindre en hauteur
+          // puisqu'il ne partage plus l'espace vertical avec le plateau).
+          final actionPanelWidth = (screenW * 0.32).clamp(340.0, 420.0);
+          return Row(children: [
+            Expanded(
+              child: Column(children: [
+                SizedBox(
+                  height: (screenH * 0.19).clamp(118.0, 148.0),
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    children: gp.playerList.map((p) => _MultiPlayerStatus(p: p, gp: gp)).toList(),
+                  ),
+                ),
+                if (gs != null) boardWidget(),
+                Expanded(child: _MultiLogPanel(gp: gp)),
+              ]),
             ),
-          ),
-          if (gs != null) boardWidget(),
-          ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: screenH * 0.45),
-            child: SingleChildScrollView(
-              child: Container(
-                color: kBg2,
-                child: isMyTurn ? _ActionPanel(gp: gp) : _WaitPanel(gp: gp),
+            Container(width: 1, color: kBord2),
+            SizedBox(
+              width: actionPanelWidth,
+              child: SingleChildScrollView(
+                child: Container(
+                  color: kBg2,
+                  child: isMyTurn ? _ActionPanel(gp: gp) : _WaitPanel(gp: gp),
+                ),
               ),
             ),
-          ),
-        ]);}),
+          ]);}),
       );
 
       final turnBanner = TurnBanner(
@@ -585,11 +606,14 @@ class _GameScreenState extends State<GameScreen> {
       final revealQuoteUid = gs?.publicRevealUid;
       final revealTs = gs?.publicRevealTimestamp ?? 0;
       final publicRevealKey = revealQuoteUid != null ? '${revealQuoteUid}_$revealTs' : null;
-      // Fenêtre de fraîcheur de 5s (l'animation dure ~4s en interne) — évite
+      // Fenêtre de fraîcheur de 9s (l'animation dure désormais ~6s en
+      // interne, allongée pour bien laisser le temps de voir l'image et
+      // d'entendre la réplique, notamment pour les révélations de bots qui
+      // s'enchaînent vite avec d'autres actions de leur tour) — évite
       // qu'un client qui vient de se connecter ou de se reconnecter ne
       // rejoue une révélation déjà ancienne.
       final revealFresh = revealQuoteUid != null &&
-          (DateTime.now().millisecondsSinceEpoch - revealTs) < 5000;
+          (DateTime.now().millisecondsSinceEpoch - revealTs) < 9000;
       final revealingPlayer = revealQuoteUid != null ? gp.players[revealQuoteUid] : null;
       // IMPORTANT : si ce joueur n'est pas encore dans le cache local à cet
       // instant précis (ex: mise à jour reçue via un cycle de sondage
@@ -1047,7 +1071,8 @@ Future<void> showMultiPlayerCard(BuildContext ctx, Player p, GameProvider gp) as
       maximeTargetName: (isMe && shown.id == 'maxime')
         ? (maximeTarget?.name ?? 'Personne pour le moment') : null,
       megFormOverride: drunkChar == null && shown.abilityEffect == 'meg_shapeshift' ? p.megForm : null,
-      mathieuAttackCount: drunkChar == null && (p.copiedEffect ?? shown.abilityEffect) == 'third_attack_bonus' ? p.attackCount : null);
+      mathieuAttackCount: drunkChar == null && (p.copiedEffect ?? shown.abilityEffect) == 'third_attack_bonus' ? p.attackCount : null,
+      skinOverride: drunkChar == null ? p.equippedCharacterSkin : null);
   }
   final isNils = (p.copiedEffect ?? p.character?.abilityEffect) == 'store_damage_nils';
   if (drunkChar == null && (p.equipment.isNotEmpty || isNils) && ctx.mounted) {
@@ -1475,7 +1500,8 @@ class _ActionPanelState extends State<_ActionPanel> {
                   hpOverride: gp.me!.character!.hp + gp.me!.maxHpModifier,
                   oscarXpOverride: gp.me!.character!.id == 'oscar' ? gp.me!.oscarXp : null,
                   megFormOverride: gp.me!.character!.abilityEffect == 'meg_shapeshift' ? gp.me!.megForm : null,
-                  mathieuAttackCount: (gp.me!.copiedEffect ?? gp.me!.character!.abilityEffect) == 'third_attack_bonus' ? gp.me!.attackCount : null);
+                  mathieuAttackCount: (gp.me!.copiedEffect ?? gp.me!.character!.abilityEffect) == 'third_attack_bonus' ? gp.me!.attackCount : null,
+                  skinOverride: gp.me!.equippedCharacterSkin);
               }
             })),
           if ((me?.copiedEffect ?? me?.character?.abilityEffect) == 'double_move_dice' && me?.revealed == true)
@@ -1841,6 +1867,25 @@ class _ActionPanelState extends State<_ActionPanel> {
               )),
             ];
           }
+        }
+        // terrain_steal_item (Tour du Voleur, terrain 10) : laisser choisir
+        // PRÉCISÉMENT quel objet voler chez la cible déjà choisie, au lieu
+        // d'un tirage aléatoire.
+        if (pta == 'terrain_steal_item') {
+          final stealTargetUid = gp.gameState?.stealTargetUid;
+          final src = stealTargetUid != null ? gp.players[stealTargetUid] : null;
+          final equipList = src?.equipment ?? [];
+          return [
+            Text('🗼 Quel objet de ${src?.name ?? "?"} voulez-vous voler ?',
+              style: cinzel(11, c: kGold)),
+            const SizedBox(height: 6),
+            if (equipList.isEmpty)
+              Text('Aucun équipement disponible', style: body(12, c: kTextSub))
+            else ...equipList.asMap().entries.map((entry) => BHButton(
+              label: entry.value.name,
+              onTap: () => _act(() => gp.resolveStealItem(entry.key)),
+            )),
+          ];
         }
         return [
           Text(title, style: cinzel(11, c: kGold)),
@@ -3688,6 +3733,46 @@ class _MultiLogStrip extends StatelessWidget {
             }),
             maxLines: 1, overflow: TextOverflow.ellipsis);
         }).toList()),
+    );
+  }
+}
+
+// ─── Journal PC : version spacieuse avec défilement, affichant beaucoup
+// plus d'entrées que la version compacte mobile — profite de l'espace
+// vertical disponible dans la colonne de gauche du nouveau layout PC. ───
+class _MultiLogPanel extends StatelessWidget {
+  final GameProvider gp;
+  const _MultiLogPanel({required this.gp});
+  @override
+  Widget build(BuildContext ctx) {
+    final logs = gp.log.reversed.toList();
+    return Container(
+      color: kBg1,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('📜 Journal', style: cinzel(11, c: kGold2, fw: FontWeight.w700, ls: 1)),
+        const SizedBox(height: 4),
+        Expanded(
+          child: ListView.builder(
+            reverse: false,
+            itemCount: logs.length,
+            itemBuilder: (lctx, i) {
+              final entry = logs[i];
+              final sep = entry.indexOf('||');
+              final cls = sep >= 0 ? entry.substring(0, sep) : '';
+              final msg = sep >= 0 ? entry.substring(sep + 2) : entry;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text(msg,
+                  style: TextStyle(fontSize: 12, color: switch (cls) {
+                    'death' => kRed, 'important' => kGold,
+                    'player' => kGreen, _ => kTextSub,
+                  })),
+              );
+            },
+          ),
+        ),
+      ]),
     );
   }
 }

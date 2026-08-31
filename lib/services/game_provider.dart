@@ -356,6 +356,27 @@ class GameProvider extends ChangeNotifier {
     }).whenComplete(() => _botDriving = false);
   }
 
+  bool _punishResolving = false;
+
+  /// Résout automatiquement une Divination X ou Y en attente lorsque la
+  /// CIBLE (celle qui doit choisir) est un bot — peu importe qui a joué la
+  /// carte (humain ou bot). Sans ça, un bot visé ne pouvait jamais
+  /// répondre (aucune interface pour lui), et la partie restait bloquée
+  /// indéfiniment en attendant une réponse qui ne venait jamais.
+  void _maybeResolvePunishForBot() {
+    if (_punishResolving) return;
+    if (myUid == null || hostId != myUid) return; // hôte seulement
+    final gs = gameState;
+    if (gs?.pendingPunishActorUid == null) return;
+    final targetUid = gs?.pendingPunishTargetUid;
+    final target = targetUid != null ? players[targetUid] : null;
+    if (target == null || !target.isBot) return; // cible humaine → dialogue normal
+    _punishResolving = true;
+    resolvePunishChoice(_eg.botPunishChoice(target)).catchError((e, st) {
+      debugPrint('Erreur résolution punition (bot ciblé) : $e\n$st');
+    }).whenComplete(() => _punishResolving = false);
+  }
+
   Future<void> _botTakeTurn(String botUid) async {
     await Future.delayed(const Duration(milliseconds: 900));
     if (gameState?.currentPlayerId != botUid) return; // état changé entretemps
@@ -401,6 +422,11 @@ class GameProvider extends ChangeNotifier {
         await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
             publicRevealUid: bot.uid,
             publicRevealTimestamp: DateTime.now().millisecondsSinceEpoch);
+        // Laisse le temps à l'animation de révélation d'être VUE avant que
+        // le tour du bot ne continue avec d'autres actions — sans cette
+        // pause dédiée, la suite du tour pouvait s'enchaîner trop vite et
+        // perturber l'affichage de l'animation sur les autres appareils.
+        await Future.delayed(const Duration(milliseconds: 2000));
         // Jeanne et Clémence : leur mécanisme se déclenche DÈS la révélation
         // (pas via un bouton "capacité" plus tard) — sans ce branchement, un
         // bot jouant ces personnages ne déclenchait jamais son pouvoir.
@@ -703,7 +729,20 @@ class GameProvider extends ChangeNotifier {
           }
           if (cardTarget != null || !_cardNeedsTarget(card.effect)) {
             final res = _eg.resolveCard(card, bot, all, layout, target: cardTarget);
-            if (res['needsTarget'] != true && res['needsTargetChoice'] != true &&
+            if (res['needsTargetChoice'] == true) {
+              // Divination X ou Y jouée par un BOT (via une carte "choix"
+              // piochée par effet de terrain) : même correctif que dans
+              // _botDrawAndResolveCard — la punition ne se résolvait
+              // jamais, silencieusement ignorée par le clearPending
+              // quelques lignes plus bas.
+              await _commitAll(all, '');
+              await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+                  pendingPunishActorUid: res['punishActorUid'] as String,
+                  pendingPunishTargetUid: res['punishTargetUid'] as String,
+                  pendingPunishTimestamp: DateTime.now().millisecondsSinceEpoch);
+              return;
+            }
+            if (res['needsTarget'] != true &&
                 res['needsSecondTarget'] != true && res['needsEquipChoice'] != true) {
               _eg.applyDeathPassives(all);
               await _commitAll(all, res['log'] as String? ?? '');
@@ -794,7 +833,22 @@ class GameProvider extends ChangeNotifier {
     }
     if (cardTarget != null || !_cardNeedsTarget(card.effect)) {
       final res = _eg.resolveCard(card, bot, all, gameState!.terrainLayout, target: cardTarget);
-      if (res['needsTarget'] != true && res['needsTargetChoice'] != true &&
+      if (res['needsTargetChoice'] == true) {
+        // Divination X ou Y jouée par un BOT : la punition ne se résolvait
+        // JAMAIS auparavant — le code l'ignorait purement et simplement,
+        // et le clearPending qui suivait plus bas effaçait toute trace de
+        // ce qui aurait dû se passer, avant même que quiconque ait pu
+        // répondre. On pose maintenant correctement l'état d'attente (la
+        // cible — bot ou humain — répondra via _maybeResolvePunishForBot
+        // ou le dialogue humain selon le cas).
+        await _commitAll(all, '');
+        await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+            pendingPunishActorUid: res['punishActorUid'] as String,
+            pendingPunishTargetUid: res['punishTargetUid'] as String,
+            pendingPunishTimestamp: DateTime.now().millisecondsSinceEpoch);
+        return;
+      }
+      if (res['needsTarget'] != true &&
           res['needsSecondTarget'] != true && res['needsEquipChoice'] != true) {
         _eg.applyDeathPassives(all);
         await _commitAll(all, res['log'] as String? ?? '');
@@ -864,6 +918,26 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
+  // Évite de réécrire à chaque cycle de sondage — seulement quand le
+  // personnage assigné (ou son skin local) change réellement.
+  String? _lastSkinSyncCharId;
+
+  /// Synchronise SON PROPRE skin de carte personnage (choisi localement en
+  /// boutique) vers son enregistrement joueur — pour qu'un AUTRE joueur en
+  /// multijoueur voie SON skin à lui en consultant sa fiche, plutôt que la
+  /// préférence locale du joueur qui regarde (ou rien du tout).
+  void _syncMySkinIfNeeded() {
+    if (myUid == null) return;
+    final me = players[myUid];
+    final charId = me?.character?.id;
+    if (charId == null) return;
+    if (_lastSkinSyncCharId == charId) return;
+    _lastSkinSyncCharId = charId;
+    final localSkin = Prefs.equippedCosmetics()['character:$charId'];
+    if (localSkin == me?.equippedCharacterSkin) return; // déjà synchronisé
+    unawaited(_fb.setEquippedSkin(roomId!, myUid!, localSkin));
+  }
+
   void _subscribe() {
     _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel();
     _pSub  = _fb.watchPlayers(roomId!).listen((d) {
@@ -879,8 +953,9 @@ class GameProvider extends ChangeNotifier {
         return;
       }
       players = d; notifyListeners();
+      _syncMySkinIfNeeded();
     });
-    _gsSub = _fb.watchGameState(roomId!).listen((d) { gameState = d; _maybeForceTurn(); _maybeDriveBot(); notifyListeners(); });
+    _gsSub = _fb.watchGameState(roomId!).listen((d) { gameState = d; _maybeForceTurn(); _maybeDriveBot(); _maybeResolvePunishForBot(); notifyListeners(); });
     _stSub = _fb.watchStatus(roomId!).listen((d) {
       final wasPlaying = roomStatus == 'playing';
       roomStatus = d;
@@ -1270,9 +1345,10 @@ class GameProvider extends ChangeNotifier {
     final t = all.firstWhere((p) => p.uid == target.uid);
     final dealt = _eg.applyDamage(t, 8);
     if (!t.alive) t.killedByUid = actor.uid;
-    // Hong Yi s'inflige 4 blessures en retour (peut désormais mourir de son
-    // propre pouvoir si déjà fortement blessé au préalable).
-    final selfDealt = _eg.applyDamage(actor, 4);
+    // Hong Yi s'inflige 5 blessures en retour (texte de la carte), peut
+    // désormais mourir de son propre pouvoir si déjà fortement blessé au
+    // préalable. C'était incorrectement 4 auparavant (dans les deux modes).
+    final selfDealt = _eg.applyDamage(actor, 5);
     if (!actor.alive) actor.killedByUid = actor.uid;
     actor.abilityUsed = true;
     _eg.applyDeathPassives(all);
@@ -1282,9 +1358,13 @@ class GameProvider extends ChangeNotifier {
     if (!t.alive) endedHongYi = await _checkWin(all, justDiedId: t.uid);
     if (!endedHongYi && !actor.alive) endedHongYi = await _checkWin(all, justDiedId: actor.uid);
     if (endedHongYi) return;
+    // IMPORTANT : ne PAS terminer le tour ici — Hong Yi doit pouvoir
+    // continuer à jouer normalement (se déplacer, attaquer...) après avoir
+    // utilisé son pouvoir, exactement comme en solo. Le endTurn() immédiat
+    // qui suivait auparavant terminait le tour à tort, empêchant de jouer
+    // le reste du tour comme prévu.
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
         abilityOverlay: 'hongyi_dumbbell');
-    await endTurn();
   }
 
   /// Oscar : traite le choix d'un des 3 éléments (Eau/Plante/Feu). "Eau"
@@ -1723,6 +1803,13 @@ class GameProvider extends ChangeNotifier {
       _eg.applyDeathPassives(all);
       await _commitAll(all, '🏹 ${actor.name} inflige $dmg9 blessures à ${t.name}');
     } else if (pta == 'terrain_steal') {
+      if (t.equipment.length > 1) {
+        // Plusieurs objets possibles — laisse le joueur choisir LEQUEL
+        // voler, au lieu de toujours prendre le premier (comme demandé).
+        await _fb.setPhase(roomId!, GamePhase.chooseTarget, clearPending: true,
+            stealTargetUid: t.uid, pendingTargetAction: 'terrain_steal_item');
+        return;
+      }
       if (t.equipment.isNotEmpty) {
         final e = t.equipment.removeAt(0);
         actor.equipment.add(e);
@@ -1738,6 +1825,25 @@ class GameProvider extends ChangeNotifier {
     await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true, peioReturnToMove: false);
   }
 
+  /// Terrain 10 — étape 2 : l'objet précis à voler a été choisi.
+  Future<void> resolveStealItem(int equipIdx) async {
+    final targetUid = gameState?.stealTargetUid;
+    if (targetUid == null) return;
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final t = all.firstWhere((p) => p.uid == targetUid, orElse: () => actor);
+    if (equipIdx >= 0 && equipIdx < t.equipment.length) {
+      final e = t.equipment.removeAt(equipIdx);
+      actor.equipment.add(e);
+      _eg.equipPassivePublic(actor, e);
+      _eg.recalcPassives(t);
+      await _commitAll(all, '🗼 ${actor.name} vole "${e.name}" à ${t.name}');
+    }
+    final endedSteal2 = await _checkWin(all, justDiedId: t.alive ? null : t.uid);
+    if (endedSteal2) return;
+    await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true, peioReturnToMove: false);
+  }
+
   Future<void> drawCard(DeckType deck) async {
     final queue = Map<String, List<String>>.from(
         (gameState?.forcedDeckQueue ?? const {}).map(
@@ -1748,6 +1854,25 @@ class GameProvider extends ChangeNotifier {
     final card = _eg.drawCard(deck, forcedQueue: queue, deckPiles: piles);
     await _fb.setPhase(roomId!, GamePhase.cardDrawn,
         pendingAction: card.id, forcedDeckQueue: queue, deckPiles: piles);
+    // IMPORTANT : synchroniser le cache LOCAL immédiatement après cette
+    // écriture — sans ça, `gameState.forcedDeckQueue`/`deckPiles` restaient
+    // PÉRIMÉS sur CET appareil jusqu'au prochain sondage réseau (~900ms).
+    // Si un second appel à drawCard() survenait dans cette fenêtre (double
+    // clic échappant au verrou, reconstruction de widget, etc.), il
+    // relisait la MÊME file de pioche non encore mise à jour et écrasait
+    // ensuite le `pendingAction` de la première pioche avec le sien —
+    // donnant l'impression que la première carte piochée disparaissait /
+    // était annulée. C'était très probablement la cause du bug rapporté.
+    if (gameState != null) {
+      gameState = GameState.fromJson({
+        ...gameState!.toJson(),
+        'phase': GamePhase.cardDrawn.name,
+        'pendingAction': card.id,
+        'forcedDeckQueue': queue,
+        'deckPiles': piles,
+      });
+      notifyListeners();
+    }
     // Cartes Vision : nom secret — log public générique
     if (deck == DeckType.vision) {
       await _fb.addLog(roomId!, '🔮 ${me!.name} pioche une carte Vision (secrète)');
@@ -1786,7 +1911,8 @@ class GameProvider extends ChangeNotifier {
       await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true,
           peioReturnToMove: false,
           pendingPunishActorUid: res['punishActorUid'] as String,
-          pendingPunishTargetUid: res['punishTargetUid'] as String);
+          pendingPunishTargetUid: res['punishTargetUid'] as String,
+          pendingPunishTimestamp: DateTime.now().millisecondsSinceEpoch);
       return;
     }
     if (res['needsSecondTarget'] == true) {
@@ -1955,7 +2081,16 @@ class GameProvider extends ChangeNotifier {
       // l'attaquant, et le tour restait bloqué en boucle.
       final hasRevolver = attacker.equipment.any((e) => e.effect == 'revolver_tenebres');
       if (bazTargets.isEmpty && attacker.hache && !hasRevolver) bazTargets = [attacker];
-      final bazDmg = baseDmg + attacker.equipment.where((e) => e.effect == 'dague_voleur').length; // Dague(s) du Voleur
+      // IMPORTANT : la Lance, la Lance de Longinus et l'Épée du Ninja
+      // manquaient ENTIÈREMENT ici — seule la Dague du Voleur était prise
+      // en compte, alors que resolveAttack() (attaque normale) applique
+      // les quatre. Répliqué à l'identique.
+      var bazDmg = baseDmg;
+      if (attacker.lance && bazDmg > 0) bazDmg += 2;
+      if (attacker.lanceLonginus && bazDmg > 0 &&
+          attacker.character?.faction == Faction.hunter && attacker.revealed) bazDmg += 2;
+      if (bazDmg > 0) bazDmg += attacker.equipment.where((e) => e.effect == 'dague_voleur').length;
+      if (attacker.epeeNinja && bazDmg > 0) bazDmg += 2;
       // Carla : si elle porte le bazooka, ses cibles Hunter révélées sont
       // soignées du même montant que les dégâts qui auraient été infligés
       // (aucune réduction, ni sur le soin ni sur les dégâts normaux).

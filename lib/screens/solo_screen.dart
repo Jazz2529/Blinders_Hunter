@@ -2479,7 +2479,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'corne_des_woods_victim', 'corne_des_woods', 'creation_marin', 'heal_other_d4',
       'clemence_target', 'jeanne_mark_target', 'equip_choice',
       'swap_zone_pick1', 'swap_zone_pick2', 'jeanne_mark_target', 'christine_zone_pick',
-      'tristan_give_choice', 'tristan_receive_choice',
+      'tristan_give_choice', 'tristan_receive_choice', 'terrain_steal_item',
     };
     if (abilityTargetActions.contains(s.pendingTargetAction)) {
       return _buildInlineTargetList(ctx);
@@ -3178,6 +3178,27 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
           child: BHButton(
             label: entry.value.name,
             onTap: () => ctrl.humanTristanChooseReceive(entry.key),
+          ),
+        )),
+      ];
+    }
+    // Terrain 10 (Chambre) : choisir PRÉCISÉMENT quel objet voler chez la
+    // cible, au lieu d'un tirage aléatoire.
+    if (context == 'terrain_steal_item') {
+      final targetUid = s.stealTargetUid;
+      final t = targetUid != null
+          ? s.players.firstWhere((pl) => pl.uid == targetUid, orElse: () => s.current)
+          : s.current;
+      return [
+        Container(padding: const EdgeInsets.all(10), decoration: surfaceDecor(),
+          child: Text('🗼 Quel objet de ${t.name} voulez-vous voler ?',
+            style: cinzel(12, c: kGold2))),
+        const SizedBox(height: 8),
+        ...t.equipment.asMap().entries.map((entry) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: BHButton(
+            label: entry.value.name,
+            onTap: () => ctrl.humanChooseStealItem(entry.key),
           ),
         )),
       ];

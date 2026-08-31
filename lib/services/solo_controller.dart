@@ -50,6 +50,7 @@ class SoloState {
   bool peioReturnToMove = false; // Peio: après avoir réactivé le terrain, revenir en phase Déplacement
   String? linkedUid1;        // Cupidon: uid1 lié
   String? tristanTargetUid;  // Tristan : joueur choisi à l'étape 1
+  String? stealTargetUid;  // Terrain 10 : joueur choisi, en attente du choix de l'objet précis à voler
   int? tristanGiveIdx;       // Tristan : index de SON équipement choisi à l'étape 2
   String? linkedUid2;        // Cupidon: uid2 lié
   int linkedTurnsLeft;       // Cupidon: tours restants
@@ -1820,14 +1821,15 @@ class SoloController extends ChangeNotifier {
           s.phase = GamePhase.chooseTarget; notifyListeners(); return;
         }
         _applyDmgAudio(target, 8);
-        // Hong Yi s'inflige 4 blessures en retour (peut désormais mourir de
-        // son propre pouvoir si déjà fortement blessé au préalable).
-        _applyDmgAudio(p, 4);
+        // Hong Yi s'inflige 5 blessures en retour (texte de la carte) —
+        // c'était incorrectement 4 auparavant. Peut désormais mourir de
+        // son propre pouvoir si déjà fortement blessé au préalable.
+        _applyDmgAudio(p, 5);
         p.abilityUsed = true; // unique
         s.pendingTargetAction = null;
         s.abilityOverlay = 'hongyi_dumbbell';
         s.abilityDiceResult = {'d': 8, 'result': 8, 'dmg': 8};
-        _log('⚡ Hong Yi inflige 8 à ${target.name} — et s\'inflige 4 blessures en retour !', cls: 'player');
+        _log('⚡ Hong Yi inflige 8 à ${target.name} — et s\'inflige 5 blessures en retour !', cls: 'player');
         if (!p.alive) p.killedByUid = p.uid;
         await _checkWin(justDiedId: target.alive ? null : target.uid);
         if (!p.alive) await _checkWin(justDiedId: p.uid);
@@ -2543,8 +2545,17 @@ class SoloController extends ChangeNotifier {
       _eg.applyDeathPassives(state!.players); // sinon Fanny (et autres passifs de mort) ne se déclenchent jamais sur ce kill
       await _checkWin(justDiedId: target.alive ? null : target.uid);
     } else if (action == 'terrain_steal') {
+      if (target.equipment.length > 1) {
+        // Plusieurs objets possibles — laisse le joueur choisir LEQUEL
+        // voler, au lieu d'un tirage aléatoire (comme demandé).
+        state!.stealTargetUid = target.uid;
+        state!.pendingTargetAction = 'terrain_steal_item';
+        state!.phase = GamePhase.chooseTarget;
+        notifyListeners();
+        return;
+      }
       if (target.equipment.isNotEmpty) {
-        final e = target.equipment.removeAt(_rng.nextInt(target.equipment.length));
+        final e = target.equipment.removeAt(0);
         state!.current.equipment.add(e);
         _eg.equipPassivePublic(state!.current, e);
         // Retirer les passifs de la victime et les recalculer
@@ -2554,6 +2565,25 @@ class SoloController extends ChangeNotifier {
         _log('🗼 ${target.name} ne possède aucun équipement', cls: 'player');
       }
     }
+    state!.pendingTargetAction = null;
+    if (!state!.isOver && !state!.turnEndedByDeath) { state!.phase = _postCardPhase(); }
+    notifyListeners();
+  }
+
+  /// Terrain 10 — étape 2 : l'objet précis à voler a été choisi.
+  void humanChooseStealItem(int equipIdx) {
+    final targetUid = state!.stealTargetUid;
+    final target = targetUid != null
+        ? state!.players.firstWhere((p) => p.uid == targetUid, orElse: () => state!.current)
+        : state!.current;
+    if (equipIdx >= 0 && equipIdx < target.equipment.length) {
+      final e = target.equipment.removeAt(equipIdx);
+      state!.current.equipment.add(e);
+      _eg.equipPassivePublic(state!.current, e);
+      _eg.recalcPassives(target);
+      _log('🗼 Tu voles "${e.name}" à ${target.name}', cls: 'player');
+    }
+    state!.stealTargetUid = null;
     state!.pendingTargetAction = null;
     if (!state!.isOver && !state!.turnEndedByDeath) { state!.phase = _postCardPhase(); }
     notifyListeners();

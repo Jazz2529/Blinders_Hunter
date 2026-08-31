@@ -145,6 +145,12 @@ class Player {
   final String uid;
   String name;
   String token;
+  // Skin de carte personnage équipé par CE joueur (sur son propre appareil,
+  // via la boutique) pour SON personnage actuel — synchronisé pour qu'un
+  // autre joueur en multijoueur voie bien SON skin à lui en consultant sa
+  // fiche, plutôt que la préférence locale du joueur qui regarde (ou
+  // l'illustration par défaut, faute de synchronisation).
+  String? equippedCharacterSkin;
   CharacterCard? character;
   int wounds;
   int zoneIndex;
@@ -227,6 +233,7 @@ class Player {
     required this.uid,
     required this.name,
     required this.token,
+    this.equippedCharacterSkin,
     this.character,
     this.wounds = 0,
     this.zoneIndex = 0,
@@ -311,7 +318,7 @@ class Player {
   bool get isBot => uid.startsWith('bot_');
 
   Map<String, dynamic> toJson() => {
-    'uid': uid, 'name': name, 'token': token,
+    'uid': uid, 'name': name, 'token': token, 'equippedCharacterSkin': equippedCharacterSkin,
     'character': character?.toJson(),
     'wounds': wounds, 'zoneIndex': zoneIndex,
     'alive': alive, 'revealed': revealed,
@@ -373,6 +380,7 @@ class Player {
     uid: j['uid'] as String,
     name: j['name'] as String,
     token: (j['token'] as String?) ?? '🔵',
+    equippedCharacterSkin: j['equippedCharacterSkin'] as String?,
     character: j['character'] != null
         ? CharacterCard.fromJson(Map<String, dynamic>.from(j['character'] as Map))
         : null,
@@ -485,10 +493,15 @@ class GameState {
   final int? lastDiceTimestamp;           // ms depuis epoch au moment du jet
   final int? turnStartedAt;               // ms epoch — début du tour courant (timer AFK)
   final String? pendingPunishActorUid;  // Divination X ou Y : qui a joué la carte
+  final int? pendingPunishTimestamp; // horodatage de CET événement précis — nécessaire
+  // pour distinguer deux punitions successives visant le MÊME joueur (sans ça, le
+  // sondage réseau pouvait ne jamais observer l'état "nettoyé" intermédiaire entre
+  // les deux, et la seconde ne déclenchait alors jamais son dialogue de choix).
   final String? pendingPunishTargetUid; // Divination X ou Y : qui doit répondre
   final String? privateRevealTargetUid; // Vision Suprême : uid dont la carte est montrée
   final String? privateRevealForUid;    // Vision Suprême : à QUI montrer (uid du lanceur)
   final String? forcedAttackerUid;      // Corne des Woods : qui doit attaquer (étape 2 en attente)
+  final String? stealTargetUid;  // Terrain 10 : joueur choisi, en attente du choix de l'objet précis à voler
   final bool peioReturnToMove;           // Peio : retourner en phase Déplacement après le terrain réactivé
   // Clémence builder power
   final int builderStep;                 // 0=off 1=1er choix 2=2ème choix 3=choisir cible
@@ -556,10 +569,12 @@ class GameState {
     this.lastDiceTimestamp,
     this.turnStartedAt,
     this.pendingPunishActorUid,
+    this.pendingPunishTimestamp,
     this.pendingPunishTargetUid,
     this.privateRevealTargetUid,
     this.privateRevealForUid,
     this.forcedAttackerUid,
+    this.stealTargetUid,
     this.peioReturnToMove = false,
     this.builderStep = 0,
     this.builderEffect1,
@@ -615,10 +630,12 @@ class GameState {
     'lastDiceTimestamp': lastDiceTimestamp,
     'turnStartedAt': turnStartedAt,
     'pendingPunishActorUid': pendingPunishActorUid,
+    'pendingPunishTimestamp': pendingPunishTimestamp,
     'pendingPunishTargetUid': pendingPunishTargetUid,
     'privateRevealTargetUid': privateRevealTargetUid,
     'privateRevealForUid': privateRevealForUid,
     'forcedAttackerUid': forcedAttackerUid,
+    'stealTargetUid': stealTargetUid,
     'peioReturnToMove': peioReturnToMove,
     'builderStep': builderStep,
     'builderEffect1': builderEffect1,
@@ -687,10 +704,12 @@ class GameState {
     lastDrawnCardTimestamp: j['lastDrawnCardTimestamp'] as int?,
     turnStartedAt: j['turnStartedAt'] as int?,
     pendingPunishActorUid: j['pendingPunishActorUid'] as String?,
+    pendingPunishTimestamp: j['pendingPunishTimestamp'] as int?,
     pendingPunishTargetUid: j['pendingPunishTargetUid'] as String?,
     privateRevealTargetUid: j['privateRevealTargetUid'] as String?,
     privateRevealForUid: j['privateRevealForUid'] as String?,
     forcedAttackerUid: j['forcedAttackerUid'] as String?,
+    stealTargetUid: j['stealTargetUid'] as String?,
     peioReturnToMove: (j['peioReturnToMove'] as bool?) ?? false,
     builderStep: (j['builderStep'] as int?) ?? 0,
     builderEffect1: j['builderEffect1'] as String?,

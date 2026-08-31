@@ -133,6 +133,7 @@ const Map<String, String> kCharacterImages = {
   'marion': 'assets/images/characters/marion.png',
   'mathieu': 'assets/images/characters/mathieu.png',
   'maxence': 'assets/images/characters/maxence.png',
+  'meg': 'assets/images/characters/meg.png',
   'tom': 'assets/images/characters/tom.png',
   'maxime': 'assets/images/characters/maxime.png',
   'victor': 'assets/images/characters/victor.png',
@@ -268,6 +269,19 @@ String? effectiveCharacterImagePath(String id) {
     if (item != null) return item.imagePath;
   }
   return characterImagePath(id);
+}
+
+/// Résout l'illustration d'un skin PRÉCIS par son identifiant — sans jamais
+/// regarder les préférences locales de CET appareil. Nécessaire pour
+/// afficher le skin qu'un AUTRE joueur a équipé (synchronisé via
+/// Player.equippedCharacterSkin), plutôt que la préférence locale du
+/// joueur qui consulte sa fiche.
+String? resolveSpecificSkinImagePath(String characterId, String? skinId) {
+  if (skinId != null) {
+    final item = kCosmeticsCatalog.where((c) => c.id == skinId).firstOrNull;
+    if (item != null) return item.imagePath;
+  }
+  return characterImagePath(characterId);
 }
 String? terrainImagePath(String effect) => kTerrainImages[effect];
 

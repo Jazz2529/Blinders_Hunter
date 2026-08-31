@@ -86,7 +86,15 @@ class _BHButtonState extends State<BHButton> {
   bool get outlined => widget.outlined; bool get loading => widget.loading;
 
   @override
-  Widget build(BuildContext ctx) => Listener(
+  Widget build(BuildContext ctx) => Padding(
+    // Marge verticale par défaut — sans ça, des boutons empilés se
+    // touchaient directement (aucune marge externe auparavant), ce qui
+    // provoquait des clics accidentels sur le mauvais bouton (typiquement
+    // "Se révéler" et le bouton suivant qui apparaît juste après à la
+    // même position à l'écran). Centralisé ici plutôt que corrigé site
+    // par site : couvre tous les boutons de l'application d'un coup.
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Listener(
     onPointerDown: (_) { if (onTap != null) setState(() => _pressed = true); },
     onPointerUp: (_) => setState(() => _pressed = false),
     onPointerCancel: (_) => setState(() => _pressed = false),
@@ -114,7 +122,7 @@ class _BHButtonState extends State<BHButton> {
     ),
       ),
     ),
-  );
+  ));
 }
 
 class HPBar extends StatelessWidget {

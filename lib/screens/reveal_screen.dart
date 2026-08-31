@@ -6,16 +6,19 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import 'card_viewer.dart';
 import '../services/persistence.dart';
+import '../services/audio_service.dart';
 import 'theme.dart';
 import '../data/characters_data.dart';
 import '../data/game_data.dart';
+import '../data/interactions_data.dart';
+import 'shine_effect.dart';
 
 class RevealFullScreen extends StatefulWidget {
   final Player player;
   final VoidCallback onDone;
   final bool isRealReveal; // false = simple aperçu privé (Vision Suprême)
   final List<Player>? allPlayers; // pour détecter les interactions entre personnages
-  const RevealFullScreen({required this.player, required this.onDone, this.isRealReveal = true, this.allPlayers});
+  const RevealFullScreen({super.key, required this.player, required this.onDone, this.isRealReveal = true, this.allPlayers});
   @override State<RevealFullScreen> createState() => RevealFullScreenState();
 }
 
@@ -61,8 +64,10 @@ class RevealFullScreenState extends State<RevealFullScreen>
         }
       }
     }
-    // Auto-dismiss après 3.5s
-    Future.delayed(const Duration(milliseconds: 3500), () {
+    // Auto-dismiss après 6s (allongé — laisse le temps de bien voir
+    // l'image et d'entendre la réplique, surtout pour les révélations de
+    // bots qui s'enchaînent vite avec d'autres actions de leur tour).
+    Future.delayed(const Duration(milliseconds: 6000), () {
       if (mounted) widget.onDone();
     });
   }
