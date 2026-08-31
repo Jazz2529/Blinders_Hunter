@@ -1171,6 +1171,18 @@ class _ActionPanelState extends State<_ActionPanel> {
 
   GameProvider get gp => widget.gp;
 
+  @override
+  void initState() {
+    super.initState();
+    // Récupère un jet de dés DÉJÀ lancé mais pas encore confirmé (stocké
+    // sur GameProvider, pas dans cet état local) — sans ça, n'importe quel
+    // changement ailleurs dans l'appli qui reconstruit ce widget (ex:
+    // modifier l'échelle d'affichage) faisait perdre le jet et permettait
+    // de relancer les dés gratuitement.
+    _d4 = gp.pendingMoveD4; _d6 = gp.pendingMoveD6; _sum = gp.pendingMoveSum;
+    _d4b = gp.pendingMoveD4b; _d6b = gp.pendingMoveD6b; _sum2 = gp.pendingMoveSum2;
+  }
+
   /// Exécute une action async en empêchant les doubles-clics (anti-spam).
   /// Délègue désormais au garde CENTRALISÉ de GameProvider (guardedAction)
   /// — une seule source de vérité, partagée avec tous les autres boutons
@@ -1556,6 +1568,8 @@ class _ActionPanelState extends State<_ActionPanel> {
                     _d4 = r1['d4'] as int; _d6 = r1['d6'] as int; _sum = r1['sum'] as int;
                     _d4b = r2['d4'] as int; _d6b = r2['d6'] as int; _sum2 = r2['sum'] as int;
                   });
+                  gp.pendingMoveD4 = _d4; gp.pendingMoveD6 = _d6; gp.pendingMoveSum = _sum;
+                  gp.pendingMoveD4b = _d4b; gp.pendingMoveD6b = _d6b; gp.pendingMoveSum2 = _sum2;
                 })
             else
               BHButton(label: '🎲 Lancer les dés (d4 + d6)', onTap: _rollDice, gold: true),
@@ -1578,6 +1592,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               onTap: () {
                 if (hasAlbane) gp.guardedAction(() => gp.markAlbaneUsed());
                 setState(() { _sum2 = null; _d4b = null; _d6b = null; _boussoleDecided = true; });
+                gp.pendingMoveSum2 = null; gp.pendingMoveD4b = null; gp.pendingMoveD6b = null;
               }),
             BHButton(label: '✅ Choisir lancer 2 ($_sum2)', gold: true,
               onTap: () {
@@ -1586,6 +1601,8 @@ class _ActionPanelState extends State<_ActionPanel> {
                   _d4 = _d4b; _d6 = _d6b; _sum = _sum2;
                   _sum2 = null; _d4b = null; _d6b = null; _boussoleDecided = true;
                 });
+                gp.pendingMoveD4 = _d4; gp.pendingMoveD6 = _d6; gp.pendingMoveSum = _sum;
+                gp.pendingMoveSum2 = null; gp.pendingMoveD4b = null; gp.pendingMoveD6b = null;
               }),
           ];
         }
@@ -1981,6 +1998,7 @@ class _ActionPanelState extends State<_ActionPanel> {
       final r = GameEngine.instance.rollMove();
       setState(() { _d4 = r['d4']; _d6 = r['d6']; _sum = r['sum']; });
     }
+    gp.pendingMoveD4 = _d4; gp.pendingMoveD6 = _d6; gp.pendingMoveSum = _sum;
   }
 
   void _resetDice() => setState(() {

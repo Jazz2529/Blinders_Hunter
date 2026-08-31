@@ -23,6 +23,15 @@ class SoloState {
   List<LogEntry> log;
   GameCard? pendingCard;
   bool pendingCardIsSecret; // true = carte Vision, secrète pour les autres
+  // Dés de déplacement DÉJÀ lancés, en attente de confirmation (choix de
+  // zone ou déplacement direct) — stockés ICI plutôt que dans l'état local
+  // d'un widget : sinon, n'importe quel changement ailleurs dans l'appli
+  // (par exemple modifier l'échelle d'affichage dans les réglages, qui
+  // reconstruit une partie de l'arbre de widgets) faisait perdre ce jet
+  // et permettait de relancer les dés gratuitement jusqu'à obtenir un
+  // résultat plus favorable — un vrai exploit.
+  int? pendingMoveD4, pendingMoveD6, pendingMoveSum;
+  int? pendingMoveD4b, pendingMoveD6b, pendingMoveSum2; // Albane/Boussole : 2e lancer
   String? pendingTargetAction;
   String? attackTargetId;
   List<String> winnerIds;

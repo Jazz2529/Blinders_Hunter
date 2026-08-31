@@ -2394,6 +2394,18 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
   SoloState get s => ctrl.state!;
 
   @override
+  void initState() {
+    super.initState();
+    // Récupère un jet de dés DÉJÀ lancé mais pas encore confirmé (stocké
+    // dans SoloState, pas dans cet état local) — sans ça, n'importe quel
+    // changement ailleurs dans l'appli qui reconstruit ce widget (ex:
+    // modifier l'échelle d'affichage) faisait perdre le jet et permettait
+    // de relancer les dés gratuitement.
+    _d4 = s.pendingMoveD4; _d6 = s.pendingMoveD6; _sum = s.pendingMoveSum;
+    _d4b = s.pendingMoveD4b; _d6b = s.pendingMoveD6b; _sum2 = s.pendingMoveSum2;
+  }
+
+  @override
   Widget build(BuildContext ctx) => Column(mainAxisSize: MainAxisSize.min, children: [
     Text(_phaseLabel(), style: cinzel(11, c: kGold, ls: 2)),
     const SizedBox(height: 10),
@@ -2701,6 +2713,8 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                     _d4 = r1['d4'] as int; _d6 = r1['d6'] as int; _sum = r1['sum'] as int;
                     _d4b = r2['d4'] as int; _d6b = r2['d6'] as int; _sum2 = r2['sum'] as int;
                   });
+                  s.pendingMoveD4 = _d4; s.pendingMoveD6 = _d6; s.pendingMoveSum = _sum;
+                  s.pendingMoveD4b = _d4b; s.pendingMoveD6b = _d6b; s.pendingMoveSum2 = _sum2;
                 })
             else
               BHButton(label: '🎲 Lancer les dés (d4 + d6)', onTap: _rollDice)
@@ -2720,12 +2734,16 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
             BHButton(label: '✅ Choisir lancer 1 ($_sum)', gold: true,
               onTap: () {
                 setState(() { _sum2 = null; _d4b = null; _d6b = null; _albaneChose = true; });
+                s.pendingMoveSum2 = null; s.pendingMoveD4b = null; s.pendingMoveD6b = null;
                 if (_sum != 7) _applyMove(_sum!);
               }),
             BHButton(label: '✅ Choisir lancer 2 ($_sum2)', gold: true,
               onTap: () {
                 final chosen = _sum2!;
-                setState(() { _sum = chosen; _sum2 = null; _d4b = null; _d6b = null; _albaneChose = true; });
+                final chosenD4 = _d4b!, chosenD6 = _d6b!;
+                setState(() { _sum = chosen; _d4 = chosenD4; _d6 = chosenD6; _sum2 = null; _d4b = null; _d6b = null; _albaneChose = true; });
+                s.pendingMoveSum = chosen; s.pendingMoveD4 = chosenD4; s.pendingMoveD6 = chosenD6;
+                s.pendingMoveSum2 = null; s.pendingMoveD4b = null; s.pendingMoveD6b = null;
                 if (chosen != 7) _applyMove(chosen);
               }),
           ] else ...[
@@ -3381,6 +3399,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (sum == 7) {
       // Stay in choose mode — handled by _buildZoneChoices
       setState(() { _sum = 7; _sum2 = null; });
+      s.pendingMoveSum = 7; s.pendingMoveSum2 = null;
       return;
     }
     final tid = m[sum];
@@ -3393,12 +3412,15 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         (ctrl.state!.players[ctrl.state!.currentIdx].wounds - 2).clamp(0, 999);
     }
     setState(() { _d4 = _d6 = _sum = null; _sum2 = null; _d4b = null; _d6b = null; _albaneChose = false; });
+    s.pendingMoveD4 = s.pendingMoveD6 = s.pendingMoveSum = null;
+    s.pendingMoveSum2 = s.pendingMoveD4b = s.pendingMoveD6b = null;
   }
 
   void _rollDice() {
     audio.playDice();
     final r = GameEngine.instance.rollMove();
     setState(() { _d4 = r['d4']; _d6 = r['d6']; _sum = r['sum']; });
+    s.pendingMoveD4 = _d4; s.pendingMoveD6 = _d6; s.pendingMoveSum = _sum;
     // Augustin: passif sur résultat 7
     if (r['sum'] == 7 && s.current.character?.abilityEffect == 'heal_on_same_terrain' && s.current.revealed) {
       ctrl.healPlayer(s.current.uid, 2);
@@ -3410,7 +3432,12 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     final t = s.terrainLayout[i];
     return BHButton(
       label: '${t.icon} ${t.num} — ${t.name}',
-      onTap: () { ctrl.humanMove(i); setState(() { _d4 = _d6 = _sum = null; _sum2 = null; _d4b = null; _d6b = null; }); },
+      onTap: () {
+        ctrl.humanMove(i);
+        setState(() { _d4 = _d6 = _sum = null; _sum2 = null; _d4b = null; _d6b = null; });
+        s.pendingMoveD4 = s.pendingMoveD6 = s.pendingMoveSum = null;
+        s.pendingMoveSum2 = s.pendingMoveD4b = s.pendingMoveD6b = null;
+      },
     );
   });
 
@@ -3422,7 +3449,12 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     final t = s.terrainLayout[idx];
     return BHButton(
       label: '→ ${t.icon} ${t.name}  (${t.keyword})',
-      onTap: () { ctrl.humanMove(idx); setState(() { _d4 = _d6 = _sum = null; _sum2 = null; _d4b = null; _d6b = null; }); },
+      onTap: () {
+        ctrl.humanMove(idx);
+        setState(() { _d4 = _d6 = _sum = null; _sum2 = null; _d4b = null; _d6b = null; });
+        s.pendingMoveD4 = s.pendingMoveD6 = s.pendingMoveSum = null;
+        s.pendingMoveSum2 = s.pendingMoveD4b = s.pendingMoveD6b = null;
+      },
     );
   }
 

@@ -30,6 +30,15 @@ class GameProvider extends ChangeNotifier {
   // protection au niveau du provider, partagé par TOUS les boutons peu
   // importe le widget qui les affiche.
   bool _actionBusy = false;
+  // Dés de déplacement DÉJÀ lancés, en attente de confirmation — stockés
+  // ICI (sur GameProvider, fourni tout en haut de l'arbre de widgets, donc
+  // jamais reconstruit par un changement de réglages d'affichage) plutôt
+  // que dans l'état local d'un widget. Sinon, n'importe quel changement
+  // ailleurs dans l'appli (ex: modifier l'échelle d'affichage) faisait
+  // perdre ce jet et permettait de relancer les dés gratuitement jusqu'à
+  // obtenir un résultat plus favorable — un vrai exploit.
+  int? pendingMoveD4, pendingMoveD6, pendingMoveSum;
+  int? pendingMoveD4b, pendingMoveD6b, pendingMoveSum2; // Boussole Mystique : 2e lancer
   /// Exposé publiquement (et réactif via notifyListeners) pour que
   /// l'interface puisse désactiver VISUELLEMENT les boutons pendant
   /// qu'une action est en cours — seconde couche de protection en plus du
@@ -1613,6 +1622,11 @@ class GameProvider extends ChangeNotifier {
     } else {
       await _commitAll(all, '🚶 ${p.name} → ${t.name}');
     }
+    // Déplacement confirmé côté serveur — le jet de dés "en attente" (voir
+    // pendingMoveD4 etc, plus haut) n'a plus besoin d'être conservé pour
+    // survivre à une reconstruction de widget.
+    pendingMoveD4 = pendingMoveD6 = pendingMoveSum = null;
+    pendingMoveD4b = pendingMoveD6b = pendingMoveSum2 = null;
     await _fb.setPhase(roomId!, GamePhase.zoneEffect,
         richardActivateZone: -1,
         lastDiceResult: d4 > 0 ? {'d4': d4, 'd6': d6, 'sum': diceSum} : null,
