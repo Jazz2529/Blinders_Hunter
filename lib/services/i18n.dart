@@ -48,3 +48,31 @@ String ui(String key) {
   if (!AppLanguage.instance.isEnglish) return kUiStringsFr[key] ?? key;
   return kUiStringsEn[key] ?? kUiStringsFr[key] ?? key;
 }
+
+/// Enveloppe un écran pour qu'il se reconstruise IMMÉDIATEMENT dès que la
+/// langue change — nécessaire pour tout écran ouvert via Navigator.push
+/// (configuration solo, règles, stats, boutique, catalogue...), qui ne
+/// profite PAS automatiquement de la reconstruction globale déclenchée
+/// depuis _RootWrapper (celle-ci ne rebâtit que l'écran racine — accueil/
+/// lobby/jeu —, pas les écrans empilés séparément par le Navigator).
+class LanguageAware extends StatefulWidget {
+  final WidgetBuilder builder;
+  const LanguageAware({super.key, required this.builder});
+  @override
+  State<LanguageAware> createState() => _LanguageAwareState();
+}
+class _LanguageAwareState extends State<LanguageAware> {
+  @override
+  void initState() {
+    super.initState();
+    AppLanguage.instance.addListener(_onChange);
+  }
+  @override
+  void dispose() {
+    AppLanguage.instance.removeListener(_onChange);
+    super.dispose();
+  }
+  void _onChange() { if (mounted) setState(() {}); }
+  @override
+  Widget build(BuildContext context) => widget.builder(context);
+}

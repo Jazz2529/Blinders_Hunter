@@ -392,7 +392,7 @@ class AdjacencyLegend extends StatelessWidget {
       const SizedBox(width: 8),
       _dot(kGold),
       const SizedBox(width: 3),
-      Text('Accessible (→)', style: body(8, c: kTextSub)),
+      Text(ui('accessible_arrow'), style: body(8, c: kTextSub)),
     ],
   );
 
@@ -461,7 +461,7 @@ class CharacterCardFull extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Column(children: [
             Row(children: [
-              Expanded(child: Text(characterName,
+              Expanded(child: Text(tr(characterName),
                 style: cinzel(16, c: kGold2, fw: FontWeight.w900))),
               FactionBadge(faction, small: true),
             ]),
@@ -474,7 +474,7 @@ class CharacterCardFull extends StatelessWidget {
                   Text('🗡 Blessures : $wounds',
                     style: cinzel(10, c: hpColor)),
                   const Spacer(),
-                  if (!hideHp) Text('/ $hp PV', style: body(10, c: kTextDim)),
+                  if (!hideHp) Text("/ $hp ${ui('hp_suffix')}", style: body(10, c: kTextDim)),
                 ]),
                 if (!hideHp) ...[
                   const SizedBox(height: 4),
@@ -487,12 +487,12 @@ class CharacterCardFull extends StatelessWidget {
               ]),
             ),
             const SizedBox(height: 6),
-            _InfoRow('⚡', 'CAPACITÉ', ability),
+            _InfoRow('⚡', ui('info_ability_short'), tr(ability)),
             const SizedBox(height: 4),
-            _InfoRow('🏆', 'OBJECTIF', winCondition),
+            _InfoRow('🏆', ui('info_objective'), tr(winCondition)),
             if (equipmentNames.isNotEmpty) ...[
               const SizedBox(height: 4),
-              _InfoRow('⚔️', 'ÉQUIPEMENTS', equipmentNames.join(', ')),
+              _InfoRow('⚔️', ui('info_equipment'), equipmentNames.map(tr).join(', ')),
             ],
           ]),
         ),

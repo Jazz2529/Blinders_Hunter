@@ -247,10 +247,10 @@ class _GameOverScreenState extends State<_GameOverScreen>
     final fbg = factionBg(winFaction.isEmpty ? 'hunter' : winFaction);
 
     final factionLabel = switch (winFaction) {
-      'hunter'  => 'LES HUNTERS',
-      'shadow'  => 'LES SHADOWS',
-      'neutral' => 'LES NEUTRES',
-      _         => 'LES JOUEURS',
+      'hunter'  => ui('gameover_hunters'),
+      'shadow'  => ui('gameover_shadows'),
+      'neutral' => ui('gameover_neutrals'),
+      _         => ui('gameover_players'),
     };
     final factionEmoji = switch (winFaction) {
       'hunter' => '🔵', 'shadow' => '🔴', 'neutral' => '🟡', _ => '⚔️',
@@ -285,9 +285,9 @@ class _GameOverScreenState extends State<_GameOverScreen>
                   Text(factionLabel, style: cinzel(32, c: fc, fw: FontWeight.w900).copyWith(
                     shadows: [Shadow(color: fc.withValues(alpha: 0.8), blurRadius: 24)])),
                   const SizedBox(height: 4),
-                  Text('ONT GAGNÉ !', style: cinzel(22, c: kGold2, fw: FontWeight.w700, ls: 4)),
+                  Text(ui('gameover_won'), style: cinzel(22, c: kGold2, fw: FontWeight.w700, ls: 4)),
                   const SizedBox(height: 8),
-                  Text(result['reason'] as String? ?? '', style: body(13, c: kTextSub),
+                  Text(tr(result['reason'] as String? ?? ''), style: body(13, c: kTextSub),
                     textAlign: TextAlign.center,
                     maxLines: 2, overflow: TextOverflow.ellipsis),
                 ]),
@@ -348,7 +348,7 @@ class _GameOverScreenState extends State<_GameOverScreen>
                           Padding(
                             padding: const EdgeInsets.all(7),
                             child: Column(children: [
-                              Text(c2?.name ?? w.name,
+                              Text(c2 != null ? tr(c2.name) : w.name,
                                 style: cinzel(11, c: isDead ? kTextDim : wFc, fw: FontWeight.w700),
                                 textAlign: TextAlign.center,
                                 overflow: TextOverflow.ellipsis),
@@ -375,7 +375,7 @@ class _GameOverScreenState extends State<_GameOverScreen>
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Column(children: [
-                      Text('ÉLIMINÉS', style: cinzel(10, c: kTextDim, ls: 3)),
+                      Text(ui('gameover_eliminated'), style: cinzel(10, c: kTextDim, ls: 3)),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8, runSpacing: 6, alignment: WrapAlignment.center,
@@ -403,14 +403,14 @@ class _GameOverScreenState extends State<_GameOverScreen>
                             color: fc.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(color: fc, width: 2)),
-                          child: Text('↺ Rejouer avec les mêmes joueurs', textAlign: TextAlign.center,
+                          child: Text(ui('gameover_replay'), textAlign: TextAlign.center,
                             style: cinzel(16, c: fc, fw: FontWeight.w700))),
                       ),
                       const SizedBox(height: 8),
                     ] else
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
-                        child: Text('L\'hôte peut relancer une partie avec les mêmes joueurs.',
+                        child: Text(ui('gameover_replay_desc'),
                           style: body(11, c: kTextDim), textAlign: TextAlign.center),
                       ),
                     GestureDetector(
@@ -426,7 +426,7 @@ class _GameOverScreenState extends State<_GameOverScreen>
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: kBord2)),
-                        child: Text('🏠 Menu principal', textAlign: TextAlign.center,
+                        child: Text(ui('gameover_main_menu'), textAlign: TextAlign.center,
                           style: cinzel(14, c: kTextSub))),
                     ),
                   ]),

@@ -7,6 +7,7 @@ import '../data/characters_data.dart';
 import '../models/models.dart';
 import '../widgets/theme.dart';
 import '../widgets/shine_effect.dart';
+import '../services/i18n.dart';
 import '../services/persistence.dart';
 import '../data/cosmetics_data.dart';
 import '../widgets/card_viewer.dart';
@@ -32,21 +33,21 @@ class _CardCatalogScreenState extends State<CardCatalogScreen>
   @override void dispose() { _mainTabs.dispose(); super.dispose(); }
 
   @override
-  Widget build(BuildContext ctx) {
+  Widget build(BuildContext ctx) => LanguageAware(builder: (ctx) {
     return Scaffold(
       backgroundColor: kBg0,
       appBar: AppBar(
         backgroundColor: kBg2, elevation: 0,
-        title: Text('📚 Catalogue', style: cinzel(16, c: kGold2)),
+        title: Text(ui('gallery_title'), style: cinzel(16, c: kGold2)),
         bottom: TabBar(
           controller: _mainTabs,
           indicatorColor: kGold,
           labelColor: kGold,
           unselectedLabelColor: kTextSub,
           labelStyle: const TextStyle(fontFamily: 'Cinzel', fontSize: 12),
-          tabs: const [
-            Tab(text: '🎭  Personnages'),
-            Tab(text: '🃏  Cartes'),
+          tabs: [
+            Tab(text: ui('gallery_tab_characters')),
+            Tab(text: ui('gallery_tab_cards')),
           ],
         ),
       ),
@@ -58,7 +59,7 @@ class _CardCatalogScreenState extends State<CardCatalogScreen>
         ],
       ),
     );
-  }
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -135,10 +136,10 @@ class _CardDeckGalleryBodyState extends State<_CardDeckGalleryBody> {
   String _filter = 'all'; // all | vision | lumiere | tenebres
 
   final _decks = [
-    ('all',      'Toutes',    kGold),
-    ('vision',   'Vision',    kVisionBg),
-    ('lumiere',  'Lumière',   kLumiereBg),
-    ('tenebres', 'Ténèbres',  kTenebresBg),
+    ('all', ui('deck_all'), kGold),
+    ('vision', tr('Vision'), kVisionBg),
+    ('lumiere', tr('Lumière'), kLumiereBg),
+    ('tenebres', tr('Ténèbres'), kTenebresBg),
   ];
 
   List<GameCard> get filtered {
@@ -251,7 +252,7 @@ class _GameCardTile extends StatelessWidget {
                 ]),
               ),
               const SizedBox(height: 12),
-              Text('Touche l\'écran pour fermer', style: body(12, c: kTextDim)),
+              Text(ui('tap_close_screen'), style: body(12, c: kTextDim)),
             ]),
           ),
         );
@@ -409,7 +410,7 @@ class _CharacterCardState extends State<_CharacterCard> {
               padding: const EdgeInsets.all(8),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Expanded(child: Text(c.name,
+                  Expanded(child: Text(tr(c.name),
                     style: cinzel(14, c: kGold2, fw: FontWeight.w900),
                     maxLines: 1, overflow: TextOverflow.ellipsis)),
                   _HpBadge(hp: c.hp, faction: c.faction.name),
@@ -417,7 +418,7 @@ class _CharacterCardState extends State<_CharacterCard> {
                 const SizedBox(height: 3),
                 FactionBadge(c.faction.name),
                 const SizedBox(height: 4),
-                Text('Appuie pour voir en grand →',
+                Text(ui('gallery_tap_enlarge'),
                   style: body(9, c: kTextDim),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
               ]),
@@ -442,13 +443,13 @@ Future<void> _showSkinPicker(BuildContext ctx, CharacterCard c, List<CosmeticIte
     context: ctx,
     builder: (dctx) => AlertDialog(
       backgroundColor: kBg2,
-      title: Text('Apparence de ${c.name}', style: cinzel(15, c: kGold2)),
+      title: Text(ui('gallery_appearance_of').replaceAll('{name}', tr(c.name)), style: cinzel(15, c: kGold2)),
       content: SizedBox(
         width: double.maxFinite,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           // Apparence de base — toujours disponible
           _SkinOption(
-            label: 'Apparence de base',
+            label: ui('gallery_appearance_base'),
             imagePath: characterImagePath(c.id),
             fallbackIcon: c.icon,
             isEquipped: equippedId == null,
@@ -472,7 +473,7 @@ Future<void> _showSkinPicker(BuildContext ctx, CharacterCard c, List<CosmeticIte
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(dctx),
-          child: Text('Fermer', style: cinzel(12, c: kTextSub))),
+          child: Text(ui('btn_close2'), style: cinzel(12, c: kTextSub))),
       ],
     ),
   );
@@ -530,7 +531,7 @@ class _HpBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: col.withValues(alpha: 0.6)),
       ),
-      child: Text('$hp PV', style: cinzel(10, c: col)),
+      child: Text('\$hp \${ui(\'hp_suffix\')}', style: cinzel(10, c: col)),
     );
   }
 }

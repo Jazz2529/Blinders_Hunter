@@ -6,6 +6,7 @@
 import 'dart:math' show sin, cos, pi, Random;
 import 'package:flutter/material.dart';
 import '../widgets/theme.dart';
+import '../services/i18n.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 // ART'CADE — Animation flammes sur la zone 6
@@ -163,7 +164,7 @@ class AugustinWheatState extends State<AugustinWheatOverlay>
               Text('🌾 AUGUSTIN', style: cinzel(16, c: const Color(0xFFFFD700),
                 fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text('Les récoltes vous soignent !', style: body(12, c: Colors.white)),
+              Text(ui('anim_harvest_heal'), style: body(12, c: Colors.white)),
             ])))),
       ]),
     )));
@@ -239,7 +240,7 @@ class FijackedCityState extends State<FijackedCityOverlay>
                 Text('🏗️ FIJACKED', style: cinzel(16, c: const Color(0xFF4FC3F7),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Construction en cours…', style: body(12, c: Colors.white)),
+                Text(ui('anim_building'), style: body(12, c: Colors.white)),
               ])))),
         ),
       ))),
@@ -373,7 +374,7 @@ class LounaShieldState extends State<LounaShieldOverlay>
               Text('🛡️ LOUNA', style: cinzel(16, c: const Color(0xFF64B5F6),
                 fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text('Insensible aux blessures !', style: body(12, c: Colors.white)),
+              Text(ui('anim_dmg_immune'), style: body(12, c: Colors.white)),
             ])),
         ]),
       )),
@@ -517,7 +518,7 @@ class MarionPlantsState extends State<MarionPlantsOverlay>
               Text('🌿 MARION', style: cinzel(16, c: const Color(0xFF66BB6A),
                 fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text('Placé à 5 blessures !', style: body(12, c: Colors.white)),
+              Text(ui('anim_set_5wounds'), style: body(12, c: Colors.white)),
             ])))),
       ]),
     )));
@@ -597,8 +598,8 @@ class LeoFlamesAllState extends State<LeoFlamesAllOverlay>
                 Text('🔥 LÉO', style: cinzel(18, c: const Color(0xFF64B5F6),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Le feu embrase TOUS les terrains !', style: body(12, c: Colors.white)),
-                Text('Tous les joueurs, lui inclus, sont touchés', style: body(10, c: kTextDim)),
+                Text(ui('anim_fire_all_terrains'), style: body(12, c: Colors.white)),
+                Text(ui('anim_all_players_hit_self'), style: body(10, c: kTextDim)),
               ])))),
         ]),
       ))),
@@ -693,7 +694,7 @@ class CambouSheepState extends State<CambouSheepOverlay>
                     Text('🌙 CAMBOU', style: cinzel(18, c: const Color(0xFFB39DDB),
                       fw: FontWeight.w900)),
                     const SizedBox(height: 6),
-                    Text('Zzz... Soigné et protégé pour ce tour',
+                    Text(ui('anim_healed_protected'),
                       style: body(12, c: Colors.white70)),
                   ]),
                 ),
@@ -877,7 +878,7 @@ class OceaneNotesState extends State<OceaneNotesOverlay>
               Text('🌊 OCÉANE', style: cinzel(16, c: const Color(0xFF4FC3F7),
                 fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text('Mélodie apaisante — soin des voisins', style: body(12, c: Colors.white)),
+              Text(ui('anim_soothing_melody'), style: body(12, c: Colors.white)),
             ])))),
       ]),
     )));
@@ -968,7 +969,7 @@ class RaphPetalsState extends State<RaphPetalsOverlay>
               Text('🌸 RAPH', style: cinzel(16, c: const Color(0xFFFF8A65),
                 fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text('Sacrifice de soi pour soigner', style: body(12, c: Colors.white)),
+              Text(ui('anim_self_sacrifice_heal'), style: body(12, c: Colors.white)),
             ])))),
       ]),
     )));
@@ -1141,7 +1142,7 @@ class HongYiDumbbellState extends State<HongYiDumbbellOverlay>
                       Text('⚡ HONG YI', style: cinzel(16, c: Colors.orange,
                         fw: FontWeight.w900)),
                       const SizedBox(height: 4),
-                      Text('Sacrifice ultime — 9 dégâts !', style: body(12, c: Colors.white)),
+                      Text(ui('anim_ultimate_sacrifice_9dmg'), style: body(12, c: Colors.white)),
                     ]))))),
             ]),
           ),
@@ -1296,7 +1297,7 @@ class TravertShockwaveState extends State<TravertShockwaveOverlay>
               Text('⚡ TRAVERT', style: cinzel(16, c: const Color(0xFFFFEE58),
                 fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text('Onde de choc dévastatrice !', style: body(12, c: Colors.white)),
+              Text(ui('anim_shockwave'), style: body(12, c: Colors.white)),
             ])))),
       ]),
     )));
@@ -1401,12 +1402,12 @@ class AmeliaLightState extends State<AmeliaLightOverlay>
               left: 0, right: 0,
               top: size.height * 0.50,
               child: Column(children: [
-                Text('LUMIÈRE DIVINE', style: cinzel(16, c: Colors.white,
+                Text(ui('anim_divine_light'), style: cinzel(16, c: Colors.white,
                   fw: FontWeight.w900, ls: 3).copyWith(
                     shadows: [Shadow(color: const Color(0xFFFFE680),
                         blurRadius: 18 * _glow.value)])),
                 const SizedBox(height: 6),
-                Text('Amélia — Sacrifice & Guérison',
+                Text(ui('anim_amelia'),
                   style: body(12, c: const Color(0xFFFFE680))),
               ]),
             ),
@@ -1542,8 +1543,8 @@ class AlbaneClockState extends State<AlbaneClockOverlay>
                 painter: ClockPainter(angle: _rewind.value),
               ),
               const SizedBox(height: 8),
-              Text('Rembobinage !', style: body(10, c: kGold2)),
-              Text('Lance 2 fois les dés', style: body(9, c: kTextDim)),
+              Text(ui('anim_rewind'), style: body(10, c: kGold2)),
+              Text(ui('anim_roll_dice_twice'), style: body(9, c: kTextDim)),
             ]),
           )),
         ),
@@ -1664,7 +1665,7 @@ class _AbilityDiceRollState extends State<AbilityDiceRoll>
     final isD4   = d == 4 && !isBombe;
     final sides  = isD4 ? 4 : 6;
     final color  = dmg >= 6 ? kRed : dmg >= 3 ? kGold : kGreen;
-    final label  = isBombe ? 'BOMBE  D4 + D6' : (isD4 ? 'D4' : 'D6');
+    final label  = isBombe ? ui('anim_bomb_dice') : (isD4 ? 'D4' : 'D6');
 
     return Center(child: Container(
       margin: const EdgeInsets.all(8),
@@ -1708,7 +1709,7 @@ class _AbilityDiceRollState extends State<AbilityDiceRoll>
                 : 'Soigne ${ -dmg } blessure${ -dmg > 1 ? "s" : "" }',
             style: cinzel(18, c: color, fw: FontWeight.w900)),
         ] else
-          Text('Lancement...', style: body(13, c: kTextSub)),
+          Text(ui('anim_rolling'), style: body(13, c: kTextSub)),
       ]),
     ));
   }
@@ -1797,7 +1798,7 @@ class BaleineHealState extends State<BaleineHealOverlay>
               Text('🐋 BALEINE', style: cinzel(16, c: const Color(0xFF81D4FA),
                 fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text('Dernier souffle — les Hunters révélés sont soignés',
+              Text(ui('anim_last_breath_heal'),
                 style: body(12, c: Colors.white)),
             ])))),
       ]),
@@ -1863,7 +1864,7 @@ class ChristineMapState extends State<ChristineMapOverlay>
                 Text('🗺️ CHRISTINE', style: cinzel(16, c: const Color(0xFF81C784),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Se déplace directement vers sa destination',
+                Text(ui('anim_move_direct'),
                   style: body(12, c: Colors.white)),
               ]),
             ),
@@ -1950,7 +1951,7 @@ class ClemenceForgeState extends State<ClemenceForgeOverlay>
               Text('🎨 CLÉMENCE', style: cinzel(16, c: const Color(0xFFFFB74D),
                 fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text('Son équipement sur-mesure prend forme',
+              Text(ui('anim_custom_equip_forming'),
                 style: body(12, c: Colors.white)),
             ])))),
       ]),
@@ -2029,7 +2030,7 @@ class ElaiaVisionState extends State<ElaiaVisionOverlay>
                 Text('🔮 ELAIA', style: cinzel(16, c: const Color(0xFFE1BEE7),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Réorganise l\'ordre de la pioche',
+                Text(ui('anim_reorder_deck'),
                   style: body(12, c: Colors.white)),
               ])))),
         ]),
@@ -2108,7 +2109,7 @@ class EliseLightState extends State<EliseLightOverlay>
                 Text('⛪ ÉLISE', style: cinzel(16, c: const Color(0xFFFFE082),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Pioche une carte Lumière',
+                Text(ui('anim_draw_light'),
                   style: body(12, c: Colors.white)),
               ])))),
         ]),
@@ -2186,7 +2187,7 @@ class BaptisteReviveState extends State<BaptisteReviveOverlay>
                 Text('✝️ BAPTISTE', style: cinzel(16, c: Colors.white,
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Se sacrifice pour ramener un allié à la vie',
+                Text(ui('anim_sacrifice_revive'),
                   style: body(12, c: Colors.white)),
               ])))),
         ]),
@@ -2272,7 +2273,7 @@ class HaileyCopyState extends State<HaileyCopyOverlay>
               Text('📖 HAILEY', style: cinzel(16, c: const Color(0xFFD1C4E9),
                 fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text('Copie le pouvoir d\'un Hunter',
+              Text(ui('anim_copy_hunter_power'),
                 style: body(12, c: Colors.white)),
             ])))),
       ]),
@@ -2347,7 +2348,7 @@ class RemiCraftState extends State<RemiCraftOverlay>
                 Text('🛠️ RÉMI', style: cinzel(16, c: const Color(0xFFFFCC80),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Fabrique son équipement sur-mesure',
+                Text(ui('anim_craft_custom_equip'),
                   style: body(12, c: Colors.white)),
               ])))),
         ]),
@@ -2424,7 +2425,7 @@ class InesLockState extends State<InesLockOverlay>
                 Text('🔒 INÈS', style: cinzel(16, c: const Color(0xFFFFE082),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Verrouille la capacité de sa cible',
+                Text(ui('anim_lock_ability'),
                   style: body(12, c: Colors.white)),
               ])))),
         ]),
@@ -2504,8 +2505,8 @@ class MegFormState extends State<MegFormOverlay>
                 Text('🐺 MEG', style: cinzel(16, c: color, fw: FontWeight.w900)),
                 const SizedBox(height: 4),
                 Text(widget.isOffense
-                    ? 'Bascule en forme Offensive (+1 infligé)'
-                    : 'Bascule en forme Défensive (-1 reçu)',
+                    ? ui('anim_switch_offensive')
+                    : ui('anim_switch_defensive'),
                   style: body(12, c: Colors.white)),
               ])))),
         ]),
@@ -2594,7 +2595,7 @@ class AgatheDrainState extends State<AgatheDrainOverlay>
               Text('🧛‍♀️ AGATHE', style: cinzel(16, c: const Color(0xFFCE93D8),
                 fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text('Vole 1 PV MAX à sa cible',
+              Text(ui('anim_steal_1maxhp'),
                 style: body(12, c: Colors.white)),
             ])))),
       ]),
@@ -2685,8 +2686,8 @@ class DamienServeState extends State<DamienServeOverlay>
               Text('🍸 DAMIEN', style: cinzel(16, c: color, fw: FontWeight.w900)),
               const SizedBox(height: 4),
               Text(widget.isPoison
-                  ? 'Sert un poison — 3 dégâts sur 2 tours'
-                  : 'Sert un alcool fort — 4 dégâts instantanés',
+                  ? ui('anim_serve_poison_3dmg2t')
+                  : ui('anim_serve_liquor_4dmg'),
                 style: body(12, c: Colors.white)),
             ])))),
       ]),
@@ -2776,7 +2777,7 @@ class FifiGoldenState extends State<FifiGoldenOverlay>
               Text('🍀 FIFI', style: cinzel(16, c: const Color(0xFFFFE082),
                 fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text('Tour parfait — tous les dés au maximum !',
+              Text(ui('anim_perfect_turn'),
                 style: body(12, c: Colors.white)),
             ])))),
       ]),
@@ -2846,7 +2847,7 @@ class JeanneMarkState extends State<JeanneMarkOverlay>
                 Text('🔮 JEANNE', style: cinzel(16, c: const Color(0xFFB39DDB),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Marque une cible — récompense secrète scellée',
+                Text(ui('anim_mark_secret_reward'),
                   style: body(12, c: Colors.white)),
               ])))),
         ]),
@@ -2934,7 +2935,7 @@ class JulienState extends State<JulienOverlay>
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Text('😈 JULIEN', style: cinzel(16, c: color, fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text(widget.isAttack ? 'Inflige 2 blessures' : 'Se soigne de 1 blessure',
+              Text(widget.isAttack ? ui('anim_deal_2dmg') : ui('anim_heal_self_1'),
                 style: body(12, c: Colors.white)),
             ])))),
       ]),
@@ -3022,7 +3023,7 @@ class LucIgniteState extends State<LucIgniteOverlay>
               Text('🔥 LUC', style: cinzel(16, c: const Color(0xFFFFAB91),
                 fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text('Met le feu à sa cible — 2 tours',
+              Text(ui('anim_set_fire_2turns'),
                 style: body(12, c: Colors.white)),
             ])))),
       ]),
@@ -3097,7 +3098,7 @@ class MarinDaggerState extends State<MarinDaggerOverlay>
                 Text('🗡️ MARIN', style: cinzel(16, c: const Color(0xFFCFD8DC),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Poignarde sa cible et lui cède sa dague',
+                Text(ui('anim_stab_give_dagger'),
                   style: body(12, c: Colors.white)),
               ])))),
         ]),
@@ -3184,7 +3185,7 @@ class CasinoResultState extends State<CasinoResultOverlay>
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Text('🎰 MR CASINO', style: cinzel(16, c: color, fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text(widget.isWin ? 'Pari gagné — inflige 3 blessures !' : 'Pari perdu — subit 2 blessures',
+              Text(widget.isWin ? ui('anim_bet_won') : ui('anim_bet_lost'),
                 style: body(12, c: Colors.white)),
             ])))),
       ]),
@@ -3265,7 +3266,7 @@ class NilsReleaseState extends State<NilsReleaseOverlay>
                 Text('📦 NILS', style: cinzel(16, c: const Color(0xFFFFAB91),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Déverse tous les dégâts stockés !',
+                Text(ui('anim_dump_stored_dmg'),
                   style: body(12, c: Colors.white)),
               ])))),
         ]),
@@ -3339,7 +3340,7 @@ class NinjaShadowState extends State<NinjaShadowOverlay>
                 Text('🥷 NINJA', style: cinzel(16, c: const Color(0xFFE0E0E0),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Rejoue plusieurs tours d\'affilée',
+                Text(ui('anim_extra_turns'),
                   style: body(12, c: Colors.white)),
               ])))),
         ]),
@@ -3418,7 +3419,7 @@ class PeioTerrainState extends State<PeioTerrainOverlay>
                 Text('🧌 PEIO', style: cinzel(16, c: const Color(0xFFBCAAA4),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Se blesse pour réactiver le terrain',
+                Text(ui('anim_hurt_reactivate_terrain'),
                   style: body(12, c: Colors.white)),
               ])))),
         ]),
@@ -3487,9 +3488,9 @@ class OscarElementState extends State<OscarElementOverlay>
     _       => const Color(0xFFFF8A65),
   };
   String get _label => switch (widget.element) {
-    'water' => 'Eau — vole un équipement',
-    'plant' => 'Plante — se soigne de 2',
-    _       => 'Feu — +2 dégâts à sa prochaine attaque',
+    'water' => ui('anim_water_steal_equip'),
+    'plant' => ui('anim_plant_heal2'),
+    _       => ui('anim_fire_2dmg_next'),
   };
 
   @override
@@ -3586,7 +3587,7 @@ class TommyCopyState extends State<TommyCopyOverlay>
                 Text('🎭 TOMMY', style: cinzel(16, c: const Color(0xFF90CAF9),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Copie le pouvoir d\'un joueur révélé',
+                Text(ui('anim_copy_revealed_player'),
                   style: body(12, c: Colors.white)),
               ])))),
         ]),
@@ -3659,7 +3660,7 @@ class TristanSwapState extends State<TristanSwapOverlay>
                 Text('🔄 TRISTAN', style: cinzel(16, c: const Color(0xFF80CBC4),
                   fw: FontWeight.w900)),
                 const SizedBox(height: 4),
-                Text('Échange un équipement avec sa cible',
+                Text(ui('anim_swap_equip'),
                   style: body(12, c: Colors.white)),
               ])))),
         ]),
@@ -3850,7 +3851,7 @@ class MaxenceDrunkState extends State<MaxenceDrunkOverlay>
               Text('🍺 MAXENCE', style: cinzel(16, c: const Color(0xFFFFD54F),
                 fw: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text('Rend sa cible ivre pendant 2 tours',
+              Text(ui('anim_make_drunk_2turns'),
                 style: body(12, c: Colors.white)),
             ])))),
       ]),

@@ -184,7 +184,7 @@ class RevealFullScreenState extends State<RevealFullScreen>
                           ),
                         ],
                         const SizedBox(height: 8),
-                        Text('Toucher pour continuer', style: body(10, c: kTextDim)),
+                        Text(ui('tap_continue'), style: body(10, c: kTextDim)),
                       ])),
                     ]),
                   ),

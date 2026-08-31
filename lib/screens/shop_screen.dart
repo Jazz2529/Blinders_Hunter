@@ -9,6 +9,7 @@ import '../data/cosmetics_data.dart';
 import '../data/characters_data.dart';
 import '../data/game_data.dart';
 import '../services/persistence.dart';
+import '../services/i18n.dart';
 
 const int kChestCost = 100;
 const int kChestItemCount = 2;
@@ -45,7 +46,7 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
     if (owned.contains(item.id)) return;
     if (!Prefs.spendGold(item.cost)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Pas assez d\'or — il te manque ${item.cost - gold} 🪙'),
+        SnackBar(content: Text(ui('shop_not_enough_gold').replaceAll('{n}', '${item.cost - gold}')),
           backgroundColor: kRed));
       return;
     }
@@ -73,12 +74,12 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
     final remaining = kCosmeticsCatalog.where((c) => !owned.contains(c.id)).toList();
     if (remaining.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tu as déjà tout débloqué — plus rien à trouver dans le coffre !')));
+        SnackBar(content: Text(ui('shop_chest_all_unlocked'))));
       return;
     }
     if (!Prefs.spendGold(kChestCost)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Pas assez d\'or — il te manque ${kChestCost - gold} 🪙'),
+        SnackBar(content: Text(ui('shop_not_enough_gold').replaceAll('{n}', '${kChestCost - gold}')),
           backgroundColor: kRed));
       return;
     }
@@ -96,12 +97,12 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
   }
 
   @override
-  Widget build(BuildContext ctx) {
+  Widget build(BuildContext ctx) => LanguageAware(builder: (ctx) {
     return Scaffold(
       backgroundColor: kBg0,
       appBar: AppBar(
         backgroundColor: kBg1,
-        title: Text('Boutique', style: cinzel(18, c: kGold2)),
+        title: Text(ui('shop_title'), style: cinzel(18, c: kGold2)),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -120,10 +121,10 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
           indicatorColor: kGold,
           labelColor: kGold2,
           unselectedLabelColor: kTextDim,
-          tabs: const [
-            Tab(text: '🎭 Personnages'),
-            Tab(text: '🪙 Jetons'),
-            Tab(text: '🗺️ Terrains'),
+          tabs: [
+            Tab(text: ui('shop_tab_characters')),
+            Tab(text: ui('shop_tab_tokens')),
+            Tab(text: ui('shop_tab_terrains')),
           ],
         ),
       ),
@@ -139,12 +140,12 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
         )),
       ]),
     );
-  }
+  });
 
   Widget _grid(CosmeticCategory cat) {
     final items = kCosmeticsCatalog.where((c) => c.category == cat).toList();
     if (items.isEmpty) {
-      return Center(child: Text('Aucun article pour le moment.', style: body(13, c: kTextDim)));
+      return Center(child: Text(ui('shop_no_items_yet'), style: body(13, c: kTextDim)));
     }
     final grid = GridView.builder(
       padding: const EdgeInsets.all(16),
@@ -182,8 +183,8 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
           const Text('🎲', style: TextStyle(fontSize: 22)),
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Skins de terrain aléatoires', style: cinzel(12, c: kGold2, fw: FontWeight.w900)),
-            Text('Un skin différent (parmi ceux débloqués) à chaque partie',
+            Text(ui('shop_random_terrain_skins'), style: cinzel(12, c: kGold2, fw: FontWeight.w900)),
+            Text(ui('shop_random_terrain_desc'),
               style: body(10, c: kTextSub)),
           ])),
           Switch(
@@ -243,7 +244,7 @@ class _ShopCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(color: kGold, borderRadius: BorderRadius.circular(10)),
-                    child: Text('ÉQUIPÉ', style: cinzel(9, c: kBg0, fw: FontWeight.w900)))),
+                    child: Text(ui('shop_equipped'), style: cinzel(9, c: kBg0, fw: FontWeight.w900)))),
             ]),
           ),
         ),
@@ -309,10 +310,10 @@ class _ChestBanner extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Coffre Mystère', style: cinzel(14, c: kGold2, fw: FontWeight.w900),
+            Text(ui('shop_mystery_chest'), style: cinzel(14, c: kGold2, fw: FontWeight.w900),
               maxLines: 1, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 2),
-            Text('$kChestItemCount cosmétiques aléatoires parmi ceux que tu n\'as pas encore',
+            Text(ui('shop_chest_desc').replaceAll('{n}', '$kChestItemCount'),
               style: body(10, c: kTextSub), maxLines: 2, overflow: TextOverflow.ellipsis),
           ]),
         ),
@@ -419,12 +420,12 @@ class _ChestRevealDialogState extends State<_ChestRevealDialog> with SingleTicke
                   ]),
                 ),
                 const SizedBox(height: 8),
-                Text(opened ? 'Coffre ouvert !' : 'Ouverture...',
+                Text(opened ? ui('shop_chest_opened') : ui('shop_opening'),
                   style: cinzel(18, c: kGold2, fw: FontWeight.w900)),
                 const SizedBox(height: 16),
                 if (widget.items.isEmpty)
                   Opacity(opacity: revealT,
-                    child: Text('Aucun objet obtenu (déjà tout débloqué).', style: body(12, c: kTextDim)))
+                    child: Text(ui('shop_no_item_obtained'), style: body(12, c: kTextDim)))
                 else ...List.generate(widget.items.length, (i) {
                   final item = widget.items[i];
                   // Décale l'apparition de chaque objet l'un après l'autre.
@@ -463,7 +464,7 @@ class _ChestRevealDialogState extends State<_ChestRevealDialog> with SingleTicke
                 const SizedBox(height: 8),
                 Opacity(
                   opacity: revealT >= 1.0 ? 1.0 : 0.0,
-                  child: Text('Touche l\'écran pour fermer', style: body(11, c: kTextDim)),
+                  child: Text(ui('tap_close_screen'), style: body(11, c: kTextDim)),
                 ),
               ]);
             },

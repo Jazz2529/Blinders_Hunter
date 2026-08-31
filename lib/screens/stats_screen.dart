@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import '../widgets/theme.dart';
 import '../services/persistence.dart';
+import '../services/i18n.dart';
 
 /// ─── Statistiques & historique des parties ──────────────────────────────────
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
 
   @override
-  Widget build(BuildContext ctx) {
+  Widget build(BuildContext ctx) => LanguageAware(builder: (ctx) {
+    final en = AppLanguage.instance.isEnglish;
     final h = Prefs.history();
     final total = h.length;
     final wins = h.where((g) => g['win'] == true).length;
@@ -30,37 +32,38 @@ class StatsScreen extends StatelessWidget {
       backgroundColor: kBg0,
       appBar: AppBar(
         backgroundColor: kBg2, elevation: 0,
-        title: Text('📊 Statistiques', style: cinzel(16, c: kGold2)),
+        title: Text(en ? '📊 Stats' : '📊 Statistiques', style: cinzel(16, c: kGold2)),
       ),
       body: total == 0
           ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
               const Text('🎲', style: TextStyle(fontSize: 48)),
               const SizedBox(height: 12),
-              Text('Aucune partie enregistrée', style: cinzel(14, c: kTextSub)),
+              Text(en ? 'No game recorded' : 'Aucune partie enregistrée', style: cinzel(14, c: kTextSub)),
               const SizedBox(height: 6),
-              Text('Joue une partie pour voir tes stats ici !',
+              Text(en ? 'Play a game to see your stats here!' :
+                  'Joue une partie pour voir tes stats ici !',
                   style: body(12, c: kTextDim)),
             ]))
           : ListView(padding: const EdgeInsets.all(16), children: [
               // ── Résumé global ──
               Row(children: [
-                _statCard('Parties', '$total', kGold),
+                _statCard(en ? 'Games' : 'Parties', '$total', kGold),
                 const SizedBox(width: 8),
-                _statCard('Victoires', '$wins', kGreen),
+                _statCard(en ? 'Wins' : 'Victoires', '$wins', kGreen),
                 const SizedBox(width: 8),
                 _statCard('Winrate', '$winrate%',
                     winrate >= 50 ? kGreen : kRed),
               ]),
               const SizedBox(height: 8),
               Row(children: [
-                _statCard('Solo', '${solo.length}', kGold2),
+                _statCard(en ? 'Solo' : 'Solo', '${solo.length}', kGold2),
                 const SizedBox(width: 8),
-                _statCard('Multi', '${multi.length}', kGold2),
+                _statCard(en ? 'Multi' : 'Multi', '${multi.length}', kGold2),
               ]),
               const SizedBox(height: 18),
 
               // ── Par personnage ──
-              Text('PAR PERSONNAGE', style: cinzel(11, c: kTextSub, ls: 2)),
+              Text(en ? 'BY CHARACTER' : 'PAR PERSONNAGE', style: cinzel(11, c: kTextSub, ls: 2)),
               const SizedBox(height: 8),
               ...charEntries.take(12).map((e) {
                 final games = e.value[0];
@@ -75,10 +78,10 @@ class StatsScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: kBord2)),
                   child: Row(children: [
-                    Expanded(child: Text(e.key, style: body(12, c: kText))),
-                    Text('$games p.', style: body(11, c: kTextDim)),
+                    Expanded(child: Text(tr(e.key), style: body(12, c: kText))),
+                    Text(en ? '$games g.' : '$games p.', style: body(11, c: kTextDim)),
                     const SizedBox(width: 10),
-                    SizedBox(width: 44, child: Text('$w vic.',
+                    SizedBox(width: 44, child: Text(en ? '$w win' : '$w vic.',
                         style: body(11, c: kGreen),
                         textAlign: TextAlign.right)),
                     const SizedBox(width: 10),
@@ -93,7 +96,7 @@ class StatsScreen extends StatelessWidget {
               const SizedBox(height: 18),
 
               // ── Historique récent ──
-              Text('DERNIÈRES PARTIES', style: cinzel(11, c: kTextSub, ls: 2)),
+              Text(en ? 'RECENT GAMES' : 'DERNIÈRES PARTIES', style: cinzel(11, c: kTextSub, ls: 2)),
               const SizedBox(height: 8),
               ...h.take(25).map((g) {
                 final win = g['win'] == true;
@@ -120,10 +123,10 @@ class StatsScreen extends StatelessWidget {
                     Expanded(child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(g['character'] as String? ?? '?',
+                          Text(tr(g['character'] as String? ?? '?'),
                               style: body(12, c: kText, fw: FontWeight.w600)),
                           Text(
-                              '${g['mode'] == 'solo' ? 'Solo' : 'Multi'} · ${factionLabel(g['faction'] as String? ?? '')}',
+                              '${g['mode'] == 'solo' ? 'Solo' : 'Multi'} · ${tr(factionLabel(g['faction'] as String? ?? ''))}',
                               style: body(10, c: kTextDim)),
                         ])),
                     Text(dateStr, style: body(10, c: kTextDim)),
@@ -133,7 +136,7 @@ class StatsScreen extends StatelessWidget {
               const SizedBox(height: 24),
             ]),
     );
-  }
+  });
 
   Widget _statCard(String label, String value, Color c) => Expanded(
     child: Container(

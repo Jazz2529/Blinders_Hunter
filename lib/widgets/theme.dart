@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import '../services/audio_service.dart';
+import '../services/i18n.dart';
 import '../data/interactions_data.dart';
 
 // ─── Palette ─────────────────────────────────
@@ -48,7 +49,7 @@ Color deckColor(String d) => switch(d){
 Color deckBg(String d) => switch(d){
   'vision'=>kVisionBg,'lumiere'=>kLumiereBg,'tenebres'=>kTenebresBg,_=>kBg3};
 String deckLabel(String d) => switch(d){
-  'vision'=>'VISION','lumiere'=>'LUMIÈRE','tenebres'=>'TÉNÈBRES',_=>d.toUpperCase()};
+  'vision'=>ui('VISION_UP'),'lumiere'=>ui('LUMIERE_UP'),'tenebres'=>ui('TENEBRES_UP'),_=>d.toUpperCase()};
 String deckIcon(String d) => switch(d){
   'vision'=>'🔮','lumiere'=>'✨','tenebres'=>'🌑',_=>''};
 
@@ -137,7 +138,7 @@ class HPBar extends StatelessWidget {
       if(showNums) Padding(padding:const EdgeInsets.only(bottom:3),
         child:Row(children:[
           Text('${maxHp-wounds}',style:cinzel(12,c:c)),
-          Text('/$maxHp PV',style:body(10,c:kTextDim)),
+          Text("/$maxHp ${ui('hp_suffix')}",style:body(10,c:kTextDim)),
         ])),
       ClipRRect(borderRadius:BorderRadius.circular(3),
         child:TweenAnimationBuilder<double>(

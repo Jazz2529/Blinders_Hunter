@@ -27,7 +27,7 @@ Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverr
             narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride)
                    : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride),
             const SizedBox(height: 12),
-            Text('Touche l\'écran pour fermer', style: body(12, c: kTextDim)),
+            Text(ui('tap_close_screen'), style: body(12, c: kTextDim)),
           ]),
         ),
       );
@@ -52,7 +52,7 @@ const List<String> kMysteryLines = [
 ];
 
 Future<void> showMysteryCardDialog(BuildContext ctx, Player p) {
-  final line = kMysteryLines[Random().nextInt(kMysteryLines.length)];
+  final line = tr(kMysteryLines[Random().nextInt(kMysteryLines.length)]);
   return showDialog(
     context: ctx,
     barrierColor: Colors.black.withValues(alpha: 0.88),
@@ -67,7 +67,7 @@ Future<void> showMysteryCardDialog(BuildContext ctx, Player p) {
             narrow ? _MysteryNarrowLayout(name: p.name, line: line, size: size)
                    : _MysteryWideLayout(name: p.name, line: line, size: size),
             const SizedBox(height: 12),
-            Text('Touche l\'écran pour fermer', style: body(12, c: kTextDim)),
+            Text(ui('tap_close_screen'), style: body(12, c: kTextDim)),
           ]),
         ),
       );
@@ -365,8 +365,8 @@ class _InfoPanel extends StatelessWidget {
                   border: Border.all(color: kGold.withValues(alpha: 0.5))),
                 child: Text(
                     effectiveHp != c.hp
-                        ? '❤️ ${c.hp} → $effectiveHp PV'
-                        : '❤️ $effectiveHp PV',
+                        ? "❤️ ${c.hp} → $effectiveHp ${ui('hp_suffix')}"
+                        : "❤️ $effectiveHp ${ui('hp_suffix')}",
                     style: cinzel(15, c: kGold, fw: FontWeight.w900)),
               )),
               // Oscar : indicateur d'XP cumulée, visible dès qu'on connaît

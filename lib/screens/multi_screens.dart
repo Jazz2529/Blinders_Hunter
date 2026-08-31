@@ -222,7 +222,7 @@ class _RoleRevealState extends State<RoleRevealScreen> {
         body:SafeArea(child:Center(child:SingleChildScrollView(
           padding:const EdgeInsets.all(24),
           child:Column(children:[
-            Text('Carte Secrète',style:cinzel(11,c:kTextSub.withOpacity(0.6),ls:3)),
+            Text(ui('secret_card'),style:cinzel(11,c:kTextSub.withOpacity(0.6),ls:3)),
             Text(me!.name,style:cinzel(20,c:kGold2)),
             const SizedBox(height:20),
             Builder(builder: (_) {
@@ -256,11 +256,11 @@ class _RoleRevealState extends State<RoleRevealScreen> {
             const SizedBox(height:6),
             FactionBadge(c.faction.name),
             const SizedBox(height:6),
-            Text('${c.hp} PV',style:cinzel(16,c:kGold)),
+            Text("${c.hp} ${ui('hp_suffix')}",style:cinzel(16,c:kGold)),
             const SizedBox(height:14),
-            _InfoBox(icon:'⚡',label:'CAPACITÉ UNIQUE',text:c.ability),
+            _InfoBox(icon:'⚡',label:ui('ability_unique'),text:c.ability),
             const SizedBox(height:8),
-            _InfoBox(icon:'🏆',label:'CONDITION DE VICTOIRE',text:c.winCondition),
+            _InfoBox(icon:'🏆',label:ui('win_condition_upper'),text:c.winCondition),
             const SizedBox(height:20),
             Text('⚠️ Ne montre pas ton écran !',
               style:body(12,c:kTextDim).copyWith(fontStyle:FontStyle.italic)),
@@ -441,7 +441,7 @@ class _GameScreenState extends State<GameScreen> {
           backgroundColor:kBg2,elevation:0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            tooltip: 'Quitter la partie',
+            tooltip: ui('leave_game_tooltip'),
             onPressed: () => _confirmLeaveGame(ctx, gp),
           ),
           title:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -730,7 +730,7 @@ class _GameScreenState extends State<GameScreen> {
         title: Text('🔮 Une Vision te vise', style: cinzel(15, c: kGold2)),
         content: Text(
           hasEquip
-            ? 'Donne une carte équipement, ou subis 1 blessure.'
+            ? ui('give_equip_or_dmg')
             : "Tu n'as aucun équipement — tu vas subir 1 blessure.",
           style: body(13, c: kTextSub)),
         actions: [
@@ -810,7 +810,7 @@ class _GameScreenState extends State<GameScreen> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('🎲 RÉFÉRENCE DES DÉS', style: cinzel(14, c: kGold, fw: FontWeight.w900)),
           const SizedBox(height: 16),
-          Text('DÉPLACEMENT (D4 − D6)', style: cinzel(11, c: kGold2)),
+          Text(ui('movement_upper'), style: cinzel(11, c: kGold2)),
           const SizedBox(height: 6),
           ...List.generate(4, (d4) => Row(children: [
             ...List.generate(6, (d6) {
@@ -822,9 +822,9 @@ class _GameScreenState extends State<GameScreen> {
             }),
           ])),
           const SizedBox(height: 6),
-          Text('D4 : 1-4  ×  D6 : 1-6  → somme 2-10', style: body(10, c: kTextSub)),
+          Text(ui('move_formula'), style: body(10, c: kTextSub)),
           const Divider(height: 20, color: Colors.white12),
-          Text('ATTAQUE |D4 − D6|', style: cinzel(11, c: kRed)),
+          Text(ui('atk_formula'), style: cinzel(11, c: kRed)),
           const SizedBox(height: 6),
           Wrap(spacing: 4, runSpacing: 4, children: [
             for (int d4 = 1; d4 <= 4; d4++)
@@ -835,7 +835,7 @@ class _GameScreenState extends State<GameScreen> {
                   child: Center(child: Text('${(d4-d6).abs()}', style: body(10, c: kRed)))),
           ]),
           const SizedBox(height: 6),
-          Text('D4 : 1-4  ×  D6 : 1-6  → |D4−D6| = 0-5', style: body(10, c: kTextSub)),
+          Text(ui('attack_formula2'), style: body(10, c: kTextSub)),
           const SizedBox(height: 12),
           Align(alignment: Alignment.centerRight,
             child: TextButton(onPressed: () => Navigator.pop(ctx),
@@ -944,7 +944,7 @@ void _showEquipmentFor(BuildContext ctx, Player p) {
         const SizedBox(height: 14),
         if (items.isEmpty)
           Padding(padding: const EdgeInsets.symmetric(vertical: 24),
-            child: Text('Aucun équipement pour ce joueur.',
+            child: Text(ui('no_equipment_for_player'),
               style: body(12, c: kTextSub), textAlign: TextAlign.center))
         else
           Flexible(
@@ -992,17 +992,17 @@ void _showEquipmentFor(BuildContext ctx, Player p) {
 Future<void> _confirmKickPlayer(BuildContext ctx, GameProvider gp, Player p) async {
   final confirmed = await showDialog<bool>(context: ctx, builder: (dctx) => AlertDialog(
     backgroundColor: kBg2,
-    title: Text('Expulser ${p.name} ?', style: cinzel(15, c: kGold)),
-    content: Text('${p.name} sera retiré de la salle et pourra la rejoindre à nouveau avec le code s\'il le souhaite.',
+    title: Text(ui('kick_title').replaceAll('{name}', p.name), style: cinzel(15, c: kGold)),
+    content: Text(ui('kick_content').replaceAll('{name}', p.name),
       style: body(13)),
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(dctx, false),
-        child: Text('Annuler', style: cinzel(12, c: kTextSub)),
+        child: Text(ui('btn_cancel'), style: cinzel(12, c: kTextSub)),
       ),
       TextButton(
         onPressed: () => Navigator.pop(dctx, true),
-        child: Text('Expulser', style: cinzel(12, c: kRed, fw: FontWeight.w900)),
+        child: Text(ui('btn_kick'), style: cinzel(12, c: kRed, fw: FontWeight.w900)),
       ),
     ],
   ));
@@ -1018,7 +1018,7 @@ Future<void> _confirmLeaveGame(BuildContext ctx, GameProvider gp) async {
     content: Text(
       'Un bot prendra ta place et continuera à jouer avec ton personnage '
       'actuel — la partie se poursuit normalement pour les autres joueurs. '
-      'Tu ne pourras pas revenir dans cette partie.',
+      "${ui('cannot_return_warning')}",
       style: body(13)),
     actions: [
       TextButton(
@@ -1071,7 +1071,7 @@ Future<void> showMultiPlayerCard(BuildContext ctx, Player p, GameProvider gp) as
     await showFullCardDialog(ctx, shown, hpOverride: shown.hp + p.maxHpModifier,
       oscarXpOverride: drunkChar == null && shown.id == 'oscar' ? p.oscarXp : null,
       maximeTargetName: (isMe && shown.id == 'maxime')
-        ? (maximeTarget?.name ?? 'Personne pour le moment') : null,
+        ? (maximeTarget?.name ?? ui('nobody_yet')) : null,
       megFormOverride: drunkChar == null && shown.abilityEffect == 'meg_shapeshift' ? p.megForm : null,
       mathieuAttackCount: drunkChar == null && (p.copiedEffect ?? shown.abilityEffect) == 'third_attack_bonus' ? p.attackCount : null,
       skinOverride: drunkChar == null ? p.equippedCharacterSkin : null);
@@ -1182,7 +1182,7 @@ class _WaitPanel extends StatelessWidget {
       extraContent = Text('$bonusLeft tour(s) bonus restant(s)', style: body(12, c: kTextSub));
     } else if (pta == 'swap_zone_pick1' || pta == 'swap_zone_pick2') {
       statusText = '${mover?.name ?? "Richard II"} choisit des zones\u2026';
-      extraContent = Text('Les terrains vont bientôt s\'échanger !',
+      extraContent = Text(ui('terrains_will_swap'),
         style: body(11, c: kTextSub), textAlign: TextAlign.center);
     } else {
       // Repli générique : le DERNIER message du journal (décrit toujours
@@ -1318,7 +1318,7 @@ class _ActionPanelState extends State<_ActionPanel> {
                   style: cinzel(13, c: kGold2, fw: FontWeight.w900))),
               ]),
               const SizedBox(height: 4),
-              Text('Cet équipement sera permanent — choisissez avec soin.',
+              Text(ui('equip_permanent_warning'),
                 style: body(11, c: kTextSub)),
               const SizedBox(height: 12),
               ...offered.map((key) => _RemiChoiceRowMulti(
@@ -1402,9 +1402,9 @@ class _ActionPanelState extends State<_ActionPanel> {
   }
 
   String _phaseLabel() => switch(gp.phase.name){
-    'ability'=>'Capacité unique','move'=>'Déplacement','zoneEffect'=>'Effet du terrain',
-    'cardChoice'=>'Choix du deck','cardDrawn'=>'Carte piochée',
-    'chooseTarget'=>'Choisir une cible','attack'=>'Attaque',_=>gp.phase.name};
+    'ability'=>ui('phase_ability'),'move'=>ui('phase_move'),'zoneEffect'=>ui('phase_zone_effect'),
+    'cardChoice'=>ui('phase_card_choice'),'cardDrawn'=>ui('phase_card_drawn'),
+    'chooseTarget'=>ui('phase_choose_target'),'attack'=>ui('phase_attack'),_=>gp.phase.name};
 
   List<Widget> _buildActions(BuildContext ctx) {
     final me = gp.me;
@@ -1491,7 +1491,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               '🔮 Joueur marqué : ${gp.players[gp.gameState!.markedPlayerUid!]?.name ?? "?"}',
               kRed),
           if(me?.revealed==false)
-            BHButton(label:'🃏 Se révéler',onTap:() => gp.guardedAction(() async {
+            BHButton(label:ui('btn_reveal'),onTap:() => gp.guardedAction(() async {
               if (me?.character?.abilityEffect == 'chameleon_passive') {
                 _showJasonDisguiseChoice(ctx);
                 return;
@@ -1559,8 +1559,8 @@ class _ActionPanelState extends State<_ActionPanel> {
                     const SizedBox(width: 6),
                     Text(
                       me?.megForm == 'offense'
-                          ? 'Forme actuelle : Offensive (+1 infligé)'
-                          : 'Forme actuelle : Défensive (-1 reçu)',
+                          ? ui('form_offensive')
+                          : ui('form_defensive'),
                       style: cinzel(11, c: me?.megForm == 'offense' ? kRed : kGreen)),
                   ]),
                 ),
@@ -1594,7 +1594,7 @@ class _ActionPanelState extends State<_ActionPanel> {
                 ),
               ),
           ],
-          BHButton(label:'Passer → Déplacement',onTap:()=>_act(gp.skipAbility),outlined:true),
+          BHButton(label:ui('skip_to_move'),onTap:()=>_act(gp.skipAbility),outlined:true),
         ];
       case GamePhase.move:
         if (_showingSwapTargets) {
@@ -1602,7 +1602,7 @@ class _ActionPanelState extends State<_ActionPanel> {
           return [
             Text('🌀 Échangez votre place avec qui ?', style: cinzel(11, c: kGold)),
             const SizedBox(height: 6),
-            if (others.isEmpty) Text('Aucun autre joueur en vie.', style: body(13, c: kTextSub)),
+            if (others.isEmpty) Text(ui('no_other_player_alive'), style: body(13, c: kTextSub)),
             ...others.map((t) => BHButton(
               label: '${t.token} ${t.name}',
               // Pas de remise à zéro locale ici — la section disparaît de
@@ -1640,7 +1640,7 @@ class _ActionPanelState extends State<_ActionPanel> {
                   gp.pendingMoveD4b = _d4b; gp.pendingMoveD6b = _d6b; gp.pendingMoveSum2 = _sum2;
                 })
             else
-              BHButton(label: '🎲 Lancer les dés (d4 + d6)', onTap: _rollDice, gold: true),
+              BHButton(label: ui('btn_roll_dice2'), onTap: _rollDice, gold: true),
           ];
         }
         // Albane/Boussole : afficher les deux résultats pour choisir —
@@ -1681,15 +1681,15 @@ class _ActionPanelState extends State<_ActionPanel> {
         ];
       case GamePhase.zoneEffect:
         return [
-          BHButton(label:'Appliquer l\'effet du terrain',
+          BHButton(label:ui('btn_apply_terrain'),
             onTap:()=>_act(() => gp.applyTerrainEffect(zoneOverride: gp.gameState?.richardActivateZone))),
-          BHButton(label:'Ignorer → Attaquer',onTap:()=>_act(gp.skipTerrainEffect),outlined:true),
+          BHButton(label:ui('skip_to_attack'),onTap:()=>_act(gp.skipTerrainEffect),outlined:true),
         ];
       case GamePhase.cardChoice:
         return [
-          BHButton(label:'✨ Deck Lumière',   onTap:()=>_act(()=>gp.drawCard(DeckType.lumiere))),
-          BHButton(label:'🌑 Deck Ténèbres',  onTap:()=>_act(()=>gp.drawCard(DeckType.tenebres))),
-          BHButton(label:'🔮 Deck Vision',    onTap:()=>_act(()=>gp.drawCard(DeckType.vision))),
+          BHButton(label:ui('deck_light'),   onTap:()=>_act(()=>gp.drawCard(DeckType.lumiere))),
+          BHButton(label:ui('deck_dark'),  onTap:()=>_act(()=>gp.drawCard(DeckType.tenebres))),
+          BHButton(label:ui('deck_vision'),    onTap:()=>_act(()=>gp.drawCard(DeckType.vision))),
         ];
       case GamePhase.cardDrawn:
         final cardId = gp.gameState?.pendingAction;
@@ -1697,7 +1697,7 @@ class _ActionPanelState extends State<_ActionPanel> {
         return [
           if (card != null) _CardWidget(card: card),
           const SizedBox(height: 10),
-          BHButton(label:'✅ Appliquer la carte',onTap:()=>_act(gp.applyCard), gold: true),
+          BHButton(label:ui('btn_apply_card'),onTap:()=>_act(gp.applyCard), gold: true),
           // Pas de bouton "Ignorer" — une carte piochée doit être appliquée
         ];
       case GamePhase.chooseTarget:
@@ -1789,7 +1789,7 @@ class _ActionPanelState extends State<_ActionPanel> {
         } else {
           all = gp.players.values.where((p)=>p.alive&&p.uid!=gp.myUid).toList();
         }
-        String title = 'Choisissez une cible';
+        String title = ui('choose_target');
         if (pta == 'terrain_damage9') title = '🏹 Clairière — 2 blessures à la cible';
         if (pta == 'baptiste_target') title = '✝️ Baptiste — Quel joueur mort ramener à la vie ?';
         if (pta == 'terrain_steal')   title = '🗼 Tour du Voleur — voler un équipement';
@@ -1858,11 +1858,11 @@ class _ActionPanelState extends State<_ActionPanel> {
                 : gp.players[actorUid];
             final equipList = src?.equipment ?? [];
             return [
-              Text(mode == 'steal' ? '🗡 Choisissez l\'équipement à voler' : '🍌 Choisissez l\'équipement à donner',
+              Text(mode == 'steal' ? ui('choose_equip_to_steal') : ui('choose_equip_to_give'),
                 style: cinzel(11, c: kGold)),
               const SizedBox(height: 6),
               if (equipList.isEmpty)
-                Text('Aucun équipement disponible', style: body(12, c: kTextSub))
+                Text(ui('no_equipment_available'), style: body(12, c: kTextSub))
               else ...equipList.asMap().entries.map((entry) => BHButton(
                 label: entry.value.name,
                 onTap: () => _act(() => gp.resolveEquipChoiceMulti(mode, actorUid, targetUid, entry.key)),
@@ -1882,7 +1882,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               style: cinzel(11, c: kGold)),
             const SizedBox(height: 6),
             if (equipList.isEmpty)
-              Text('Aucun équipement disponible', style: body(12, c: kTextSub))
+              Text(ui('no_equipment_available'), style: body(12, c: kTextSub))
             else ...equipList.asMap().entries.map((entry) => BHButton(
               label: entry.value.name,
               onTap: () => _act(() => gp.resolveStealItem(entry.key)),
@@ -1892,7 +1892,7 @@ class _ActionPanelState extends State<_ActionPanel> {
         return [
           Text(title, style: cinzel(11, c: kGold)),
           const SizedBox(height: 6),
-          if (all.isEmpty) Text('Aucune cible valide.', style: body(13, c: kTextSub)),
+          if (all.isEmpty) Text(ui('no_valid_target'), style: body(13, c: kTextSub)),
           ...all.map((t) {
             // IMPORTANT : enveloppé dans _act() (verrou anti-double-clic) —
             // sans ça, un clic rapide/répété pouvait déclencher 2 appels
@@ -1984,7 +1984,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               child: Text('✅ Tu as déjà attaqué ce tour-ci',
                 style: body(12, c: kTextSub), textAlign: TextAlign.center),
             )
-          else if(targets.isEmpty) Text('Aucune cible accessible',style:body(13,c:kTextSub)),
+          else if(targets.isEmpty) Text(ui('no_target_in_range'),style:body(13,c:kTextSub)),
           if(!alreadyAttacked && _atkDmg==null) ...[
             // Bazooka/Mitraillette : un seul bouton pour tous
             if (hasBazooka) ...[
@@ -2025,7 +2025,7 @@ class _ActionPanelState extends State<_ActionPanel> {
                   Text('💥 Bazooka — tous les joueurs accessibles',style:body(12,c:kRed)),
               ]),
             ),
-            BHButton(label:'💥 Confirmer',danger:true,
+            BHButton(label:ui('btn_confirm_short'),danger:true,
               onTap:()=>_act(_confirmAttack)),
             // Emilien : passif — une SEULE relance du D6 par tour. Non
             // disponible pour le bazooka ni le double-lancer de Mango.
@@ -2069,7 +2069,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               child: Text('⚔️ Tu dois confirmer ton attaque avant de terminer le tour !', style: body(11, c: kRed)),
             )
           else
-            BHButton(label:'Terminer le tour →', onTap: () => _act(gp.endTurn), outlined:true),
+            BHButton(label:ui('btn_end_turn2'), onTap: () => _act(gp.endTurn), outlined:true),
         ];
       default: return [];
     }
@@ -2519,8 +2519,8 @@ class _ClemenceBuilderPanel extends StatelessWidget {
         Text('🎨 CLÉMENCE', style: cinzel(18, c: purple, fw: FontWeight.w900)),
         const SizedBox(height: 4),
         Text(step == 1
-          ? 'Choix 1/2 — Sélectionnez un effet'
-          : 'Choix 2/2 — Sélectionnez un effet',
+          ? ui('choice_1_of_2')
+          : ui('choice_2_of_2'),
           style: body(11, c: kTextSub), textAlign: TextAlign.center),
         if (step == 2 && chosen != null) ...[
           const SizedBox(height: 6),
@@ -2569,7 +2569,7 @@ class _JeanneRewardPanel extends StatelessWidget {
       child: Column(children: [
         Text('🔮 JEANNE', style: cinzel(18, c: ruby, fw: FontWeight.w900)),
         const SizedBox(height: 4),
-        Text('Choisissez secrètement la récompense du tueur',
+        Text(ui('choose_killer_reward'),
           style: body(11, c: kTextSub), textAlign: TextAlign.center),
         const SizedBox(height: 16),
         ...rewards.map((r) => Padding(
@@ -2610,7 +2610,7 @@ class _ElaiaDeckChoicePanel extends StatelessWidget {
       child: Column(children: [
         Text('🔮 ELAIA — PRESCIENCE', style: cinzel(16, c: purple, fw: FontWeight.w900)),
         const SizedBox(height: 4),
-        Text('Quelle pile veux-tu regarder ?',
+        Text(ui('which_pile_to_peek'),
           style: body(11, c: kTextSub), textAlign: TextAlign.center),
         const SizedBox(height: 16),
         ...decks.map((d) => Padding(
@@ -2644,7 +2644,7 @@ class _ElaiaOrderPanel extends StatelessWidget {
       child: Column(children: [
         Text('🔮 ELAIA — ORDRE DE PIOCHE', style: cinzel(14, c: purple, fw: FontWeight.w900)),
         const SizedBox(height: 4),
-        Text('Choisis quelle carte sera piochée en premier',
+        Text(ui('choose_first_draw'),
           style: body(11, c: kTextSub), textAlign: TextAlign.center),
         const SizedBox(height: 14),
         Row(children: [
@@ -2748,7 +2748,7 @@ class _LootChoicePanel extends StatelessWidget {
             onTap: () => gp.guardedAction(() => gp.lootChooseItem(e.key))),
         )),
         const SizedBox(height: 6),
-        BHButton(label: 'Ne rien prendre', outlined: true, onTap: () => gp.guardedAction(() => gp.lootSkip())),
+        BHButton(label: ui('no_take'), outlined: true, onTap: () => gp.guardedAction(() => gp.lootSkip())),
       ]),
     );
   }
@@ -3125,7 +3125,7 @@ class _MultiBaptisteAmountWidgetState extends State<_MultiBaptisteAmountWidget> 
         Text('Le joueur reviendra avec ${_amount!} blessure${_amount! > 1 ? "s" : ""}\nde moins que son maximum de vie',
           style: body(11, c: kTextDim), textAlign: TextAlign.center),
         const SizedBox(height: 14),
-        BHButton(label: 'Confirmer le sacrifice', danger: true,
+        BHButton(label: ui('confirm_sacrifice'), danger: true,
           onTap: () => widget.gp.guardedAction(() => widget.gp.baptisteConfirmAmount(_amount!))),
       ]),
     );
@@ -3154,7 +3154,7 @@ class _MultiHaileyChoiceWidget extends StatelessWidget {
         const SizedBox(height: 12),
         if (offered.isEmpty)
           Padding(padding: const EdgeInsets.all(20),
-            child: Text('Aucun Hunter disponible à copier cette partie.',
+            child: Text(ui('no_hunter_to_copy'),
               style: body(12, c: kTextDim), textAlign: TextAlign.center)),
         ...offered.map((c) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
@@ -3314,18 +3314,18 @@ class _MultiOscarChoiceWidget extends StatelessWidget {
         Text('XP actuelle : $xp', style: body(13, c: kGold), textAlign: TextAlign.center),
         const SizedBox(height: 12),
         _MultiOscarOption(icon: '💧', label: 'Eau', cost: 3, xp: xp,
-          desc: 'Vole un équipement au joueur de ton choix',
+          desc: ui('steal_equip_choice'),
           onTap: () => gp.guardedAction(() => gp.oscarChoice('water'))),
         const SizedBox(height: 8),
         _MultiOscarOption(icon: '🌿', label: 'Plante', cost: 2, xp: xp,
-          desc: 'Te soigne de 2 blessures',
+          desc: ui('heals_2_wounds'),
           onTap: () => gp.guardedAction(() => gp.oscarChoice('plant'))),
         const SizedBox(height: 8),
         _MultiOscarOption(icon: '🔥', label: 'Feu', cost: 4, xp: xp,
           desc: '+2 dégâts à ta prochaine attaque ce tour',
           onTap: () => gp.guardedAction(() => gp.oscarChoice('fire'))),
         const SizedBox(height: 10),
-        BHButton(label: 'Ne rien dépenser', outlined: true,
+        BHButton(label: ui('no_spend'), outlined: true,
           onTap: () => gp.guardedAction(() => gp.fb.setPhase(gp.roomId!, GamePhase.move, clearPending: true))),
       ]),
     );
@@ -3411,7 +3411,7 @@ class _MultiCasinoWidgetState extends State<_MultiCasinoWidget>
       child: Column(children: [
         Text('🎰 MR CASINO', style: cinzel(18, c: gold, fw: FontWeight.w900)),
         const SizedBox(height: 4),
-        Text('Pariez pair ou impair', style: body(12, c: kTextSub)),
+        Text(ui('bet_odd_even'), style: body(12, c: kTextSub)),
         const SizedBox(height: 16),
         if (_result == null) ...[
           Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
@@ -3492,7 +3492,7 @@ class _GegeGhostOverlayState extends State<_GegeGhostOverlay>
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 const Text('👻', style: TextStyle(fontSize: 72)),
                 const SizedBox(height: 8),
-                Text('Gège attaque !',
+                Text(ui('gege_attacks'),
                   style: TextStyle(fontSize: 18, color: Colors.white70,
                     fontWeight: FontWeight.bold,
                     shadows: [Shadow(color: Colors.black, blurRadius: 8)])),
@@ -3682,7 +3682,7 @@ class _ScottCounterOverlayState extends State<_ScottCounterOverlay>
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 const Text('🛡️', style: TextStyle(fontSize: 64)),
                 const SizedBox(height: 8),
-                Text('CONTRE-ATTAQUE !', style: TextStyle(
+                Text(ui('counter_attack_bang'), style: TextStyle(
                   fontSize: 22, fontWeight: FontWeight.w900, color: Colors.orange,
                   shadows: [Shadow(color: Colors.black, blurRadius: 8)])),
                 if (widget.dice != null) ...[
@@ -3806,7 +3806,7 @@ class _MultiFifiDiceWidgetState extends State<_MultiFifiDiceWidget> {
       child: Column(children: [
         Text('🍀 FIFI', style: cinzel(20, c: green, fw: FontWeight.w900)),
         const SizedBox(height: 4),
-        Text('Choisissez vos valeurs pour ce tour',
+        Text(ui('choose_values_this_turn'),
           style: body(12, c: kTextSub), textAlign: TextAlign.center),
         const SizedBox(height: 20),
         // Déplacement

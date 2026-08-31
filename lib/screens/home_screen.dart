@@ -94,11 +94,11 @@ class _HomeScreenState extends State<HomeScreen>
                     .copyWith(shadows: const [Shadow(color: Color(0xFFD4A017), blurRadius: 18)])),
                 Text('HUNTER', style: cinzel(26, c: kGold2, fw: FontWeight.w900, ls: 10)),
                 const SizedBox(height: 6),
-                Text('Musique composée par le talentueux Dams.',
+                Text(ui('music_credit'),
                   style: body(10, c: kTextSub).copyWith(letterSpacing: 2)),
-                Text('Du fond du cœur, Merci pour tout',
+                Text(ui('thanks_heart'),
                   style: body(11, c: kTextSub).copyWith(letterSpacing: 2)),
-                Text('By Order of the Sporty Blinders',
+                Text(ui('order_sporty_blinders'),
                   style: body(11, c: kTextSub).copyWith(letterSpacing: 2)),
               ]),
             ),
@@ -128,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
               const SizedBox(height: 16),
-              const SectionLabel('TON JETON'),
+              SectionLabel(ui('lobby_your_token')),
               const SizedBox(height: 10),
               SizedBox(height: 56, child: Stack(children: [
                 ListView.builder(
@@ -179,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen>
                 width: double.infinity,
                 margin: const EdgeInsets.only(bottom: 10),
                 child: BHButton(
-                  label: '▶️  Reprendre la partie (${_resumable!.roomId})',
+                  label: ui('resume_game').replaceAll('{room}', _resumable!.roomId),
                   gold: true, onTap: _resume),
               ),
             ),
@@ -239,8 +239,8 @@ class _HomeScreenState extends State<HomeScreen>
     final ok = await gp.resumeRoom(r.roomId, r.uid);
     if (!ok && mounted) {
       setState(() => _resumable = null);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Cette partie n\'existe plus.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(ui('game_not_exist'))));
     }
     // Si ok, le routeur racine bascule automatiquement (roomStatus).
   }
@@ -274,8 +274,8 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _confirmQuit(BuildContext ctx) async {
     final confirmed = await showDialog<bool>(context: ctx, builder: (dctx) => AlertDialog(
       backgroundColor: kBg2,
-      title: Text('Quitter l\'application ?', style: cinzel(15, c: kGold)),
-      content: Text('Toute partie en cours (solo ou multijoueur) sera perdue.',
+      title: Text(ui('quit_app_title'), style: cinzel(15, c: kGold)),
+      content: Text(ui('current_game_lost'),
         style: body(13)),
       actions: [
         TextButton(
@@ -329,7 +329,7 @@ class _MultiplayerDialogState extends State<_MultiplayerDialog> {
 
   Future<void> _join() async {
     final code = _codeCtrl.text.trim();
-    if (code.isEmpty) { setState(() => _error = 'Entre un code de salle'); return; }
+    if (code.isEmpty) { setState(() => _error = ui('enter_room_code')); return; }
     setState(() { _loading = true; _error = null; });
     final gp = context.read<GameProvider>();
     try {
@@ -343,7 +343,7 @@ class _MultiplayerDialogState extends State<_MultiplayerDialog> {
   }
 
   @override
-  Widget build(BuildContext ctx) {
+  Widget build(BuildContext ctx) => LanguageAware(builder: (ctx) {
     return Dialog(
       backgroundColor: kBg2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -354,7 +354,7 @@ class _MultiplayerDialogState extends State<_MultiplayerDialog> {
           Row(children: [
             const Icon(Icons.groups, color: kGold, size: 22),
             const SizedBox(width: 10),
-            Text('MULTIJOUEUR', style: cinzel(16, c: kGold2, fw: FontWeight.w900)),
+            Text(ui('multiplayer_title'), style: cinzel(16, c: kGold2, fw: FontWeight.w900)),
             const Spacer(),
             GestureDetector(onTap: () => Navigator.pop(ctx),
               child: const Icon(Icons.close, color: kTextSub)),
@@ -405,7 +405,7 @@ class _MultiplayerDialogState extends State<_MultiplayerDialog> {
         ]),
       ),
     );
-  }
+  });
 }
 
 // ─── Dialog Paramètres ────────────────────────────────────────────────────────
@@ -514,7 +514,7 @@ class SettingsDialogState extends State<SettingsDialog> {
               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 const Icon(Icons.play_circle_outline, color: kTextSub, size: 14),
                 const SizedBox(width: 6),
-                Text('Tester les effets sonores', style: body(11, c: kTextSub)),
+                Text(ui('test_sfx'), style: body(11, c: kTextSub)),
               ]),
             ),
           ),
@@ -589,9 +589,9 @@ class SettingsDialogState extends State<SettingsDialog> {
                   color: kGold, size: 18),
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Appareil, échelle & résolution', style: body(12, c: kText)),
+                  Text(ui('device_scale_resolution'), style: body(12, c: kText)),
                   Text(
-                    'Mode : ${DisplaySettings.instance.deviceMode == 'auto' ? 'Auto' : DisplaySettings.instance.deviceMode == 'pc' ? 'PC' : 'Téléphone'} · ${DisplaySettings.instance.resolution.label}',
+                    ui('device_mode_label').replaceAll('{mode}', DisplaySettings.instance.deviceMode == 'auto' ? 'Auto' : DisplaySettings.instance.deviceMode == 'pc' ? 'PC' : ui('phone_label')).replaceAll('{res}', DisplaySettings.instance.resolution.label),
                     style: body(10, c: kTextDim)),
                 ])),
                 const Icon(Icons.chevron_right, color: kTextSub, size: 18),
@@ -601,7 +601,7 @@ class SettingsDialogState extends State<SettingsDialog> {
 
           const SizedBox(height: 16),
           // Réinitialisation de la progression
-          SectionLabel('PROGRESSION'),
+          SectionLabel(ui('progression_upper')),
           const SizedBox(height: 10),
           GestureDetector(
             onTap: () => _confirmReset(ctx),
@@ -616,8 +616,8 @@ class SettingsDialogState extends State<SettingsDialog> {
                 const Icon(Icons.restart_alt, color: kRed, size: 18),
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Réinitialiser ma progression', style: body(12, c: kRed)),
-                  Text('Or, cosmétiques, historique et statistiques', style: body(10, c: kTextDim)),
+                  Text(ui('reset_my_progress'), style: body(12, c: kRed)),
+                  Text(ui('gold_cosmetics_history'), style: body(10, c: kTextDim)),
                 ])),
               ]),
             ),
@@ -625,7 +625,7 @@ class SettingsDialogState extends State<SettingsDialog> {
 
           const SizedBox(height: 16),
           // Version
-          Text('Blinders Hunter — Mode Solo & Multijoueur',
+          Text(ui('app_subtitle'),
             style: body(10, c: kTextDim), textAlign: TextAlign.center),
         ]),
       ),
@@ -639,7 +639,7 @@ class SettingsDialogState extends State<SettingsDialog> {
       content: Text(
         'Cette action efface définitivement ton or, tes cosmétiques débloqués, '
         'ton historique de parties et tes statistiques par personnage. '
-        'Cette action est irréversible.',
+        "${ui('action_irreversible')}",
         style: body(13)),
       actions: [
         TextButton(
@@ -653,10 +653,10 @@ class SettingsDialogState extends State<SettingsDialog> {
             if (ctx.mounted) {
               setState(() {});
               ScaffoldMessenger.of(ctx).showSnackBar(
-                const SnackBar(content: Text('Progression réinitialisée.')));
+                SnackBar(content: Text(ui('progress_reset_done'))));
             }
           },
-          child: Text('Réinitialiser', style: cinzel(12, c: kRed, fw: FontWeight.w900)),
+          child: Text(ui('reset_btn'), style: cinzel(12, c: kRed, fw: FontWeight.w900)),
         ),
       ],
     ));
