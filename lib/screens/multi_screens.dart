@@ -82,7 +82,8 @@ class LobbyScreen extends StatelessWidget {
           Expanded(child:ListView(padding:const EdgeInsets.all(14),children:[
             const SectionLabel('JOUEURS'),
             ...gp.players.values.map((p)=>_PlayerTile(p:p,isMe:p.uid==gp.myUid,
-              canRemove: gp.isHost, onRemove: () => gp.guardedAction(() => gp.removeBot(p.uid)))),
+              canRemove: gp.isHost, onRemove: () => gp.guardedAction(() => gp.removeBot(p.uid)),
+              onKick: () => _confirmKickPlayer(ctx, gp, p))),
             const SizedBox(height:16),
             const SectionLabel('TON JETON'),
             const SizedBox(height:10),
@@ -142,8 +143,9 @@ class LobbyScreen extends StatelessWidget {
 
 class _PlayerTile extends StatelessWidget {
   final Player p; final bool isMe; final bool canRemove; final VoidCallback? onRemove;
+  final VoidCallback? onKick;
   const _PlayerTile({required this.p, required this.isMe,
-    this.canRemove = false, this.onRemove});
+    this.canRemove = false, this.onRemove, this.onKick});
 
   @override
   Widget build(BuildContext ctx) => Container(
@@ -174,6 +176,20 @@ class _PlayerTile extends StatelessWidget {
             decoration: BoxDecoration(color: kRed.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8)),
             child: const Icon(Icons.close, color: kRed, size: 16)),
+        ),
+      ],
+      // Expulser un joueur HUMAIN — réservé à l'hôte, jamais pour
+      // soi-même (même bouton/style que le retrait d'un bot ci-dessus,
+      // juste réservé aux humains).
+      if (canRemove && !p.isBot && !isMe) ...[
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: onKick,
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(color: kRed.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.person_remove, color: kRed, size: 16)),
         ),
       ],
     ]),
@@ -945,6 +961,30 @@ void _showEquipmentFor(BuildContext ctx, Player p) {
 /// Confirmation avant de quitter une partie EN COURS — le joueur est
 /// remplacé par un bot qui continue à sa place (personnage/PV/équipement
 /// conservés), la partie n'est pas bloquée pour les autres.
+/// Confirmation avant d'expulser un joueur — réservé à l'hôte, dans le
+/// lobby uniquement (avant le lancement de la partie).
+Future<void> _confirmKickPlayer(BuildContext ctx, GameProvider gp, Player p) async {
+  final confirmed = await showDialog<bool>(context: ctx, builder: (dctx) => AlertDialog(
+    backgroundColor: kBg2,
+    title: Text('Expulser ${p.name} ?', style: cinzel(15, c: kGold)),
+    content: Text('${p.name} sera retiré de la salle et pourra la rejoindre à nouveau avec le code s\'il le souhaite.',
+      style: body(13)),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(dctx, false),
+        child: Text('Annuler', style: cinzel(12, c: kTextSub)),
+      ),
+      TextButton(
+        onPressed: () => Navigator.pop(dctx, true),
+        child: Text('Expulser', style: cinzel(12, c: kRed, fw: FontWeight.w900)),
+      ),
+    ],
+  ));
+  if (confirmed == true) {
+    await gp.guardedAction(() => gp.kickPlayer(p.uid));
+  }
+}
+
 Future<void> _confirmLeaveGame(BuildContext ctx, GameProvider gp) async {
   final confirmed = await showDialog<bool>(context: ctx, builder: (dctx) => AlertDialog(
     backgroundColor: kBg2,
@@ -1705,8 +1745,10 @@ class _ActionPanelState extends State<_ActionPanel> {
                 onTap: () => _act(gp.backToAbility)),
             ];
           } // attackTargets already filters by adjacency
-        } else if (pta == 'clemence_target' || pta == 'terrain_damage9' || pta == 'set_marker7_choice' || pta == 'set_wounds7') {
-          // Clémence, Terrain 9, Premier Secours ("vous compris") et Marion peuvent se cibler eux-mêmes
+        } else if (pta == 'clemence_target' || pta == 'terrain_damage9' || pta == 'set_marker7_choice' || pta == 'set_wounds7' || pta == 'vampirisation') {
+          // Clémence, Terrain 9, Premier Secours ("vous compris"), Marion et
+          // la Chauve-souris Vampire ("un joueur de votre choix", sans
+          // exclusion explicite) peuvent se cibler eux-mêmes
           all = gp.players.values.where((p) => p.alive).toList();
         } else if (pta == 'copy_ability') {
           // Tommy : seulement les joueurs révélés au pouvoir copiable

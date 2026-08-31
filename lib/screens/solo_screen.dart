@@ -3110,6 +3110,11 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'ability_set5') {
       targets = s.players.where((p) => p.alive).toList();
     }
+    // Chauve-souris Vampire : "un joueur de votre choix" n'exclut pas
+    // explicitement soi-même dans le texte de la carte.
+    if (context == 'vampirisation') {
+      targets = s.players.where((p) => p.alive).toList();
+    }
     // Baptiste : ne peut cibler QUE des joueurs morts, pour les ramener à la vie
     if (context == 'baptiste_target') {
       targets = s.players.where((p) => !p.alive).toList();

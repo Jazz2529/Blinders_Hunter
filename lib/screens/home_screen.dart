@@ -32,6 +32,11 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    // Pseudo et jeton mémorisés d'une connexion à l'autre.
+    final savedName = Prefs.playerName();
+    if (savedName != null && savedName.isNotEmpty) _nameCtrl.text = savedName;
+    final savedToken = Prefs.playerToken();
+    if (savedToken != null && savedToken.isNotEmpty) _token = savedToken;
     _checkResumable();
     _ac = AnimationController(vsync: this,
         duration: const Duration(milliseconds: 1000));
@@ -108,6 +113,7 @@ class _HomeScreenState extends State<HomeScreen>
               TextField(
                 controller: _nameCtrl,
                 style: body(14),
+                onChanged: (v) => Prefs.setPlayerName(v.trim()),
                 decoration: InputDecoration(
                   hintText: 'Joueur', hintStyle: body(13, c: kTextDim),
                   filled: true, fillColor: kBg3,
@@ -132,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen>
                     final t = availableTokens()[i];
                     final sel = t.id == _token;
                     return GestureDetector(
-                      onTap: () => setState(() => _token = t.id),
+                      onTap: () => setState(() { _token = t.id; Prefs.setPlayerToken(t.id); }),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
                         margin: const EdgeInsets.only(right: 8),

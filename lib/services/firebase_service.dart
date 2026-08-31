@@ -204,6 +204,15 @@ class FirebaseService {
     await _delete('rooms/$roomId/players/$botUid');
   }
 
+  /// Expulse un joueur HUMAIN de la salle — lobby uniquement (avant le
+  /// lancement de la partie). Même mécanisme que removeBot() : le joueur
+  /// peut rejoindre à nouveau avec le code s'il le souhaite.
+  Future<void> kickPlayer(String roomId, String uid) async {
+    final status = await _get('rooms/$roomId/status');
+    if (status != null && status != 'lobby') return; // sécurité : lobby uniquement
+    await _delete('rooms/$roomId/players/$uid');
+  }
+
   /// Quitte la room
   /// Statut actuel d'une salle ('lobby' | 'playing' | 'finished') ou null.
   Future<String?> fetchRoomStatus(String roomId) async {

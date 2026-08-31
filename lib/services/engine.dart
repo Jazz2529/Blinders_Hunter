@@ -210,10 +210,15 @@ class GameEngine with AbilityEngine {
     // létaux, il survit avec 1 PV au lieu de mourir, et dispose d'un tour de
     // sursis pour éliminer quelqu'un (voir applyDeathPassives pour le
     // sauvetage, et la fin de tour pour la mort si le sursis n'a pas
-    // suffi). Ne fonctionne QUE s'il est révélé — sinon aucun effet, il
-    // meurt normalement comme n'importe qui.
+    // suffi). Auparavant limité aux joueurs déjà révélés — désormais, si
+    // Felipe encaisse un coup mortel sans s'être révélé, il se révèle à
+    // cet instant précis (cohérent avec la convention "les cartes se
+    // retournent à la mort" déjà utilisée ailleurs) et son passif de
+    // survie s'évalue quand même, plutôt que de mourir sans jamais avoir
+    // eu la chance de s'en servir.
     final isFelipe = effectiveAbility(p) == 'felipe_passive';
-    if (isFelipe && p.revealed && !p.felipeOnBorrowedTime && p.wounds >= effectiveMaxHp(p)) {
+    if (isFelipe && !p.felipeOnBorrowedTime && p.wounds >= effectiveMaxHp(p)) {
+      if (!p.revealed) { p.revealed = true; p.felipeJustRevealed = true; }
       p.felipeOnBorrowedTime = true;
       p.wounds = effectiveMaxHp(p) - 1; // 1 PV restant, toujours en vie
     } else if (p.wounds >= effectiveMaxHp(p)) {
@@ -1818,6 +1823,14 @@ class GameEngine with AbilityEngine {
   /// checkDisguiseLost (Jason).
   Player? checkFannyRevealed(List<Player> all) {
     for (final p in all) { if (p.fannyJustRevealed) return p; }
+    return null;
+  }
+
+  /// Felipe : vient-il de survivre à un coup mortel sans être révélé ? Ça
+  /// le révèle automatiquement (cohérent avec "les cartes se retournent à
+  /// la mort") et déclenche son passif de survie quand même.
+  Player? checkFelipeRevealed(List<Player> all) {
+    for (final p in all) { if (p.felipeJustRevealed) return p; }
     return null;
   }
 

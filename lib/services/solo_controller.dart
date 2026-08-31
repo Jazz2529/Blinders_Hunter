@@ -2945,6 +2945,14 @@ class SoloController extends ChangeNotifier {
       state!.pendingRevealAnimation = fannyRevealed.uid;
       _log('🎭 ${fannyRevealed.name} vole une identité — révélation automatique !', cls: 'player');
     }
+    // Felipe : vient-il de survivre à un coup mortel sans être révélé ?
+    // Révélation automatique, comme pour Fanny/Jason ci-dessus.
+    final felipeRevealed = _eg.checkFelipeRevealed(state!.players);
+    if (felipeRevealed != null) {
+      felipeRevealed.felipeJustRevealed = false;
+      state!.pendingRevealAnimation = felipeRevealed.uid;
+      _log('🩸 ${felipeRevealed.name} survit de justesse — révélation automatique !', cls: 'player');
+    }
     // Si le joueur DONT C'EST LE TOUR vient de mourir pendant ce même tour —
     // feu de Luc, poison de Damien, Araignée Sanguinaire, capacité qui
     // s'auto-inflige des dégâts (Peio, Hong Yi...), ou n'importe quelle

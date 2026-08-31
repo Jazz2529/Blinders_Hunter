@@ -209,6 +209,13 @@ class Prefs {
   static bool randomTerrainSkins() => _sp?.getBool('random_terrain_skins') ?? false;
   static void setRandomTerrainSkins(bool value) => _sp?.setBool('random_terrain_skins', value);
 
+  /// Pseudo et jeton du joueur — mémorisés d'une connexion à l'autre,
+  /// pour ne pas avoir à les ressaisir/choisir à chaque lancement.
+  static String? playerName() => _sp?.getString('player_name');
+  static void setPlayerName(String value) => _sp?.setString('player_name', value);
+  static String? playerToken() => _sp?.getString('player_token');
+  static void setPlayerToken(String value) => _sp?.setString('player_token', value);
+
   /// Tire un skin aléatoire par type de terrain — à appeler une seule fois
   /// au tout début d'une nouvelle partie (solo ou multi). Le résultat est
   /// mémorisé pour toute la durée de la partie (pas un tirage à chaque

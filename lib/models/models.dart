@@ -199,6 +199,7 @@ class Player {
   String? disguiseCharIdOverride; // ID du perso imité — pour afficher sa carte complète
   bool disguiseJustLost = false; // Jason : vient de perdre son déguisement (5+ dégâts/tour) — déclenche sa vraie révélation
   bool fannyJustRevealed = false; // Fanny : vient de voler une identité en éliminant un joueur sans être révélée — déclenche sa révélation automatique
+  bool felipeJustRevealed = false; // Felipe : vient de survivre à un coup mortel sans être révélé — déclenche sa révélation automatique
   bool jasonWeaponVoicePlayed = false; // Jason : voice line arme spéciale déjà jouée cette partie (une seule fois)
   int storedDamage = 0;      // Nils : blessures stockées en attendant d'être déchargées
   int oscarXp = 0;           // Oscar : XP cumulée (1 par blessure infligée en attaque), condition de victoire à 13
@@ -280,6 +281,7 @@ class Player {
     this.damageTakenThisTurn = 0,
     this.disguiseJustLost = false,
     this.fannyJustRevealed = false,
+    this.felipeJustRevealed = false,
     this.jasonWeaponVoicePlayed = false,
     this.storedDamage = 0,
     this.oscarXp = 0,
@@ -343,6 +345,7 @@ class Player {
     'damageTakenThisTurn': damageTakenThisTurn,
     'disguiseJustLost': disguiseJustLost,
     'fannyJustRevealed': fannyJustRevealed,
+    'felipeJustRevealed': felipeJustRevealed,
     'jasonWeaponVoicePlayed': jasonWeaponVoicePlayed,
     'storedDamage': storedDamage,
     'oscarXp': oscarXp,
@@ -426,6 +429,7 @@ class Player {
     damageTakenThisTurn: (j['damageTakenThisTurn'] as int?) ?? 0,
     disguiseJustLost: (j['disguiseJustLost'] as bool?) ?? false,
     fannyJustRevealed: (j['fannyJustRevealed'] as bool?) ?? false,
+    felipeJustRevealed: (j['felipeJustRevealed'] as bool?) ?? false,
     jasonWeaponVoicePlayed: (j['jasonWeaponVoicePlayed'] as bool?) ?? false,
     storedDamage: (j['storedDamage'] as num?)?.toInt() ?? 0,
     oscarXp: (j['oscarXp'] as num?)?.toInt() ?? 0,

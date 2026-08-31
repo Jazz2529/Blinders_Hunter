@@ -175,6 +175,14 @@ class GameProvider extends ChangeNotifier {
     await _fb.removeBot(roomId!, botUid);
   }
 
+  /// Expulse un joueur HUMAIN de la salle — réservé à l'hôte, lobby
+  /// uniquement (avant le lancement de la partie). Ne s'expulse jamais
+  /// lui-même (vérifié aussi côté interface, mais on protège ici aussi).
+  Future<void> kickPlayer(String uid) async {
+    if (roomId == null || !isHost || uid == myUid) return;
+    await _fb.kickPlayer(roomId!, uid);
+  }
+
   /// Quitte une partie EN COURS — le joueur est remplacé par un bot (qui
   /// continue à sa place avec le même personnage/PV/équipement) plutôt que
   /// de simplement bloquer la partie pour tout le monde. Accessible à
@@ -858,7 +866,20 @@ class GameProvider extends ChangeNotifier {
 
   void _subscribe() {
     _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel();
-    _pSub  = _fb.watchPlayers(roomId!).listen((d) { players = d; notifyListeners(); });
+    _pSub  = _fb.watchPlayers(roomId!).listen((d) {
+      // Détecte une expulsion : si mon propre uid a disparu de la liste des
+      // joueurs (alors que la salle contient déjà des données, pour éviter
+      // un faux positif pendant la toute première synchronisation après
+      // avoir rejoint), c'est que l'hôte m'a expulsé — on se réinitialise
+      // proprement plutôt que de continuer à sonder une salle où l'on
+      // n'existe plus.
+      if (myUid != null && d.isNotEmpty && !d.containsKey(myUid)) {
+        players = d;
+        leaveRoomAndReset(alreadyRemoved: true);
+        return;
+      }
+      players = d; notifyListeners();
+    });
     _gsSub = _fb.watchGameState(roomId!).listen((d) { gameState = d; _maybeForceTurn(); _maybeDriveBot(); notifyListeners(); });
     _stSub = _fb.watchStatus(roomId!).listen((d) {
       final wasPlaying = roomStatus == 'playing';
@@ -891,13 +912,18 @@ class GameProvider extends ChangeNotifier {
   /// Quitte la room actuelle et remet le provider à zéro pour permettre de
   /// créer/rejoindre une nouvelle partie. À appeler avant de retourner à
   /// l'écran d'accueil après une fin de partie.
-  Future<void> leaveRoomAndReset() async {
+  Future<void> leaveRoomAndReset({bool alreadyRemoved = false}) async {
     Prefs.clearRoom();
     _resultRecorded = false;
     _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel();
     _pSub = _gsSub = _stSub = _rSub = _rcSub = _logSub = _privLogSub = _hostSub = null;
     if (roomId != null) {
-      try { await _fb.leaveRoom(roomId!); } catch (_) {}
+      // Si on a déjà été retiré de la salle (expulsion détectée par le
+      // listener), pas besoin de retenter une suppression du même nœud —
+      // il n'existe déjà plus.
+      if (!alreadyRemoved) {
+        try { await _fb.leaveRoom(roomId!); } catch (_) {}
+      }
       _fb.stopPollingRoom(roomId!);
     }
     roomId = null;
@@ -1442,6 +1468,17 @@ class GameProvider extends ChangeNotifier {
         ? all.firstWhere((p) => p.uid == target.uid, orElse: () => actor)
         : null;
     final log = _eg.applyAbility(actor, all, gameState!.terrainLayout, target: tgt);
+    if ((actor.copiedEffect ?? actor.character?.abilityEffect) == 'full_heal_shield_turn') {
+      // Cambou : "passez votre tour" fait partie intégrante du texte de la
+      // capacité — ce cas particulier manquait ENTIÈREMENT ici (contrairement
+      // au solo, qui appelle humanEndTurn() juste après), laissant le joueur
+      // dans la phase capacité au lieu de passer directement au joueur
+      // suivant, ce qui perturbait aussi la suite du tour (déplacement,
+      // attaque) au lieu du passage de tour attendu.
+      await _commitAll(all, log);
+      await endTurn(actingUid: myUid);
+      return;
+    }
     if (log == 'draw_dark') {
       // Monkey Raph : retourner en déplacement après la carte
       await _fb.setPhase(roomId!, gameState!.phase, peioReturnToMove: true);
@@ -2071,7 +2108,13 @@ class GameProvider extends ChangeNotifier {
       await _fb.setPhase(roomId!, GamePhase.move, currentPlayerId: uid, hasAttacked: false);
       return;
     }
-    if (p.shield && p.shieldCharges == 99) { p.shield = false; p.shieldCharges = 0; }
+    // IMPORTANT : Louna — ne PAS effacer le bouclier ici (fin du tour du
+    // joueur protégé lui-même) ! Ce nettoyage prématuré, absent du solo,
+    // faisait expirer l'invulnérabilité dès la fin de SON PROPRE tour
+    // d'activation, avant même que les autres joueurs n'aient pu jouer —
+    // au lieu de durer jusqu'à la fin de son PROCHAIN tour. Le nettoyage
+    // correct se fait plus bas, au DÉBUT du tour suivant du joueur protégé
+    // (voir nextPlayer.shield plus loin dans cette fonction).
     // Fifi Été / Theo : mémorise si CE joueur a attaqué pendant SON PROPRE
     // tour qui se termine — ce passif n'existait même pas en multijoueur
     // auparavant.
@@ -2243,6 +2286,16 @@ class GameProvider extends ChangeNotifier {
       await _commitAll(all, '🎭 ${fannyRevealed.name} vole une identité — révélation automatique !');
       await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
           publicRevealUid: fannyRevealed.uid,
+          publicRevealTimestamp: DateTime.now().millisecondsSinceEpoch);
+    }
+    // Felipe : vient-il de survivre à un coup mortel sans être révélé ?
+    // Révélation automatique, comme pour Fanny/Jason ci-dessus.
+    final felipeRevealed = _eg.checkFelipeRevealed(all);
+    if (felipeRevealed != null) {
+      felipeRevealed.felipeJustRevealed = false;
+      await _commitAll(all, '🩸 ${felipeRevealed.name} survit de justesse — révélation automatique !');
+      await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+          publicRevealUid: felipeRevealed.uid,
           publicRevealTimestamp: DateTime.now().millisecondsSinceEpoch);
     }
     // Si le joueur DONT C'EST LE TOUR vient de mourir pendant ce même tour —
