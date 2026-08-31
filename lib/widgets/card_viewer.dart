@@ -4,6 +4,7 @@ import 'theme.dart';
 import '../models/models.dart';
 import '../data/characters_data.dart';
 import '../services/persistence.dart';
+import '../services/i18n.dart';
 import 'shine_effect.dart';
 
 /// ─── Visionneuse de carte ────────────────────────────────────────────────────
@@ -351,7 +352,7 @@ class _InfoPanel extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(child: Text(c.name,
+              Center(child: Text(tr(c.name),
                   style: cinzel(20, c: kGold2, fw: FontWeight.w900),
                   textAlign: TextAlign.center)),
               const SizedBox(height: 8),
@@ -437,9 +438,9 @@ class _InfoPanel extends StatelessWidget {
                 )),
               ],
               const SizedBox(height: 16),
-              _infoBlock('⚡ CAPACITÉ', c.ability, fc),
+              _infoBlock(ui('info_ability'), tr(c.ability), fc),
               const SizedBox(height: 12),
-              _infoBlock('🏆 CONDITION DE VICTOIRE', c.winCondition, kGold),
+              _infoBlock(ui('info_win_condition'), tr(c.winCondition), kGold),
             ],
           ),
         ),

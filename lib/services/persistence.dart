@@ -216,6 +216,11 @@ class Prefs {
   static String? playerToken() => _sp?.getString('player_token');
   static void setPlayerToken(String value) => _sp?.setString('player_token', value);
 
+  /// Langue de l'interface et du contenu de jeu ('fr' ou 'en') — mémorisée
+  /// d'une session à l'autre. Français par défaut.
+  static String language() => _sp?.getString('language') ?? 'fr';
+  static void setLanguage(String value) => _sp?.setString('language', value);
+
   /// Tire un skin aléatoire par type de terrain — à appeler une seule fois
   /// au tout début d'une nouvelle partie (solo ou multi). Le résultat est
   /// mémorisé pour toute la durée de la partie (pas un tirage à chaque

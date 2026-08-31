@@ -15,6 +15,7 @@ import '../models/models.dart';
 import '../widgets/theme.dart';
 import '../widgets/shine_effect.dart';
 import '../services/persistence.dart';
+import '../services/i18n.dart';
 import '../widgets/token_widget.dart';
 import '../widgets/player_status_widget.dart';
 import '../widgets/reveal_screen.dart';
@@ -41,25 +42,26 @@ class LobbyScreen extends StatelessWidget {
       final allReady = gp.players.values.isNotEmpty && gp.players.values.every((p) => p.isReady);
       final canStart = n >= 4 && allReady;
       String startLabel;
+      final en = AppLanguage.instance.isEnglish;
       if (n < 4) {
-        startLabel = '⏳ En attente de joueurs ($n/4 minimum)';
+        startLabel = en ? '⏳ Waiting for players ($n/4 minimum)' : '⏳ En attente de joueurs ($n/4 minimum)';
       } else if (!allReady) {
         final notReady = gp.players.values.where((p) => !p.isReady).length;
-        startLabel = '⏳ En attente — $notReady joueur(s) pas prêt(s)';
+        startLabel = en ? '⏳ Waiting — $notReady player(s) not ready' : '⏳ En attente — $notReady joueur(s) pas prêt(s)';
       } else {
-        startLabel = '⚔  Lancer la partie ($n joueurs)';
+        startLabel = en ? '⚔  Start game ($n players)' : '⚔  Lancer la partie ($n joueurs)';
       }
       return Scaffold(
         backgroundColor:kBg0,
         appBar:AppBar(
           backgroundColor:kBg2, elevation:0,
           title:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-            Text('Lobby',style:cinzel(16,c:kGold2)),
+            Text(ui('lobby_title'),style:cinzel(16,c:kGold2)),
             GestureDetector(
               onTap:(){
                 Clipboard.setData(ClipboardData(text:gp.roomId??''));
                 ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content:Text('Code copié !'),backgroundColor:Color(0xFF1C1309)));
+                  SnackBar(content:Text(ui('lobby_code_copied')),backgroundColor:const Color(0xFF1C1309)));
               },
               child:Text('Code : ${gp.roomId??"—"}  📋',style:body(12,c:kTextSub).copyWith(letterSpacing:3)),
             ),
@@ -67,7 +69,7 @@ class LobbyScreen extends StatelessWidget {
           actions:[
             IconButton(
               icon: const Icon(Icons.exit_to_app, color: kTextSub),
-              tooltip: 'Quitter la salle',
+              tooltip: ui('lobby_leave_room'),
               onPressed: () async {
                 await gp.leaveRoomAndReset();
               },
@@ -80,12 +82,12 @@ class LobbyScreen extends StatelessWidget {
         ),
         body:Column(children:[
           Expanded(child:ListView(padding:const EdgeInsets.all(14),children:[
-            const SectionLabel('JOUEURS'),
+            SectionLabel(ui('lobby_players')),
             ...gp.players.values.map((p)=>_PlayerTile(p:p,isMe:p.uid==gp.myUid,
               canRemove: gp.isHost, onRemove: () => gp.guardedAction(() => gp.removeBot(p.uid)),
               onKick: () => _confirmKickPlayer(ctx, gp, p))),
             const SizedBox(height:16),
-            const SectionLabel('TON JETON'),
+            SectionLabel(ui('lobby_your_token')),
             const SizedBox(height:10),
             SizedBox(height:56, child: ListView.builder(
               scrollDirection: Axis.horizontal,
@@ -123,14 +125,14 @@ class LobbyScreen extends StatelessWidget {
             if (gp.isHost && n < 7) ...[
               const SizedBox(height: 8),
               BHButton(
-                label: '🤖 Ajouter un bot',
+                label: ui('lobby_add_bot'),
                 outlined: true,
                 onTap: () => gp.guardedAction(() => gp.addBot()),
               ),
             ],
             const SizedBox(height:8),
             BHButton(
-              label:gp.me?.isReady==true?'✓ Prêt — annuler ?':'Se marquer prêt',
+              label:gp.me?.isReady==true?ui('lobby_ready_cancel'):ui('lobby_mark_ready'),
               onTap: () => gp.guardedAction(() => gp.setReady(!(gp.me?.isReady??false))),
               outlined:true,
             ),
@@ -165,7 +167,7 @@ class _PlayerTile extends StatelessWidget {
         padding:const EdgeInsets.symmetric(horizontal:10,vertical:4),
         decoration:BoxDecoration(color:kGreen.withOpacity(0.15),
           borderRadius:BorderRadius.circular(20),border:Border.all(color:kGreen)),
-        child:Text('Prêt',style:cinzel(11,c:kGreen)),
+        child:Text(ui('lobby_ready_badge'),style:cinzel(11,c:kGreen)),
       ),
       if (canRemove && p.isBot) ...[
         const SizedBox(width: 8),
@@ -369,14 +371,14 @@ class _GameScreenState extends State<GameScreen> {
         context: ctx,
         builder: (dctx) => AlertDialog(
           backgroundColor: kBg2,
-          title: Text('Quitter la partie ?', style: cinzel(16, c: kGold2)),
-          content: Text('Tu vas retourner au menu principal et quitter cette partie multijoueur.',
+          title: Text(ui('quit_game_title'), style: cinzel(16, c: kGold2)),
+          content: Text(ui('quit_game_content'),
             style: body(13)),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dctx, false),
-              child: Text('Annuler', style: cinzel(12, c: kTextSub))),
+              child: Text(ui('btn_cancel'), style: cinzel(12, c: kTextSub))),
             TextButton(onPressed: () => Navigator.pop(dctx, true),
-              child: Text('Quitter', style: cinzel(12, c: kRed))),
+              child: Text(ui('btn_quit'), style: cinzel(12, c: kRed))),
           ],
         ),
       );
@@ -2478,9 +2480,9 @@ class _CardWidget extends StatelessWidget {
               ),
             ]),
             const SizedBox(height: 6),
-            Text(card.name, style: cinzel(15, c: kGold2, fw: FontWeight.w900)),
+            Text(tr(card.name), style: cinzel(15, c: kGold2, fw: FontWeight.w900)),
             const SizedBox(height: 5),
-            Text(card.text, style: body(12)),
+            Text(tr(card.text), style: body(12)),
           ]),
         ),
       ]),

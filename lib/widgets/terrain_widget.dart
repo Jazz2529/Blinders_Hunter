@@ -6,6 +6,7 @@ import '../models/models.dart';
 import '../data/game_data.dart';
 import '../data/characters_data.dart';
 import '../data/tokens_data.dart';
+import '../services/i18n.dart';
 import 'theme.dart';
 
 // ─── Plateau — remplace GridView par un layout fixe 2×3 ─────────────────────
@@ -159,7 +160,7 @@ class TerrainTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(terrain.keyword,
+                    Text(tr(terrain.keyword),
                       style: const TextStyle(
                         fontFamily: 'Cinzel', fontSize: 6.5,
                         color: Color(0xFFF0C040), fontWeight: FontWeight.w700,

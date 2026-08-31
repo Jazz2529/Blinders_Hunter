@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../services/game_provider.dart';
 import '../services/display_settings.dart';
 import '../services/persistence.dart';
+import '../services/i18n.dart';
 import 'rules_screen.dart';
 import 'stats_screen.dart';
 import 'gallery_screen.dart';
@@ -183,29 +184,29 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
           ],
-          BHButton(label: '🤖  Mode Solo', onTap: _goSolo),
+          BHButton(label: ui('menu_solo'), onTap: _goSolo),
           const SizedBox(height: 10),
-          BHButton(label: '⚔️  Multijoueur', gold: true, onTap: _goMulti),
+          BHButton(label: ui('menu_multi'), gold: true, onTap: _goMulti),
           const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: BHButton(label: '📊 Stats', outlined: true,
+            Expanded(child: BHButton(label: ui('menu_stats'), outlined: true,
               onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const StatsScreen())))),
             const SizedBox(width: 10),
-            Expanded(child: BHButton(label: '📖 Règles', outlined: true,
+            Expanded(child: BHButton(label: ui('menu_rules'), outlined: true,
               onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const RulesScreen())))),
           ]),
           const SizedBox(height: 10),
-          BHButton(label: '📚 Catalogue (personnages & cartes)', outlined: true,
+          BHButton(label: ui('menu_catalog'), outlined: true,
             onTap: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const CardCatalogScreen()))),
           const SizedBox(height: 10),
-          BHButton(label: '🛒 Boutique', outlined: true,
+          BHButton(label: ui('menu_shop'), outlined: true,
             onTap: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const ShopScreen()))),
           const SizedBox(height: 10),
-          BHButton(label: '🚪 Quitter l\'application', outlined: true,
+          BHButton(label: ui('menu_quit'), outlined: true,
             onTap: () => _confirmQuit(context)),
           const SizedBox(height: 10),
           TextButton(
@@ -366,12 +367,12 @@ class _MultiplayerDialogState extends State<_MultiplayerDialog> {
             if (_loading)
               const CircularProgressIndicator(color: kGold)
             else
-              BHButton(label: '➕ Créer une salle', gold: true, onTap: _create),
+              BHButton(label: ui('btn_create_room'), gold: true, onTap: _create),
             const SizedBox(height: 10),
-            BHButton(label: 'Rejoindre avec un code', outlined: true,
+            BHButton(label: ui('btn_join_with_code'), outlined: true,
               onTap: () => setState(() { _joinMode = true; _error = null; })),
           ] else ...[
-            Text('Entre le code à 5 lettres de la salle.',
+            Text(ui('multi_enter_code'),
               style: body(12, c: kTextSub), textAlign: TextAlign.center),
             const SizedBox(height: 12),
             TextField(
@@ -392,9 +393,9 @@ class _MultiplayerDialogState extends State<_MultiplayerDialog> {
             if (_loading)
               const CircularProgressIndicator(color: kGold)
             else
-              BHButton(label: '🔑 Rejoindre', gold: true, onTap: _join),
+              BHButton(label: ui('btn_join'), gold: true, onTap: _join),
             const SizedBox(height: 10),
-            BHButton(label: '← Retour', outlined: true,
+            BHButton(label: ui('btn_back'), outlined: true,
               onTap: () => setState(() { _joinMode = false; _error = null; })),
           ],
           if (_error != null) ...[
@@ -427,7 +428,7 @@ class SettingsDialogState extends State<SettingsDialog> {
           Row(children: [
             const Icon(Icons.settings, color: kGold, size: 22),
             const SizedBox(width: 10),
-            Text('PARAMÈTRES', style: cinzel(16, c: kGold2, fw: FontWeight.w900)),
+            Text(ui('settings_title'), style: cinzel(16, c: kGold2, fw: FontWeight.w900)),
             const Spacer(),
             GestureDetector(onTap: () => Navigator.pop(ctx),
               child: const Icon(Icons.close, color: kTextSub)),
@@ -435,7 +436,7 @@ class SettingsDialogState extends State<SettingsDialog> {
           const SizedBox(height: 20),
 
           // Musique
-          SectionLabel('MUSIQUE'),
+          SectionLabel(ui('settings_music')),
           const SizedBox(height: 10),
           Row(children: [
             GestureDetector(
@@ -452,7 +453,7 @@ class SettingsDialogState extends State<SettingsDialog> {
                   Icon(audio.musicEnabled ? Icons.music_note : Icons.music_off,
                     color: audio.musicEnabled ? kGold : kTextDim, size: 16),
                   const SizedBox(width: 6),
-                  Text(audio.musicEnabled ? 'Activée' : 'Désactivée',
+                  Text(audio.musicEnabled ? (AppLanguage.instance.isEnglish ? ui('settings_enabled') : 'Activée') : (AppLanguage.instance.isEnglish ? ui('settings_disabled') : 'Désactivée'),
                     style: cinzel(10, c: audio.musicEnabled ? kGold : kTextDim)),
                 ])),
             ),
@@ -471,7 +472,7 @@ class SettingsDialogState extends State<SettingsDialog> {
           const SizedBox(height: 16),
 
           // Effets sonores
-          SectionLabel('EFFETS SONORES'),
+          SectionLabel(ui('settings_sfx')),
           const SizedBox(height: 10),
           Row(children: [
             GestureDetector(
@@ -488,7 +489,7 @@ class SettingsDialogState extends State<SettingsDialog> {
                   Icon(audio.sfxEnabled ? Icons.volume_up : Icons.volume_off,
                     color: audio.sfxEnabled ? kGold : kTextDim, size: 16),
                   const SizedBox(width: 6),
-                  Text(audio.sfxEnabled ? 'Activés' : 'Désactivés',
+                  Text(audio.sfxEnabled ? (AppLanguage.instance.isEnglish ? ui('settings_enabled') : 'Activés') : (AppLanguage.instance.isEnglish ? ui('settings_disabled') : 'Désactivés'),
                     style: cinzel(10, c: audio.sfxEnabled ? kGold : kTextDim)),
                 ])),
             ),
@@ -520,8 +521,50 @@ class SettingsDialogState extends State<SettingsDialog> {
 
           const SizedBox(height: 16),
 
+          // Langue de l'interface et du contenu de jeu
+          SectionLabel(ui('settings_language')),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: GestureDetector(
+              onTap: () { AppLanguage.instance.setLanguage('fr'); setState(() {}); },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: !AppLanguage.instance.isEnglish
+                      ? kGold.withValues(alpha: 0.12) : kBg3,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: !AppLanguage.instance.isEnglish ? kGold : kBord2)),
+                child: Text('🇫🇷 Français', textAlign: TextAlign.center,
+                  style: cinzel(11, c: !AppLanguage.instance.isEnglish ? kGold : kTextDim)),
+              ),
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: GestureDetector(
+              onTap: () { AppLanguage.instance.setLanguage('en'); setState(() {}); },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppLanguage.instance.isEnglish
+                      ? kGold.withValues(alpha: 0.12) : kBg3,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: AppLanguage.instance.isEnglish ? kGold : kBord2)),
+                child: Text('🇬🇧 English', textAlign: TextAlign.center,
+                  style: cinzel(11, c: AppLanguage.instance.isEnglish ? kGold : kTextDim)),
+              ),
+            )),
+          ]),
+          Padding(padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Traduit les personnages, cartes et terrains. Certains éléments '
+              'd\'interface restent en français pour le moment.',
+              style: body(10, c: kTextDim))),
+
+          const SizedBox(height: 16),
+
           // Affichage (appareil, échelle, résolution)
-          SectionLabel('AFFICHAGE'),
+          SectionLabel(ui('settings_display')),
           const SizedBox(height: 10),
           GestureDetector(
             onTap: () {

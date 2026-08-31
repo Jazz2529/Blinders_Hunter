@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'services/game_provider.dart';
 import 'services/display_settings.dart';
 import 'services/persistence.dart';
+import 'services/i18n.dart';
 import 'services/audio_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/multi_screens.dart';
@@ -32,6 +33,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Prefs.init();
   DisplaySettings.instance.load();
+  AppLanguage.instance.load();
   // IMPORTANT : sans cet appel, init() (qui configure le mixage audio sur
   // mobile, et charge les préférences de volume partout) n'était jamais
   // exécutée.
@@ -86,11 +88,17 @@ class _RootWrapperState extends State<_RootWrapper> {
   void initState() {
     super.initState();
     DisplaySettings.instance.addListener(_onSettings);
+    // Changer de langue doit se répercuter immédiatement dans TOUTE
+    // l'application (écran de jeu en cours, catalogue, etc.), pas
+    // seulement dans la boîte de dialogue des réglages elle-même — même
+    // mécanisme que pour les réglages d'affichage.
+    AppLanguage.instance.addListener(_onSettings);
   }
 
   @override
   void dispose() {
     DisplaySettings.instance.removeListener(_onSettings);
+    AppLanguage.instance.removeListener(_onSettings);
     super.dispose();
   }
 

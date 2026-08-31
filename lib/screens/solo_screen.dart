@@ -11,6 +11,7 @@ import '../services/display_settings.dart';
 import 'rules_screen.dart';
 import '../widgets/card_viewer.dart';
 import '../services/persistence.dart';
+import '../services/i18n.dart';
 import '../widgets/shine_effect.dart';
 import '../services/audio_service.dart';
 import '../services/engine.dart';
@@ -4367,9 +4368,9 @@ class _CardWidget extends StatelessWidget {
               ),
             ]),
             const SizedBox(height: 6),
-            Text(card.name, style: cinzel(15, c: kGold2, fw: FontWeight.w900)),
+            Text(tr(card.name), style: cinzel(15, c: kGold2, fw: FontWeight.w900)),
             const SizedBox(height: 5),
-            Text(card.text, style: body(12)),
+            Text(tr(card.text), style: body(12)),
           ]),
         ),
       ]),
