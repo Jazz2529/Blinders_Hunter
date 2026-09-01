@@ -151,6 +151,10 @@ class Player {
   // fiche, plutôt que la préférence locale du joueur qui regarde (ou
   // l'illustration par défaut, faute de synchronisation).
   String? equippedCharacterSkin;
+  int? shineWins; // nombre de victoires (appareil du joueur) avec le
+  // personnage actuellement joué — synchronisé pour que les AUTRES joueurs
+  // voient sa vraie étoile en consultant sa fiche, plutôt que leur propre
+  // nombre de victoires local (souvent 0, affichant aucune étoile à tort).
   CharacterCard? character;
   int wounds;
   int zoneIndex;
@@ -234,6 +238,7 @@ class Player {
     required this.name,
     required this.token,
     this.equippedCharacterSkin,
+    this.shineWins,
     this.character,
     this.wounds = 0,
     this.zoneIndex = 0,
@@ -318,7 +323,7 @@ class Player {
   bool get isBot => uid.startsWith('bot_');
 
   Map<String, dynamic> toJson() => {
-    'uid': uid, 'name': name, 'token': token, 'equippedCharacterSkin': equippedCharacterSkin,
+    'uid': uid, 'name': name, 'token': token, 'equippedCharacterSkin': equippedCharacterSkin, 'shineWins': shineWins,
     'character': character?.toJson(),
     'wounds': wounds, 'zoneIndex': zoneIndex,
     'alive': alive, 'revealed': revealed,
@@ -381,6 +386,7 @@ class Player {
     name: j['name'] as String,
     token: (j['token'] as String?) ?? '🔵',
     equippedCharacterSkin: j['equippedCharacterSkin'] as String?,
+    shineWins: j['shineWins'] as int?,
     character: j['character'] != null
         ? CharacterCard.fromJson(Map<String, dynamic>.from(j['character'] as Map))
         : null,

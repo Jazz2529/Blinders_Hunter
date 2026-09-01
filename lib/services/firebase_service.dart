@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
 import '../data/tokens_data.dart';
 import '../data/game_data.dart';
+import 'i18n.dart';
 import 'engine.dart';
 
 // ⚠️ Remplace par l'URL de TA Realtime Database (Firebase Console → Realtime
@@ -381,7 +382,7 @@ class FirebaseService {
     final Map<String, dynamic> updates = {
       'rooms/$roomId/status': 'playing',
       'rooms/$roomId/gameState': gameState.toJson(),
-      'rooms/$roomId/log': ['important||⚔️ La partie commence !'],
+      'rooms/$roomId/log': ['important||' + logT('⚔️ La partie commence !', {})],
     };
     for (final p in players) {
       updates['rooms/$roomId/players/${p.uid}'] = p.toJson();
@@ -409,6 +410,13 @@ class FirebaseService {
   /// d'autres champs changent en même temps ailleurs.
   Future<void> setEquippedSkin(String roomId, String uid, String? skinId) async {
     await _patch('rooms/$roomId/players/$uid', {'equippedCharacterSkin': skinId});
+  }
+
+  /// Synchronise le nombre de victoires (LOCAL à l'appareil du joueur) avec
+  /// le personnage actuellement joué — pour que les AUTRES joueurs voient sa
+  /// vraie étoile en consultant sa fiche.
+  Future<void> setShineWins(String roomId, String uid, int wins) async {
+    await _patch('rooms/$roomId/players/$uid', {'shineWins': wins});
   }
 
   /// Met à jour plusieurs joueurs en une seule requête

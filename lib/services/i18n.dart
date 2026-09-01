@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import 'persistence.dart';
 import '../data/translations_data.dart';
+import 'i18n_core.dart' as core;
 
 class AppLanguage extends ChangeNotifier {
   AppLanguage._();
@@ -18,12 +19,14 @@ class AppLanguage extends ChangeNotifier {
 
   void load() {
     code = Prefs.language();
+    core.isEnglishCore = isEnglish;
     notifyListeners();
   }
 
   void setLanguage(String value) {
     if (code == value) return;
     code = value;
+    core.isEnglishCore = isEnglish;
     Prefs.setLanguage(value);
     notifyListeners();
   }
@@ -36,10 +39,7 @@ class AppLanguage extends ChangeNotifier {
 /// correspondance ; si l'anglais est actif ET qu'une traduction existe, la
 /// renvoie, sinon renvoie le texte original tel quel (repli sûr : jamais de
 /// texte manquant, même pour du contenu pas encore traduit).
-String tr(String original) {
-  if (!AppLanguage.instance.isEnglish) return original;
-  return kGameTranslations[original] ?? original;
-}
+String tr(String original) => core.trCore(original);
 
 /// Traduit un élément d'INTERFACE (bouton, titre, libellé...) par clé
 /// courte plutôt que par le texte français complet — plus stable si le
@@ -49,6 +49,13 @@ String ui(String key) {
   return kUiStringsEn[key] ?? kUiStringsFr[key] ?? key;
 }
 
+/// Traduit un MESSAGE DE JOURNAL construit dynamiquement (avec des noms de
+/// joueurs, des nombres, etc. insérés dedans) — cherche un gabarit (avec
+/// des espaces réservés comme {name}) dans la table de correspondance, et
+/// remplace les espaces réservés par les valeurs fournies. Contrairement à
+/// tr()/ui(), ce n'est pas le texte final qui sert de clé mais un GABARIT
+/// FIXE, indépendant des valeurs insérées à chaque appel.
+String logT(String template, Map<String, String> params) => core.logTCore(template, params);
 /// Enveloppe un écran pour qu'il se reconstruise IMMÉDIATEMENT dès que la
 /// langue change — nécessaire pour tout écran ouvert via Navigator.push
 /// (configuration solo, règles, stats, boutique, catalogue...), qui ne

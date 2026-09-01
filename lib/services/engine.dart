@@ -292,7 +292,7 @@ class GameEngine with AbilityEngine {
   String damienServeAlcohol(Player actor, Player target) {
     final dealt = applyDamage(target, 4);
     if (!target.alive) target.killedByUid = actor.uid;
-    return '🥃 ${actor.name} sert un alcool fort à ${target.name} — $dealt blessures instantanées';
+    return logTCore('🥃 {name} sert un alcool fort à {target} — {dmg} blessures instantanées', {'name': actor.name, 'target': target.name, 'dmg': '$dealt'});
   }
 
   /// Damien : sert un poison — 3 dégâts au début de chacun des 2 prochains
@@ -300,7 +300,7 @@ class GameEngine with AbilityEngine {
   String damienServePoison(Player actor, Player target) {
     target.poisonTurnsRemaining = 2;
     target.poisonSourceUid = actor.uid;
-    return '☠️ ${actor.name} empoisonne ${target.name} — 3 blessures par tour pendant 2 tours';
+    return logTCore('☠️ {name} empoisonne {target} — 3 blessures par tour pendant 2 tours', {'name': actor.name, 'target': target.name});
   }
 
   // ─── Effets capacité ─────────────────────
@@ -379,6 +379,8 @@ class GameEngine with AbilityEngine {
       case 'meg_shapeshift':
         if (extra == null) return 'meg_choice'; // signal : afficher le choix des 2 formes
         actor.megForm = extra;
+        actor.abilityUsed = true; // choix initial unique — sans ça, le
+        // bouton restait disponible indéfiniment (bots comme joueurs).
         return extra == 'offense'
             ? '🐺 ${actor.name} choisit la forme Offensive (+1 blessure infligée)'
             : '🐺 ${actor.name} choisit la forme Défensive (-1 blessure reçue)';
@@ -500,7 +502,7 @@ class GameEngine with AbilityEngine {
         // resolveAttack, basé sur target.revealed) — ce chemin ne sert plus
         // qu'à DÉVERSER ce qui est stocké.
         if (target == null) return 'cible_requise';
-        if (actor.storedDamage <= 0) return 'Nils — rien à déverser';
+        if (actor.storedDamage <= 0) return logTCore('Nils — rien à déverser', {});
         final stored = actor.storedDamage;
         final dealt = applyDamage(target, stored);
         if (!target.alive) target.killedByUid = actor.uid;
@@ -509,7 +511,7 @@ class GameEngine with AbilityEngine {
 
       // ── Agathe : vole 1 PV MAX à un joueur, définitivement (max 5x) ──
       case 'steal_max_hp':
-        if (actor.maxHpModifier >= 5) return 'Agathe — déjà au maximum (+5 PV max)';
+        if (actor.maxHpModifier >= 5) return logTCore('Agathe — déjà au maximum (+5 PV max)', {});
         if (target == null) return 'cible_requise';
         actor.maxHpModifier += 1;
         target.maxHpModifier -= 1;
@@ -523,7 +525,7 @@ class GameEngine with AbilityEngine {
       // ce chemin n'est utilisé QUE par les bots, qui n'ont pas d'interface).
       case 'craft_equipment_remi':
         if (actor.equipment.any((e) => e.effect.startsWith('remi_custom:'))) {
-          return 'Rémi — équipement déjà fabriqué';
+          return logTCore('Rémi — équipement déjà fabriqué', {});
         }
         final offered = remiDraw3(_rng);
         final picked = List<String>.from(offered)..shuffle(_rng);
@@ -657,12 +659,12 @@ class GameEngine with AbilityEngine {
             huntersHealed++;
           }
         }
-        return '✨ ${actor.name} — $shadowsHit Shadow(s) subissent 2 blessures, $huntersHealed Hunter(s) se soignent de 2';
+        return logTCore('✨ {name} — {shadows} Shadow(s) subissent 2 blessures, {hunters} Hunter(s) se soignent de 2', {'name': actor.name, 'shadows': '$shadowsHit', 'hunters': '$huntersHealed'});
 
       // ── Augustin : passif (soin sur 7, géré côté move) ──
       case 'heal_on_same_terrain':
         actor.abilityUsed = false;
-        return '🌾 ${actor.name} — passif actif (soigné de 2 sur un résultat de 7)';
+        return logTCore('🌾 {name} — passif actif (soigné de 2 sur un résultat de 7)', {'name': actor.name});
 
       // ── Fijacked : soin = nombre d'équipements ──
       case 'heal_per_equip_eot':
@@ -670,16 +672,16 @@ class GameEngine with AbilityEngine {
         final healAmt = actor.equipment.length;
         if (healAmt > 0) {
           applyHeal(actor, healAmt);
-          return '🏗️ ${actor.name} se soigne de $healAmt (équipements)';
+          return logTCore('🏗️ {name} se soigne de {n} (équipements)', {'name': actor.name, 'n': '$healAmt'});
         }
-        return '🏗️ ${actor.name} — aucun équipement à convertir';
+        return logTCore('🏗️ {name} — aucun équipement à convertir', {'name': actor.name});
 
       // ── Tristan : échange un équipement avec un autre joueur ──
       case 'swap_equipment':
         if (target == null) return 'cible_requise';
         if (actor.equipment.isEmpty || target.equipment.isEmpty) {
           actor.abilityUsed = false; // répétable, même en cas d'échec
-          return '🔄 ${actor.name} — échange impossible (équipement manquant chez l\'un des deux)';
+          return logTCore("🔄 {name} — échange impossible (équipement manquant chez l'un des deux)", {'name': actor.name});
         }
         // Tristan choisit précisément quel objet il donne et lequel il
         // reçoit (extra au format "monIndex,leurIndex") — les bots, qui ne
@@ -693,7 +695,7 @@ class GameEngine with AbilityEngine {
           if (myIdx < 0 || myIdx >= actor.equipment.length ||
               theirIdx < 0 || theirIdx >= target.equipment.length) {
             actor.abilityUsed = false;
-            return '🔄 ${actor.name} — choix d\'équipement invalide';
+            return logTCore("🔄 {name} — choix d'équipement invalide", {'name': actor.name});
           }
         } else {
           myIdx = _rng.nextInt(actor.equipment.length);
@@ -705,14 +707,14 @@ class GameEngine with AbilityEngine {
         target.equipment.add(myCard);
         recalcPassives(actor); recalcPassives(target);
         actor.abilityUsed = false; // répétable
-        return '🔄 ${actor.name} échange "${myCard.name}" contre "${theirCard.name}" avec ${target.name}';
+        return logTCore('🔄 {name} échange "{item1}" contre "{item2}" avec {target}', {'name': actor.name, 'item1': trCore(myCard.name), 'item2': trCore(theirCard.name), 'target': target.name});
 
       // ── Fanny : aucun pouvoir tant qu'elle n'a pas volé une carte ──
       case 'fanny_none':
-        return '🎭 ${actor.name} n\'a encore aucun pouvoir — elle doit d\'abord éliminer un joueur.';
+        return logTCore("🎭 {name} n'a encore aucun pouvoir — elle doit d'abord éliminer un joueur.", {'name': actor.name});
 
       default:
-        return '⚡ ${actor.name} utilise sa capacité';
+        return logTCore('⚡ {name} utilise sa capacité', {'name': actor.name});
     }
   }
 
@@ -909,7 +911,7 @@ class GameEngine with AbilityEngine {
         recalcPassives(actor);
         return {'log': '🍌 ${actor.name} donne "${eg.name}" à ${target.name}', 'needsTarget': false};
       case 'pince_attrape':
-        if (target.equipment.isEmpty) return {'log': "${target.name} n'a pas d'équipement", 'needsTarget': false};
+        if (target.equipment.isEmpty) return {'log': logTCore("{name} n'a pas d'équipement", {'name': target.name}), 'needsTarget': false};
         if (target.equipment.length > 1) {
           return {'log': '', 'needsTarget': false, 'needsEquipChoice': true,
             'equipChoiceMode': 'steal', 'equipChoiceActorUid': actor.uid, 'equipChoiceTargetUid': target.uid};
@@ -1321,6 +1323,16 @@ class GameEngine with AbilityEngine {
     // blessure de moins — appliqué EN DERNIER, après tous les bonus
     // d'attaque ci-dessus, comme dans resolveAttackFull.
     if (attacker.sainteTunique) dmg = max(0, dmg - 1);
+    // Vache : -1 infligé (identique à resolveAttackFull) — manquait ici,
+    // donc jamais appliquée si la Vache était attaquée par un joueur humain
+    // en multijoueur (seule resolveAttackFull, utilisée par le solo, l'avait).
+    if (effectiveAbility(target) == 'reduce_all_by1') dmg = max(0, dmg - 1);
+    // Inès passive : -1 reçu — même souci, manquait entièrement ici.
+    if (effectiveAbility(target) == 'ines_minus1_recv' && target.revealed) dmg = max(0, dmg - 1);
+    // Meg : forme Défensive active → -1 dégât reçu — c'est CE check qui
+    // manquait, rendant sa forme Défensive totalement inopérante dès
+    // qu'un joueur humain (pas un bot) était l'attaquant.
+    if (effectiveAbility(target) == 'meg_shapeshift' && target.megForm == 'defense') dmg = max(0, dmg - 1);
     // Fourrure de Chaussette : renvoie l'attaque sur l'attaquant lui-même
     if (target.equipment.any((e) => e.effect == 'mirror_damage') || target.mirrorDamage) {
       final reflected = applyDamage(attacker, dmg);
@@ -1660,13 +1672,13 @@ class GameEngine with AbilityEngine {
     if (!giveEquipment || target.equipment.isEmpty) {
       applyDamage(target, 1);
       if (!target.alive) target.killedByUid = actor.uid;
-      return '🔮 ${target.name} choisit de subir 1 blessure';
+      return logTCore('🔮 {target} choisit de subir 1 blessure', {'target': target.name});
     }
     final idx = (equipmentIndex != null && equipmentIndex < target.equipment.length) ? equipmentIndex : 0;
     final e = target.equipment.removeAt(idx);
     actor.equipment.add(e); _equipPassive(actor, e);
     recalcPassives(target); // sinon la cible garde le passif de l'objet donné
-    return '🔮 ${target.name} donne "${e.name}" à ${actor.name}';
+    return logTCore('🔮 {target} donne "{item}" à {name}', {'target': target.name, 'item': trCore(e.name), 'name': actor.name});
   }
 
   /// Heuristique simple pour le mode solo : le bot cible choisit de donner
@@ -1958,22 +1970,22 @@ class GameEngine with AbilityEngine {
         if (target == null) return '';
         final d = applyDamage(target, 2);
         if (!target.alive) target.killedByUid = actor.uid;
-        return '⚔️ Clémence inflige 2 à ${target.name} ($d)';
+        return logTCore('⚔️ Clémence inflige 2 à {target} ({d})', {'target': target.name, 'd': '$d'});
       case 'dmg1_all':
         for (final p in all) { if (p.alive) applyDamage(p, 1); }
-        return '💥 Clémence inflige 1 à tous';
+        return logTCore('💥 Clémence inflige 1 à tous', {});
       case 'heal2_one':
         if (target == null) return '';
         applyHeal(target, 2);
-        return '💚 Clémence soigne ${target.name} de 2';
+        return logTCore('💚 Clémence soigne {target} de 2', {'target': target.name});
       case 'heal1_all':
         for (final p in all) { if (p.alive) applyHeal(p, 1); }
-        return '✨ Clémence soigne tout le monde de 1';
+        return logTCore('✨ Clémence soigne tout le monde de 1', {});
       case 'atk_d4':
         if (target == null) return '';
         final r = rollD4(); final d4dmg = applyDamage(target, r);
         if (!target.alive) target.killedByUid = actor.uid;
-        return '🎲 Clémence attaque ${target.name} D4($r) → $d4dmg';
+        return logTCore('🎲 Clémence attaque {target} D4({d}) → {dmg}', {'target': target.name, 'd': '$r', 'dmg': '$d4dmg'});
       case 'dmg4_zone45':
         final zone45 = [terrainLayoutIdx(layout, 1), terrainLayoutIdx(layout, 2)];
         for (final p in all) {
@@ -1982,36 +1994,36 @@ class GameEngine with AbilityEngine {
             if (!p.alive) p.killedByUid = actor.uid;
           }
         }
-        return '🔥 Clémence : 4 blessures à tous en zone 4-5';
+        return logTCore('🔥 Clémence : 4 blessures à tous en zone 4-5', {});
       case 'dmg4_self2':
         if (target == null) return '';
         final d4s2 = applyDamage(target, 4);
         if (!target.alive) target.killedByUid = actor.uid;
         applyDamage(actor, 2);
-        return '💀 Clémence inflige 4 à ${target.name} ($d4s2) et subit 2';
+        return logTCore('💀 Clémence inflige 4 à {target} ({d}) et subit 2', {'target': target.name, 'd': '$d4s2'});
       case 'self2_heal3':
         if (target == null) return '';
         applyDamage(actor, 2);
         applyHeal(target, 3);
-        return '🩹 Clémence subit 2, soigne ${target.name} de 3';
+        return logTCore('🩹 Clémence subit 2, soigne {target} de 3', {'target': target.name});
       case 'steal_equip':
         if (target == null) return '';
         if (target.equipment.isNotEmpty) {
           final eq = target.equipment.removeAt(0);
           actor.equipment.add(eq); _equipPassive(actor, eq);
           recalcPassives(target); // sinon la victime garde le passif de l'objet volé
-          return '🗡️ Clémence vole "${eq.name}" à ${target.name}';
+          return logTCore('🗡️ Clémence vole "{item}" à {target}', {'item': trCore(eq.name), 'target': target.name});
         }
-        return '🗡️ Clémence : ${target.name} n\'a aucun équipement';
+        return logTCore("🗡️ Clémence : {target} n'a aucun équipement", {'target': target.name});
       case 'force_reveal':
         if (target == null) return '';
         target.revealed = true;
-        return '👁️ Clémence force ${target.name} à se révéler';
+        return logTCore('👁️ Clémence force {target} à se révéler', {'target': target.name});
       case 'atk_d6':
         if (target == null) return '';
         final r6 = rollD6(); final d6dmg = applyDamage(target, r6);
         if (!target.alive) target.killedByUid = actor.uid;
-        return '🎲 Clémence attaque ${target.name} D6($r6) → $d6dmg';
+        return logTCore('🎲 Clémence attaque {target} D6({d}) → {dmg}', {'target': target.name, 'd': '$r6', 'dmg': '$d6dmg'});
       default: return '';
     }
   }
@@ -2120,7 +2132,7 @@ class GameEngine with AbilityEngine {
       if (idx >= actor.equipment.length) idx = 0;
       final e = actor.equipment.removeAt(idx);
       target.equipment.add(e); _equipPassive(target, e); recalcPassives(actor);
-      return '🍌 ${actor.name} donne "${e.name}" à ${target.name}';
+      return logTCore('🍌 {name} donne "{item}" à {target}', {'name': actor.name, 'item': trCore(e.name), 'target': target.name});
     }
   }
 

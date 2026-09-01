@@ -396,7 +396,7 @@ class _GameOverScreenState extends State<_GameOverScreen>
                   child: Column(children: [
                     if (gp.myUid == gp.hostId) ...[
                       GestureDetector(
-                        onTap: () => gp.restartGame(),
+                        onTap: () { audio.stopWinLoseJingle(); gp.restartGame(); },
                         child: Container(
                           width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
@@ -415,6 +415,7 @@ class _GameOverScreenState extends State<_GameOverScreen>
                       ),
                     GestureDetector(
                       onTap: () async {
+                        audio.stopWinLoseJingle();
                         await gp.leaveRoomAndReset();
                         if (context.mounted) {
                           Navigator.of(context).pushAndRemoveUntil(

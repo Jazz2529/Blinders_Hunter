@@ -790,13 +790,13 @@ class _GameScreenState extends State<GameScreen> {
 
   String _phaseLabel(GamePhase p) {
     switch (p) {
-      case GamePhase.ability:     return '⚡ Capacité';
-      case GamePhase.move:        return '🚶 Déplacement';
-      case GamePhase.zoneEffect:  return '🗺️ Effet de terrain';
-      case GamePhase.cardDrawn:   return '🃏 Carte piochée';
-      case GamePhase.cardChoice:  return '🏪 Choix du Marché';
-      case GamePhase.chooseTarget:return '🎯 Choix de cible';
-      case GamePhase.attack:      return '⚔️ Attaque';
+      case GamePhase.ability:     return ui('phase_ability');
+      case GamePhase.move:        return ui('phase_move');
+      case GamePhase.zoneEffect:  return ui('phase_zone_effect');
+      case GamePhase.cardDrawn:   return ui('phase_card_drawn');
+      case GamePhase.cardChoice:  return ui('phase_market_choice');
+      case GamePhase.chooseTarget:return ui('phase_choose_target');
+      case GamePhase.attack:      return ui('phase_attack');
       default: return p.name;
     }
   }
@@ -808,7 +808,7 @@ class _GameScreenState extends State<GameScreen> {
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('🎲 RÉFÉRENCE DES DÉS', style: cinzel(14, c: kGold, fw: FontWeight.w900)),
+          Text(ui('dice_reference_title'), style: cinzel(14, c: kGold, fw: FontWeight.w900)),
           const SizedBox(height: 16),
           Text(ui('movement_upper'), style: cinzel(11, c: kGold2)),
           const SizedBox(height: 6),
@@ -839,7 +839,7 @@ class _GameScreenState extends State<GameScreen> {
           const SizedBox(height: 12),
           Align(alignment: Alignment.centerRight,
             child: TextButton(onPressed: () => Navigator.pop(ctx),
-              child: Text('Fermer', style: body(13, c: kGold)))),
+              child: Text(ui('btn_close2'), style: body(13, c: kGold)))),
         ]),
       ),
     ));
@@ -853,7 +853,7 @@ class _GameScreenState extends State<GameScreen> {
         expand: false,
         builder: (_, scrollCtrl) => Column(children: [
           const SizedBox(height: 10),
-          Text('📜 JOURNAL', style: cinzel(13, c: kGold)),
+          Text(ui('log_title'), style: cinzel(13, c: kGold)),
           const SizedBox(height: 4),
           // Logs privés (cartes Vision etc.)
           if (gp.privateLog.isNotEmpty)
@@ -867,7 +867,7 @@ class _GameScreenState extends State<GameScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('🔒 Infos secrètes (visibles seulement par toi)',
+                  Text(ui('secret_info_visible_only_you'),
                     style: body(10, c: const Color(0xFF9B59B6))),
                   const SizedBox(height: 4),
                   ...gp.privateLog.reversed.map((m) =>
@@ -919,7 +919,7 @@ void _showEquipmentFor(BuildContext ctx, Player p) {
         Row(children: [
           const Text('🎒', style: TextStyle(fontSize: 20)),
           const SizedBox(width: 8),
-          Expanded(child: Text('ÉQUIPEMENTS — ${p.name.toUpperCase()}',
+          Expanded(child: Text(ui('equipments_of').replaceAll('{name}', p.name.toUpperCase()),
             style: cinzel(13, c: kGold2, fw: FontWeight.w900),
             overflow: TextOverflow.ellipsis)),
         ]),
@@ -936,7 +936,7 @@ void _showEquipmentFor(BuildContext ctx, Player p) {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: kRed.withValues(alpha: 0.5)),
             ),
-            child: Text('📦 Blessures stockées : ${p.storedDamage}',
+            child: Text(ui('stored_damage').replaceAll('{n}', '${p.storedDamage}'),
               style: cinzel(13, c: kRed, fw: FontWeight.w800),
               textAlign: TextAlign.center),
           ),
@@ -1074,7 +1074,8 @@ Future<void> showMultiPlayerCard(BuildContext ctx, Player p, GameProvider gp) as
         ? (maximeTarget?.name ?? ui('nobody_yet')) : null,
       megFormOverride: drunkChar == null && shown.abilityEffect == 'meg_shapeshift' ? p.megForm : null,
       mathieuAttackCount: drunkChar == null && (p.copiedEffect ?? shown.abilityEffect) == 'third_attack_bonus' ? p.attackCount : null,
-      skinOverride: drunkChar == null ? p.equippedCharacterSkin : null);
+      skinOverride: drunkChar == null ? p.equippedCharacterSkin : null,
+      winsOverride: drunkChar == null ? p.shineWins : null);
   }
   final isNils = (p.copiedEffect ?? p.character?.abilityEffect) == 'store_damage_nils';
   if (drunkChar == null && (p.equipment.isNotEmpty || isNils) && ctx.mounted) {
@@ -1188,7 +1189,7 @@ class _WaitPanel extends StatelessWidget {
       // Repli générique : le DERNIER message du journal (décrit toujours
       // ce qui vient concrètement de se passer) plutôt que le nom brut,
       // illisible, de la phase (ex: "ability").
-      statusText = '${mover?.name ?? "\u2014"} réfléchit\u2026';
+      statusText = ui('bot_thinking').replaceAll('{name}', mover?.name ?? "\u2014");
       String? lastMsg;
       if (gp.log.isNotEmpty) {
         final raw = gp.log.last;
@@ -1278,8 +1279,8 @@ class _ActionPanelState extends State<_ActionPanel> {
     final shadowPick = shadows[Random().nextInt(shadows.length)];
     showDialog(context: ctx, builder: (dctx) => AlertDialog(
       backgroundColor: kBg2,
-      title: Text('🦎 Jason — Choisissez votre déguisement', style: cinzel(15, c: kGold2)),
-      content: Text('Les autres joueurs verront ce personnage à la place du vôtre.',
+      title: Text(ui('jason_choose_disguise'), style: cinzel(15, c: kGold2)),
+      content: Text(ui('jason_disguise_desc'),
         style: body(12, c: kTextSub)),
       actions: [
         TextButton(
@@ -1335,7 +1336,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               )),
               const SizedBox(height: 14),
               BHButton(
-                label: '🛠️ Fabriquer (${selected.length}/2)',
+                label: ui('btn_craft_n_of_2').replaceAll('{n}', '${selected.length}'),
                 danger: true,
                 onTap: selected.length == 2 ? () {
                   final list = selected.toList();
@@ -1503,7 +1504,8 @@ class _ActionPanelState extends State<_ActionPanel> {
                   oscarXpOverride: gp.me!.character!.id == 'oscar' ? gp.me!.oscarXp : null,
                   megFormOverride: gp.me!.character!.abilityEffect == 'meg_shapeshift' ? gp.me!.megForm : null,
                   mathieuAttackCount: (gp.me!.copiedEffect ?? gp.me!.character!.abilityEffect) == 'third_attack_bonus' ? gp.me!.attackCount : null,
-                  skinOverride: gp.me!.equippedCharacterSkin);
+                  skinOverride: gp.me!.equippedCharacterSkin,
+                  winsOverride: gp.me!.shineWins);
               }
             })),
           if ((me?.copiedEffect ?? me?.character?.abilityEffect) == 'double_move_dice' && me?.revealed == true)
@@ -1529,10 +1531,10 @@ class _ActionPanelState extends State<_ActionPanel> {
               me?.abilityLockedByUid == null)
               BHButton(
                 label: (me?.copiedEffect ?? me?.character?.abilityEffect) == 'store_damage_nils'
-                  ? '📦 Déverser ${me?.storedDamage ?? 0} blessures stockées'
+                  ? ui('btn_unleash_stored').replaceAll('{n}', '${me?.storedDamage ?? 0}')
                   : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'craft_equipment_remi'
-                    ? '🛠️ Fabriquer mon équipement'
-                    : '⚡ Utiliser ma capacité',
+                    ? ui('btn_craft_equip')
+                    : ui('btn_use_ability'),
                 onTap: (me?.copiedEffect ?? me?.character?.abilityEffect) == 'damage2_or_heal1'
                   ? () => _showJulienChoice(ctx)
                   : (me?.copiedEffect ?? me?.character?.abilityEffect) == 'craft_equipment_remi'
@@ -1740,13 +1742,13 @@ class _ActionPanelState extends State<_ActionPanel> {
         // Tristan étape 2 : choisir SON équipement à donner.
         if (pta == 'tristan_give_choice') {
           if (gp.isMyTurn) return [_MultiTristanGiveWidget(gp: gp)];
-          return [Text('🔄 ${gp.currentPlayer?.name ?? "Tristan"} choisit ce qu\'il donne…',
+          return [Text(ui('tristan_choosing_give').replaceAll('{name}', gp.currentPlayer?.name ?? 'Tristan'),
             style: cinzel(13, c: kGold))];
         }
         // Tristan étape 3 : choisir l'équipement à recevoir chez la cible.
         if (pta == 'tristan_receive_choice') {
           if (gp.isMyTurn) return [_MultiTristanReceiveWidget(gp: gp)];
-          return [Text('🔄 ${gp.currentPlayer?.name ?? "Tristan"} choisit ce qu\'il reçoit…',
+          return [Text(ui('tristan_choosing_receive').replaceAll('{name}', gp.currentPlayer?.name ?? 'Tristan'),
             style: cinzel(13, c: kGold))];
         }
         // Mr Casino : afficher le widget de pari (seulement à Mr Casino)
@@ -1790,49 +1792,49 @@ class _ActionPanelState extends State<_ActionPanel> {
           all = gp.players.values.where((p)=>p.alive&&p.uid!=gp.myUid).toList();
         }
         String title = ui('choose_target');
-        if (pta == 'terrain_damage9') title = '🏹 Clairière — 2 blessures à la cible';
-        if (pta == 'baptiste_target') title = '✝️ Baptiste — Quel joueur mort ramener à la vie ?';
-        if (pta == 'terrain_steal')   title = '🗼 Tour du Voleur — voler un équipement';
-        if (pta == 'set_wounds7')     title = '📍 Marion — placer à 7 blessures';
-        if (pta == 'damage2_then_heal3') title = '🥷 Raph — soigner de 3 (vous subissez 2)';
-        if (pta == 'ally_sacrifice_heal') title = '✨ Amélia — soigner de 4 (vous subissez 2)';
-        if (pta == 'terrain_max_aoe') title = '⚡ Hong Yi — 8 blessures (vous finirez à 1 blessure)';
-        if (pta == 'store_damage_nils') title = '📦 Nils — déverser les blessures stockées';
-        if (pta == 'steal_max_hp') title = '🧛 Agathe — voler 1 PV MAX à qui ?';
-        if (pta == 'd6_lifesteal')    title = '🐢 Carapatte — D6 lifesteal';
-        if (pta == 'd6_global_attack') title = '🎲 Travert — D6 dégâts';
-        if (pta == 'd4_bonus_attack') title = '💨 Vlad — D4 dégâts (répétable)';
-        if (pta == 'swap_equipment') title = '🔄 Tristan — Échanger un équipement (répétable)';
-        if (pta == 'damage2_or_heal1') title = '😈 Julien — Choisissez une cible (2 dégâts)';
-        if (pta == 'vision_shadow_heal_or_dmg') title = '🔮 Intuition Shadow — Choisissez une cible';
-        if (pta == 'vision_hunter_heal_or_dmg') title = '🔮 Intuition Hunter — Choisissez une cible';
-        if (pta == 'vision_neutral_heal_or_dmg') title = '🔮 Intuition Neutre — Choisissez une cible';
-        if (pta == 'vision_show_card') title = '🔮 Vision Suprême — Choisissez une cible';
-        if (pta == 'vision_punish_neutral_shadow') title = '🔮 Divination — Choisissez une cible';
-        if (pta == 'vision_punish_neutral_hunter') title = '🔮 Divination — Choisissez une cible';
-        if (pta == 'vision_punish_shadow_hunter') title = '🔮 Divination — Choisissez une cible';
-        if (pta == 'vision_hp_12plus') title = '🔮 Divination Vétéran — Choisissez une cible';
-        if (pta == 'vision_hp_11minus') title = '🔮 Divination Novice — Choisissez une cible';
-        if (pta == 'damage3_give_dague') title = '🗡️ Marin — Choisissez une cible (3 dégâts + dague)';
-        if (pta == 'damien_serve') title = '🍸 Damien — Choisissez qui servir';
-        if (pta == 'copy_ability') title = '🎭 Tommy — Copier le pouvoir de qui ?';
-        if (pta == 'd4_heal_neighbors') title = '🌊 Océane — Qui exclure du soin ?';
-        if (pta == 'heal_other_d4') title = '🍓 Fraise Tagada — Choisissez qui soigner (D4)';
-        if (pta == 'creation_marin') title = '🩸 Création de Marin — Choisissez une cible';
-        if (pta == 'oscar_water_target') title = '💧 Oscar — Voler un équipement à qui ?';
-        if (pta == 'corne_des_woods') title = '🌳 Corne des Woods — Qui doit attaquer ?';
-        if (pta == 'corne_des_woods_victim') title = '🌳 Corne des Woods — Choisissez la victime';
-        if (pta == 'clemence_target') title = '🎨 Clémence — Choisissez une cible';
-        if (pta == 'jeanne_mark_target') title = '🔮 Jeanne — Choisissez qui marquer';
-        if (pta == 'casino_win') title = '🎰 Mr Casino — Infligez 3 blessures à qui ?';
-        if (pta == 'ability_vlad_adjacent') title = '💨 Vlad — Choisissez un joueur adjacent';
-        if (pta == 'equip_choice') title = '⚔️ Choisissez un équipement';
+        if (pta == 'terrain_damage9') title = ui('title_terrain_damage9');
+        if (pta == 'baptiste_target') title = ui('title_baptiste_target');
+        if (pta == 'terrain_steal')   title = ui('title_terrain_steal');
+        if (pta == 'set_wounds7')     title = ui('title_set_wounds7');
+        if (pta == 'damage2_then_heal3') title = ui('title_damage2_then_heal3');
+        if (pta == 'ally_sacrifice_heal') title = ui('title_ally_sacrifice_heal');
+        if (pta == 'terrain_max_aoe') title = ui('title_terrain_max_aoe');
+        if (pta == 'store_damage_nils') title = ui('title_store_damage_nils');
+        if (pta == 'steal_max_hp') title = ui('title_steal_max_hp');
+        if (pta == 'd6_lifesteal')    title = ui('title_d6_lifesteal');
+        if (pta == 'd6_global_attack') title = ui('title_d6_global_attack');
+        if (pta == 'd4_bonus_attack') title = ui('title_d4_bonus_attack');
+        if (pta == 'swap_equipment') title = ui('title_swap_equipment');
+        if (pta == 'damage2_or_heal1') title = ui('title_damage2_or_heal1');
+        if (pta == 'vision_shadow_heal_or_dmg') title = ui('title_vision_shadow_heal_or_dmg');
+        if (pta == 'vision_hunter_heal_or_dmg') title = ui('title_vision_hunter_heal_or_dmg');
+        if (pta == 'vision_neutral_heal_or_dmg') title = ui('title_vision_neutral_heal_or_dmg');
+        if (pta == 'vision_show_card') title = ui('title_vision_show_card');
+        if (pta == 'vision_punish_neutral_shadow') title = ui('title_vision_punish');
+        if (pta == 'vision_punish_neutral_hunter') title = ui('title_vision_punish');
+        if (pta == 'vision_punish_shadow_hunter') title = ui('title_vision_punish');
+        if (pta == 'vision_hp_12plus') title = ui('title_vision_hp_12plus');
+        if (pta == 'vision_hp_11minus') title = ui('title_vision_hp_11minus');
+        if (pta == 'damage3_give_dague') title = ui('title_damage3_give_dague');
+        if (pta == 'damien_serve') title = ui('title_damien_serve');
+        if (pta == 'copy_ability') title = ui('title_copy_ability');
+        if (pta == 'd4_heal_neighbors') title = ui('title_d4_heal_neighbors');
+        if (pta == 'heal_other_d4') title = ui('title_heal_other_d4');
+        if (pta == 'creation_marin') title = ui('title_creation_marin');
+        if (pta == 'oscar_water_target') title = ui('title_oscar_water_target');
+        if (pta == 'corne_des_woods') title = ui('title_corne_des_woods');
+        if (pta == 'corne_des_woods_victim') title = ui('title_corne_des_woods_victim');
+        if (pta == 'clemence_target') title = ui('title_clemence_target');
+        if (pta == 'jeanne_mark_target') title = ui('title_jeanne_mark_target');
+        if (pta == 'casino_win') title = ui('title_casino_win');
+        if (pta == 'ability_vlad_adjacent') title = ui('title_ability_vlad_adjacent');
+        if (pta == 'equip_choice') title = ui('title_equip_choice');
         // Richard II : afficher les zones du plateau
         if ((pta == 'swap_zone_pick1' || pta == 'swap_zone_pick2') && gp.isMyTurn) {
           final myZoneIdx = gp.me?.zoneIndex ?? 0;
           final layout = gp.gameState?.terrainLayout ?? [];
           return [
-            Text('👑 Richard II — Choisissez la zone à échanger avec la vôtre',
+            Text(ui('title_richard2_zone'),
               style: cinzel(12, c: kGold)), const SizedBox(height: 8),
             ...layout.asMap().entries.where((e) => e.key != myZoneIdx).map((entry) {
               final idx = entry.key; final terrain = entry.value;
@@ -2704,13 +2706,13 @@ class _DamienChoicePanel extends StatelessWidget {
       child: Column(children: [
         Text('🍸 DAMIEN', style: cinzel(18, c: wine, fw: FontWeight.w900)),
         const SizedBox(height: 4),
-        Text('Que sers-tu à ${target.name} ?',
+        Text(ui('damien_serve_who').replaceAll('{target}', target.name),
           style: body(12, c: kTextSub), textAlign: TextAlign.center),
         const SizedBox(height: 16),
-        BHButton(label: '🥃 Alcool fort — 4 dégâts instantanés',
+        BHButton(label: ui('btn_strong_liquor'),
           onTap: () => gp.guardedAction(() => gp.damienServeAlcohol())),
         const SizedBox(height: 8),
-        BHButton(label: '☠️ Poison — 3 dégâts × 2 tours (6 au total)',
+        BHButton(label: ui('btn_poison'),
           onTap: () => gp.guardedAction(() => gp.damienServePoison())),
       ]),
     );
@@ -2838,7 +2840,7 @@ class _RevealQuoteBannerState extends State<_RevealQuoteBanner> {
                     child: SizedBox(height: 260,
                       child: AspectRatio(aspectRatio: 2 / 3,
                         child: ShineOverlay(
-                          tier: shineTierFor(Prefs.gamesWonWith(displayChar.name)),
+                          tier: shineTierFor(p?.shineWins ?? Prefs.gamesWonWith(displayChar.name)),
                           child: imgPath != null
                             ? Image.asset(imgPath, fit: BoxFit.cover,
                                 cacheWidth: 700, cacheHeight: 1050,
@@ -3169,11 +3171,11 @@ class _MultiHaileyChoiceWidget extends StatelessWidget {
                 Text(c.icon, style: const TextStyle(fontSize: 24)),
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(c.name, style: cinzel(13, c: kGold2, fw: FontWeight.w700)),
+                  Text(tr(c.name), style: cinzel(13, c: kGold2, fw: FontWeight.w700)),
                   // IMPORTANT : certaines capacités ont une description
                   // longue — sans limite, ça pouvait faire déborder ce
                   // conteneur (overflow) selon le Hunter proposé.
-                  Text(c.ability, style: body(11, c: kTextSub),
+                  Text(tr(c.ability), style: body(11, c: kTextSub),
                     maxLines: 3, overflow: TextOverflow.ellipsis),
                 ])),
               ]),
@@ -3231,7 +3233,7 @@ class _MultiTristanGiveWidget extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: surfaceDecor(),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('🔄 Tristan — Quel objet donnez-vous ?', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
+        Text(ui('tristan_which_give'), style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
         const SizedBox(height: 12),
         ...equipment.asMap().entries.map((entry) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
@@ -3258,7 +3260,7 @@ class _MultiTristanReceiveWidget extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: surfaceDecor(),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('🔄 Tristan — Quel objet de ${target?.name ?? "?"} voulez-vous en échange ?',
+        Text(ui('tristan_which_receive').replaceAll('{target}', target?.name ?? '?'),
           style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
         const SizedBox(height: 12),
         ...equipment.asMap().entries.map((entry) => Padding(
@@ -3288,10 +3290,10 @@ class _MultiMegChoiceWidget extends StatelessWidget {
         Text('Cette forme alternera automatiquement au début de chacun de vos tours suivants.',
           style: body(12, c: kTextSub), textAlign: TextAlign.center),
         const SizedBox(height: 12),
-        BHButton(label: '⚔️ Offensive (+1 infligé)', gold: true,
+        BHButton(label: ui('btn_form_offensive'), gold: true,
           onTap: () => gp.guardedAction(() => gp.megChooseForm('offense'))),
         const SizedBox(height: 8),
-        BHButton(label: '🛡️ Défensive (-1 reçu)', outlined: true,
+        BHButton(label: ui('btn_form_defensive'), outlined: true,
           onTap: () => gp.guardedAction(() => gp.megChooseForm('defense'))),
       ]),
     );

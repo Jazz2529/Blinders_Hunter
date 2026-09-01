@@ -12,7 +12,7 @@ import 'shine_effect.dart';
 /// panneau d'infos : nom, faction, PV, capacité et condition de victoire.
 /// Sur écran étroit (téléphone), l'illustration passe au-dessus du texte.
 /// Tap n'importe où pour fermer.
-Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride, int? oscarXpOverride, String? maximeTargetName, String? megFormOverride, int? mathieuAttackCount, String? skinOverride}) {
+Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride, int? oscarXpOverride, String? maximeTargetName, String? megFormOverride, int? mathieuAttackCount, String? skinOverride, int? winsOverride}) {
   return showDialog(
     context: ctx,
     barrierColor: Colors.black.withValues(alpha: 0.88),
@@ -24,8 +24,8 @@ Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverr
         behavior: HitTestBehavior.opaque,
         child: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride)
-                   : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride),
+            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride, winsOverride: winsOverride)
+                   : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride, winsOverride: winsOverride),
             const SizedBox(height: 12),
             Text(ui('tap_close_screen'), style: body(12, c: kTextDim)),
           ]),
@@ -182,7 +182,7 @@ class _MysteryInfoPanel extends StatelessWidget {
               decoration: BoxDecoration(
                 color: kBg3, borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: kTextDim.withValues(alpha: 0.5))),
-              child: Text('❓ IDENTITÉ INCONNUE',
+              child: Text(ui('unknown_identity'),
                   style: cinzel(12, c: kTextDim, fw: FontWeight.w900, ls: 1)),
             )),
             const SizedBox(height: 20),
@@ -215,7 +215,8 @@ class _WideLayout extends StatelessWidget {
   final String? megFormOverride;
   final int? mathieuAttackCount;
   final String? skinOverride;
-  const _WideLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount, this.skinOverride});
+  final int? winsOverride;
+  const _WideLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount, this.skinOverride, this.winsOverride});
 
   @override
   Widget build(BuildContext ctx) {
@@ -229,7 +230,7 @@ class _WideLayout extends StatelessWidget {
     }
     return Row(mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center, children: [
-      _CardImage(c: c, w: imgW, h: imgH, skinOverride: skinOverride),
+      _CardImage(c: c, w: imgW, h: imgH, skinOverride: skinOverride, winsOverride: winsOverride),
       const SizedBox(width: 20),
       SizedBox(width: 320,
         child: ConstrainedBox(
@@ -250,7 +251,8 @@ class _NarrowLayout extends StatelessWidget {
   final String? megFormOverride;
   final int? mathieuAttackCount;
   final String? skinOverride;
-  const _NarrowLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount, this.skinOverride});
+  final int? winsOverride;
+  const _NarrowLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount, this.skinOverride, this.winsOverride});
 
   @override
   Widget build(BuildContext ctx) {
@@ -265,7 +267,7 @@ class _NarrowLayout extends StatelessWidget {
       width: size.width * 0.92,
       height: size.height * 0.86,
       child: Column(children: [
-        _CardImage(c: c, w: imgW, h: imgH, skinOverride: skinOverride),
+        _CardImage(c: c, w: imgW, h: imgH, skinOverride: skinOverride, winsOverride: winsOverride),
         const SizedBox(height: 12),
         Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount)),
       ]),
@@ -278,7 +280,8 @@ class _CardImage extends StatelessWidget {
   final CharacterCard c;
   final double w, h;
   final String? skinOverride;
-  const _CardImage({required this.c, required this.w, required this.h, this.skinOverride});
+  final int? winsOverride;
+  const _CardImage({required this.c, required this.w, required this.h, this.skinOverride, this.winsOverride});
 
   @override
   Widget build(BuildContext ctx) {
@@ -291,7 +294,11 @@ class _CardImage extends StatelessWidget {
     final imgPath = skinOverride != null
         ? resolveSpecificSkinImagePath(c.id, skinOverride)
         : effectiveCharacterImagePath(c.id);
-    final tier = shineTierFor(Prefs.gamesWonWith(c.name));
+    // Idem pour l'étoile : si un nombre de victoires PRÉCIS est fourni (celui
+    // synchronisé du joueur qui incarne réellement ce personnage), on
+    // l'utilise directement — sinon on affichait à tort l'étoile du joueur
+    // qui REGARDE la carte (souvent 0, donc aucune étoile visible).
+    final tier = shineTierFor(winsOverride ?? Prefs.gamesWonWith(c.name));
     return Container(
       width: w, height: h,
       decoration: BoxDecoration(
@@ -432,8 +439,8 @@ class _InfoPanel extends StatelessWidget {
                     border: Border.all(color: megFormOverride == 'offense' ? kRed : kGreen, width: 1.5)),
                   child: Text(
                     megFormOverride == 'offense'
-                        ? '⚔️ Forme actuelle : Offensive (+1 infligé)'
-                        : '🛡️ Forme actuelle : Défensive (-1 reçu)',
+                        ? "⚔️ ${ui('form_offensive')}"
+                        : "🛡️ ${ui('form_defensive')}",
                     style: cinzel(13, c: megFormOverride == 'offense' ? kRed : kGreen, fw: FontWeight.w900)),
                 )),
               ],

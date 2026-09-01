@@ -129,7 +129,7 @@ class RevealFullScreenState extends State<RevealFullScreen>
                           child: SizedBox(height: 300,
                             child: AspectRatio(aspectRatio: 2 / 3,
                               child: ShineOverlay(
-                                tier: shineTierFor(Prefs.gamesWonWith(displayChar?.name ?? '')),
+                                tier: shineTierFor(widget.player.shineWins ?? Prefs.gamesWonWith(displayChar?.name ?? '')),
                                 child: imgPath != null
                                   ? Image.asset(imgPath, fit: BoxFit.cover,
                                       cacheWidth: 800, cacheHeight: 1200,

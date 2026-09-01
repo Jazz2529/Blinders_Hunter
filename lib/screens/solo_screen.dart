@@ -373,13 +373,13 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
         builder: (dctx) => AlertDialog(
           backgroundColor: kBg2,
           title: Text(ui('quit_game_title'), style: cinzel(16, c: kGold2)),
-          content: Text('Tu vas retourner au menu principal. La partie en cours sera perdue.',
+          content: Text(ui('quit_game_content_solo'),
             style: body(13)),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dctx, false),
-              child: Text('Annuler', style: cinzel(12, c: kTextSub))),
+              child: Text(ui('btn_cancel'), style: cinzel(12, c: kTextSub))),
             TextButton(onPressed: () => Navigator.pop(dctx, true),
-              child: Text('Quitter', style: cinzel(12, c: kRed))),
+              child: Text(ui('btn_quit'), style: cinzel(12, c: kRed))),
           ],
         ),
       );
@@ -716,7 +716,7 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('🎲 RÉFÉRENCE DES DÉS', style: cinzel(14, c: kGold, fw: FontWeight.w900)),
+          Text(ui('dice_reference_title'), style: cinzel(14, c: kGold, fw: FontWeight.w900)),
           const SizedBox(height: 16),
           Text(ui('movement_upper2'), style: cinzel(11, c: kGold2)),
           const SizedBox(height: 6),
@@ -747,7 +747,7 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
           const SizedBox(height: 12),
           Align(alignment: Alignment.centerRight,
             child: TextButton(onPressed: () => Navigator.pop(ctx),
-              child: Text('Fermer', style: body(13, c: kGold)))),
+              child: Text(ui('btn_close2'), style: body(13, c: kGold)))),
         ]),
       ),
     ));
@@ -989,13 +989,13 @@ class _DamienChoiceWidget extends StatelessWidget {
       child: Column(children: [
         Text('🍸 DAMIEN', style: cinzel(18, c: wine, fw: FontWeight.w900)),
         const SizedBox(height: 4),
-        Text('Que sers-tu à ${target.name} ?',
+        Text(ui('damien_serve_who').replaceAll('{target}', target.name),
           style: body(12, c: kTextSub), textAlign: TextAlign.center),
         const SizedBox(height: 16),
-        BHButton(label: '🥃 Alcool fort — 4 dégâts instantanés',
+        BHButton(label: ui('btn_strong_liquor'),
           onTap: () => ctrl.damienServeAlcohol()),
         const SizedBox(height: 8),
-        BHButton(label: '☠️ Poison — 3 dégâts × 2 tours (6 au total)',
+        BHButton(label: ui('btn_poison'),
           onTap: () => ctrl.damienServePoison()),
       ]),
     );
@@ -1315,12 +1315,12 @@ class _CasinoWidgetState extends State<_CasinoWidget>
                   Text(ui('rolling_dots'), style: body(12, c: kTextSub))
                 else if (done) ...[
                   Text(
-                    displayVal % 2 == 1 ? 'IMPAIR' : 'PAIR',
+                    displayVal % 2 == 1 ? ui('odd_simple') : ui('even_simple'),
                     style: cinzel(15, c: faceColor, fw: FontWeight.w900)),
                   const SizedBox(height: 6),
                   Text(_won!
-                      ? '🎉 Vous avez gagné !'
-                      : '💔 Vous avez perdu…',
+                      ? ui('bet_won_simple')
+                      : ui('bet_lost_simple'),
                     style: cinzel(14, c: faceColor, fw: FontWeight.w700)),
                 ],
               ]);
@@ -1684,7 +1684,7 @@ class _RoleRevealScreenState extends State<_RoleRevealScreen>
               FadeTransition(
                 opacity: CurvedAnimation(parent: _textAc, curve: Curves.easeIn),
                 child: Column(children: [
-                  Text('TU ES UN', style: cinzel(13, c: fc.withValues(alpha: 0.75), ls: 6)),
+                  Text(ui('you_are_a'), style: cinzel(13, c: fc.withValues(alpha: 0.75), ls: 6)),
                   const SizedBox(height: 6),
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Text(roleEmoji, style: const TextStyle(fontSize: 30)),
@@ -2173,7 +2173,7 @@ class _HpLeaderboard extends StatelessWidget {
           Row(children: [
             const Text('🎒', style: TextStyle(fontSize: 20)),
             const SizedBox(width: 8),
-            Expanded(child: Text('ÉQUIPEMENTS — ${p.name.toUpperCase()}',
+            Expanded(child: Text(ui('equipments_of').replaceAll('{name}', p.name.toUpperCase()),
               style: cinzel(13, c: kGold2, fw: FontWeight.w900),
               overflow: TextOverflow.ellipsis)),
           ]),
@@ -2190,7 +2190,7 @@ class _HpLeaderboard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: kRed.withValues(alpha: 0.5)),
               ),
-              child: Text('📦 Blessures stockées : ${p.storedDamage}',
+              child: Text(ui('stored_damage').replaceAll('{n}', '${p.storedDamage}'),
                 style: cinzel(13, c: kRed, fw: FontWeight.w800),
                 textAlign: TextAlign.center),
             ),
@@ -2229,7 +2229,7 @@ class _HpLeaderboard extends StatelessWidget {
             ),
           const SizedBox(height: 14),
           TextButton(onPressed: () => Navigator.pop(ctx),
-            child: Text('Fermer', style: cinzel(12, c: kTextSub))),
+            child: Text(ui('btn_close2'), style: cinzel(12, c: kTextSub))),
         ]),
       ),
     ));
@@ -2330,7 +2330,7 @@ class _BotPanel extends StatelessWidget {
       const SizedBox(height: 10),
       TokenWidget(tokenId: s.current.token, size: 48),
       const SizedBox(height: 4),
-      Text('${s.current.name} réfléchit…', style: cinzel(13, c: kTextSub)),
+      Text(ui('bot_thinking').replaceAll('{name}', s.current.name), style: cinzel(13, c: kTextSub)),
       const SizedBox(height: 12),
       const Padding(
         padding: EdgeInsets.symmetric(horizontal: 20),
@@ -2524,7 +2524,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         final effChar = me.copiedEffect != null
             ? kAllCharacters.where((ch) => ch.abilityEffect == me.copiedEffect).firstOrNull ?? c
             : c;
-        final freq = effChar.abilityRepeatable ? '🔄 Chaque tour' : '🔒 1 fois par partie';
+        final freq = effChar.abilityRepeatable ? ui('freq_repeatable') : ui('freq_once');
         // Passifs auto-activés (pas besoin d'appuyer)
         final autoPassives = {'heal2_same_hunter','heal_per_equip_eot',
           'last_hunter_buff','no_attack_buff','heal_on_same_terrain','death_heal_allies',
@@ -2575,7 +2575,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
             decoration: surfaceDecor(),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Text('⚡ CAPACITÉ UNIQUE', style: cinzel(9, c: kGold, ls: 1)),
+                Text(ui('ability_unique'), style: cinzel(9, c: kGold, ls: 1)),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -2589,7 +2589,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                 ),
               ]),
               const SizedBox(height: 4),
-              Text(effChar.ability, style: body(12)),
+              Text(tr(effChar.ability), style: body(12)),
               if (effChar.abilityEffect == 'meg_shapeshift' && me.megForm != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -2658,12 +2658,12 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
               me.abilityLockedByUid == null)
             BHButton(
               label: effChar.abilityEffect == 'store_damage_nils'
-                  ? '📦 Déverser ${me.storedDamage} blessures stockées'
+                  ? ui('btn_unleash_stored').replaceAll('{n}', '${me.storedDamage}')
                   : effChar.abilityEffect == 'craft_equipment_remi'
-                    ? '🛠️ Fabriquer mon équipement'
+                    ? ui('btn_craft_equip')
                     : effChar.abilityEffect == 'hailey_copy_hunter'
-                      ? '📖 Copier un pouvoir Hunter'
-                      : '⚡ Activer ma capacité',
+                      ? ui('btn_copy_hunter_power')
+                      : ui('btn_activate_ability'),
               onTap: () => _handleAbility()),
           if (me.revealed && me.abilityUsed && !effChar.abilityRepeatable)
             Padding(padding: const EdgeInsets.only(bottom: 8),
@@ -2762,17 +2762,17 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
             padding: const EdgeInsets.all(12),
             decoration: surfaceDecor(),
             child: Column(children: [
-              Text('🏪 Marché des Ombres', style: cinzel(14, c: kGold2)),
+              Text(ui('market_title'), style: cinzel(14, c: kGold2)),
               const SizedBox(height: 4),
               Text(ui('choose_card_type'), style: body(12, c: kTextSub)),
             ]),
           ),
           const SizedBox(height: 8),
-          BHButton(label: '🔵 Carte Lumière',
+          BHButton(label: ui('btn_light_card'),
             onTap: () { ctrl.humanDrawCard(DeckType.lumiere); setState(() {}); }),
-          BHButton(label: '🔴 Carte Ténèbres',
+          BHButton(label: ui('btn_dark_card'),
             onTap: () { ctrl.humanDrawCard(DeckType.tenebres); setState(() {}); }),
-          BHButton(label: '🔮 Carte Vision',
+          BHButton(label: ui('btn_vision_card'),
             onTap: () { ctrl.humanDrawCard(DeckType.vision); setState(() {}); }),
         ];
 
@@ -3152,7 +3152,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       final p = s.current;
       return [
         Container(padding: const EdgeInsets.all(10), decoration: surfaceDecor(),
-          child: Text('🔄 Tristan — Quel objet donnez-vous ?', style: cinzel(12, c: kGold2))),
+          child: Text(ui('tristan_which_give'), style: cinzel(12, c: kGold2))),
         const SizedBox(height: 8),
         ...p.equipment.asMap().entries.map((entry) => Padding(
           padding: const EdgeInsets.only(bottom: 6),
@@ -3171,7 +3171,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
           : s.current;
       return [
         Container(padding: const EdgeInsets.all(10), decoration: surfaceDecor(),
-          child: Text('🔄 Tristan — Quel objet de ${t.name} voulez-vous en échange ?',
+          child: Text(ui('tristan_which_receive').replaceAll('{target}', t.name),
             style: cinzel(12, c: kGold2))),
         const SizedBox(height: 8),
         ...t.equipment.asMap().entries.map((entry) => Padding(
@@ -3265,37 +3265,37 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     }
 
     String title = ui('choose_target2');
-    if (context == 'terrain_damage9')     title = '🏹 Qui infliger 2 dégâts ?';
+    if (context == 'terrain_damage9')     title = ui('title_qui_infliger2');
     if (context.contains('steal'))        title = "🗼 Voler l'${ui('whose_equipment')}";
-    if (context.contains('heal'))         title = '💚 Qui soigner ?';
-    if (context == 'ability_vladimir')    title = '💨 Vlad — Joueur adjacent (D4)';
-    if (context == 'ability_travert')     title = '🎲 Travert — Choisissez une cible (D6) — UNIQUE';
-    if (context == 'ability_hong_yi')     title = '⚡ Hong Yi — Cible (8 mutuels)';
-    if (context == 'ability_carapatte')   title = '🐢 Carapatte — Cible (D6 lifesteal)';
-    if (context == 'ability_set5')        title = '📍 Marion — Choisissez un joueur (placé à 7 blessures)';
-    if (context == 'ability_ines')        title = '🔒 Inès — Choisissez le joueur dont vous verrouillez la capacité';
-    if (context == 'ability_damien')      title = '🍸 Damien — Choisissez qui servir';
-    if (context == 'ability_tommy')       title = '🎭 Tommy — Copier le pouvoir de qui ?';
-    if (context == 'ability_oceane')      title = '🌊 Océane — Qui exclure du soin ?';
-    if (context == 'ability_nils')        title = '📦 Nils — Déverser ${me.storedDamage} blessures stockées sur qui ?';
-    if (context == 'oscar_water_target')  title = '💧 Oscar — Voler un équipement à qui ?';
-    if (context == 'baptiste_target')     title = '✝️ Baptiste — Quel joueur mort ramener à la vie ?';
-    if (context == 'ability_agathe')      title = '🧛 Agathe — Voler 1 PV MAX à qui ?';
-    if (context == 'ability_raph_heal')   title = '🥷 Raph (Soleil Levant) — Choisissez qui soigner de 3 (vous subissez 2)';
-    if (context == 'ability_tristan')     title = '🔄 Tristan — Choisissez un joueur avec qui échanger';
-    if (context == 'heal_other_d4')       title = '🍓 Fraise Tagada — Choisissez qui soigner (D4)';
-    if (context == 'creation_marin')      title = '🩸 Création de Marin — Choisissez une cible';
-    if (context == 'corne_des_woods')     title = '🌳 Corne des Woods — Qui doit attaquer ?';
-    if (context == 'corne_des_woods_victim') title = '🌳 Corne des Woods — Choisissez la victime';
-    if (context == 'clemence_target')        title = '🎨 Clémence — Choisissez une cible';
-    if (context == 'jeanne_mark_target')     title = '🔮 Jeanne — Choisissez qui marquer';
-    if (context == 'jeanne_mark_target')     title = '🔮 Jeanne — Marquez un joueur';
-    if (context == 'ability_julien')      title = '😈 Julien — Choisissez une cible (2 dégâts)';
-    if (context == 'ability_marin')       title = '🗡️ Marin — Choisissez une cible (3 dégâts + dague)';
-    if (context == 'ability_hong_yi')     title = '⚡ Hong Yi — Cible (9 blessures mutuelles) — UNIQUE';
-    if (context == 'casino_win')          title = '🎰 Mr Casino — Infligez 3 blessures à qui ?';
-    if (context == 'swap_zone_pick1')     title = '👑 Richard II — Zone 1';
-    if (context == 'swap_zone_pick2')     title = '👑 Richard II — Zone 2';
+    if (context.contains('heal'))         title = ui('title_qui_soigner');
+    if (context == 'ability_vladimir')    title = ui('title_ability_vladimir');
+    if (context == 'ability_travert')     title = ui('title_ability_travert');
+    if (context == 'ability_hong_yi')     title = ui('title_ability_hong_yi');
+    if (context == 'ability_carapatte')   title = ui('title_ability_carapatte');
+    if (context == 'ability_set5')        title = ui('title_ability_set5');
+    if (context == 'ability_ines')        title = ui('title_ability_ines');
+    if (context == 'ability_damien')      title = ui('title_damien_serve');
+    if (context == 'ability_tommy')       title = ui('title_copy_ability');
+    if (context == 'ability_oceane')      title = ui('title_d4_heal_neighbors');
+    if (context == 'ability_nils')        title = ui('title_ability_nils').replaceAll('{n}', '${me.storedDamage}');
+    if (context == 'oscar_water_target')  title = ui('title_oscar_water_target');
+    if (context == 'baptiste_target')     title = ui('title_baptiste_target');
+    if (context == 'ability_agathe')      title = ui('title_ability_agathe');
+    if (context == 'ability_raph_heal')   title = ui('title_ability_raph_heal');
+    if (context == 'ability_tristan')     title = ui('title_ability_tristan');
+    if (context == 'heal_other_d4')       title = ui('title_heal_other_d4');
+    if (context == 'creation_marin')      title = ui('title_creation_marin');
+    if (context == 'corne_des_woods')     title = ui('title_corne_des_woods');
+    if (context == 'corne_des_woods_victim') title = ui('title_corne_des_woods_victim');
+    if (context == 'clemence_target')        title = ui('title_clemence_target');
+    if (context == 'jeanne_mark_target')     title = ui('title_jeanne_mark_target');
+    if (context == 'jeanne_mark_target')     title = ui('title_jeanne_mark2');
+    if (context == 'ability_julien')      title = ui('title_damage2_or_heal1');
+    if (context == 'ability_marin')       title = ui('title_damage3_give_dague');
+    if (context == 'ability_hong_yi')     title = ui('title_ability_hong_yi2');
+    if (context == 'casino_win')          title = ui('title_casino_win');
+    if (context == 'swap_zone_pick1')     title = ui('title_richard2_zone1');
+    if (context == 'swap_zone_pick2')     title = ui('title_richard2_zone2');
 
     return [
       Container(
@@ -3341,12 +3341,12 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       Container(padding: const EdgeInsets.all(10), decoration: surfaceDecor(),
         child: Text(ui('choose_passive_form'), style: cinzel(12, c: kGold))),
       const SizedBox(height: 8),
-      BHButton(label: '💚 Soignez 1 blessure au début de chaque tour',
-        onTap: () => choose('heal1_per_turn', '+1 soin/tour')),
-      BHButton(label: '⚔️ +1 blessure sur chaque attaque',
-        onTap: () => choose('plus1_dmg', '+1 dégât/attaque')),
-      BHButton(label: '🃏 Piochez 1 carte supplémentaire',
-        onTap: () => choose('extra_card', '+1 carte/pioche')),
+      BHButton(label: ui('btn_heal1_per_turn'),
+        onTap: () => choose('heal1_per_turn', ui('label_heal1_per_turn'))),
+      BHButton(label: ui('btn_plus1_dmg'),
+        onTap: () => choose('plus1_dmg', ui('label_plus1_dmg'))),
+      BHButton(label: ui('btn_extra_card'),
+        onTap: () => choose('extra_card', ui('label_extra_card'))),
     ];
   }
 
@@ -3361,10 +3361,10 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       Container(padding: const EdgeInsets.all(10), decoration: surfaceDecor(),
         child: Text(ui('ines_choose_bonus'), style: cinzel(12, c: kGold))),
       const SizedBox(height: 8),
-      BHButton(label: '🛡️ Subir 1 blessure de moins',
-        onTap: () => choose('ines_minus1_recv', '−1 reçu')),
-      BHButton(label: '⚔️ Infliger 1 blessure de plus',
-        onTap: () => choose('ines_plus1_atk', '+1 infligé')),
+      BHButton(label: ui('btn_minus1_recv'),
+        onTap: () => choose('ines_minus1_recv', ui('label_minus1_recv'))),
+      BHButton(label: ui('btn_plus1_atk'),
+        onTap: () => choose('ines_plus1_atk', ui('label_plus1_atk'))),
     ];
   }
 
@@ -3595,7 +3595,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
               )),
               const SizedBox(height: 14),
               BHButton(
-                label: '🛠️ Fabriquer (${selected.length}/2)',
+                label: ui('btn_craft_n_of_2').replaceAll('{n}', '${selected.length}'),
                 danger: true,
                 onTap: selected.length == 2 ? () {
                   final list = selected.toList();
@@ -3623,14 +3623,14 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
             Navigator.pop(dctx);
             ctrl.humanMegChooseForm('offense'); setState(() {});
           },
-          child: Text('⚔️ Offensive (+1 infligé)', style: cinzel(12, c: kRed)),
+          child: Text(ui('btn_form_offensive'), style: cinzel(12, c: kRed)),
         ),
         TextButton(
           onPressed: () {
             Navigator.pop(dctx);
             ctrl.humanMegChooseForm('defense'); setState(() {});
           },
-          child: Text('🛡️ Défensive (-1 reçu)', style: cinzel(12, c: kGreen)),
+          child: Text(ui('btn_form_defensive'), style: cinzel(12, c: kGreen)),
         ),
       ],
     ));
@@ -3678,8 +3678,8 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     final shadowPick = shadows[Random().nextInt(shadows.length)];
     showDialog(context: context, builder: (dctx) => AlertDialog(
       backgroundColor: kBg2,
-      title: Text('🦎 Jason — Choisissez votre déguisement', style: cinzel(15, c: kGold2)),
-      content: Text('Les autres joueurs verront ce personnage à la place du vôtre.',
+      title: Text(ui('jason_choose_disguise'), style: cinzel(15, c: kGold2)),
+      content: Text(ui('jason_disguise_desc'),
         style: body(12, c: kTextSub)),
       actions: [
         TextButton(
@@ -3907,7 +3907,7 @@ void showVictorCharmPanel(BuildContext ctx, Player victor, List<Player> allPlaye
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(dctx),
-          child: Text('Fermer', style: cinzel(12, c: kTextSub))),
+          child: Text(ui('btn_close2'), style: cinzel(12, c: kTextSub))),
       ],
     ),
   );
@@ -4828,7 +4828,7 @@ class _SoloGameOverScreenState extends State<SoloGameOverScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                   child: Column(children: [
                     GestureDetector(
-                      onTap: () => widget.ctrl.startGame(),
+                      onTap: () { audio.stopWinLoseJingle(); widget.ctrl.startGame(); },
                       child: Container(
                         width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
@@ -4840,8 +4840,8 @@ class _SoloGameOverScreenState extends State<SoloGameOverScreen>
                     ),
                     const SizedBox(height: 8),
                     GestureDetector(
-                      onTap: () => Navigator.of(ctx).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (_) => HomeScreen()), (_) => false),
+                      onTap: () { audio.stopWinLoseJingle(); Navigator.of(ctx).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => HomeScreen()), (_) => false); },
                       child: Container(
                         width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(

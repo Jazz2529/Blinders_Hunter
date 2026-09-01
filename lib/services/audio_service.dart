@@ -152,6 +152,11 @@ class AudioService extends ChangeNotifier {
   Future<void> playReveal() => _sfx('sfx_reveal.mp3');
   Future<void> playWin()    => _sfx2('sfx_win.mp3');
   Future<void> playLose()   => _sfx2('sfx_lose.mp3');
+  /// Coupe immédiatement le jingle de victoire/défaite — nécessaire quand on
+  /// relance une partie (bouton "Rejouer") pendant qu'il joue encore : sans
+  /// cet arrêt explicite, il continuait de jouer par-dessus la nouvelle
+  /// partie qui démarre.
+  Future<void> stopWinLoseJingle() => _sfxPlayer2.stop();
 
   // ── Corde qui brûle (alerte minuteur bas) ───────────────────────────────
   // PLACEHOLDER : remplacer 'sfx_rope_burning.mp3' par le vrai fichier une
