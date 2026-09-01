@@ -252,21 +252,21 @@ class _RoleRevealState extends State<RoleRevealScreen> {
               );
             }),
             const SizedBox(height:12),
-            Text(c.name,style:cinzel(22,c:kGold2,fw:FontWeight.w900)),
+            Text(tr(c.name),style:cinzel(22,c:kGold2,fw:FontWeight.w900)),
             const SizedBox(height:6),
             FactionBadge(c.faction.name),
             const SizedBox(height:6),
             Text("${c.hp} ${ui('hp_suffix')}",style:cinzel(16,c:kGold)),
             const SizedBox(height:14),
-            _InfoBox(icon:'⚡',label:ui('ability_unique'),text:c.ability),
+            _InfoBox(icon:'⚡',label:ui('ability_unique'),text:tr(c.ability)),
             const SizedBox(height:8),
-            _InfoBox(icon:'🏆',label:ui('win_condition_upper'),text:c.winCondition),
+            _InfoBox(icon:'🏆',label:ui('win_condition_upper'),text:tr(c.winCondition)),
             const SizedBox(height:20),
-            Text('⚠️ Ne montre pas ton écran !',
+            Text(ui('dont_show_screen'),
               style:body(12,c:kTextDim).copyWith(fontStyle:FontStyle.italic)),
             const SizedBox(height:24),
             if (!_confirmed)
-              BHButton(label:'✅ J\'ai vu mon rôle — Continuer', gold:true, onTap: () => gp.guardedAction(() async {
+              BHButton(label:ui('confirm_role_seen'), gold:true, onTap: () => gp.guardedAction(() async {
                 setState(() => _confirmed = true);
                 await gp.confirmRoleReveal();
               }))
@@ -276,7 +276,7 @@ class _RoleRevealState extends State<RoleRevealScreen> {
                   width:28, height:28,
                   child: CircularProgressIndicator(color: kGold, strokeWidth: 2.5)),
                 const SizedBox(height:10),
-                Text('En attente des autres joueurs (${gp.roleConfirms}/${gp.players.length})...',
+                Text(ui('waiting_other_players').replaceAll('{n}', '${gp.roleConfirms}/${gp.players.length}'),
                   style: body(12, c: kTextSub)),
               ]),
           ]),

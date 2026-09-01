@@ -114,11 +114,11 @@ class _SoloSetupState extends State<SoloSetupScreen> with SingleTickerProviderSt
                   ),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(_charOf(_forcedCharId!)?.name ?? '', style: cinzel(14, c: kGold2, fw: FontWeight.w700)),
+                    Text(tr(_charOf(_forcedCharId!)?.name ?? ''), style: cinzel(14, c: kGold2, fw: FontWeight.w700)),
                     const SizedBox(height: 2),
                     _FactionBadgeSmall(_charOf(_forcedCharId!)?.faction.name ?? ''),
                     const SizedBox(height: 4),
-                    Text(_charOf(_forcedCharId!)?.ability ?? '',
+                    Text(tr(_charOf(_forcedCharId!)?.ability ?? ''),
                       style: body(10, c: kTextSub), maxLines: 2, overflow: TextOverflow.ellipsis),
                   ])),
                 ] else ...[
@@ -161,10 +161,10 @@ class _SoloSetupState extends State<SoloSetupScreen> with SingleTickerProviderSt
                   labelColor: kGold,
                   unselectedLabelColor: kTextSub,
                   labelStyle: const TextStyle(fontFamily: 'Cinzel', fontSize: 10),
-                  tabs: const [
-                    Tab(text: 'Tous'),
-                    Tab(text: '🔵 Hunter'),
-                    Tab(text: '🔴 Shadow'),
+                  tabs: [
+                    Tab(text: ui('char_picker_all')),
+                    Tab(text: ui('char_picker_hunter')),
+                    Tab(text: ui('char_picker_shadow')),
                   ],
                 ),
                 SizedBox(
@@ -202,7 +202,7 @@ class _SoloSetupState extends State<SoloSetupScreen> with SingleTickerProviderSt
                             )),
                             Padding(
                               padding: const EdgeInsets.all(3),
-                              child: Text(c.name,
+                              child: Text(tr(c.name),
                                 style: cinzel(8, c: sel ? fc : kTextSub, fw: sel ? FontWeight.w700 : FontWeight.normal),
                                 textAlign: TextAlign.center,
                                 maxLines: 2, overflow: TextOverflow.ellipsis),

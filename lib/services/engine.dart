@@ -4,6 +4,7 @@
 
 import 'dart:math';
 import 'engine_abilities.dart';
+import 'i18n_core.dart';
 import '../models/models.dart';
 import 'audio_service.dart';
 import '../data/game_data.dart';
@@ -341,11 +342,11 @@ class GameEngine with AbilityEngine {
 
       case 'full_heal':
         actor.wounds = 0;
-        return '💚 ${actor.name} soigne toutes ses blessures';
+        return logTCore('💚 {name} soigne toutes ses blessures', {'name': actor.name});
 
       case 'shield3':
         actor.shield = true; actor.shieldCharges = 99;
-        return '🛡 ${actor.name} est insensible ce tour';
+        return logTCore('🛡 {name} est insensible ce tour', {'name': actor.name});
 
       case 'aoe_zone6':
         final idx = terrainLayoutIdx(layout, 2);
@@ -364,14 +365,14 @@ class GameEngine with AbilityEngine {
         if (target == null) return 'cible_requise';
         applyDamage(target, 2);
         if (!target.alive) target.killedByUid = actor.uid;
-        return '⚡ ${actor.name} inflige 2 blessures à ${target.name}';
+        return logTCore('⚡ {name} inflige 2 blessures à {target}', {'name': actor.name, 'target': target.name});
 
       // ── Raph (Soleil Levant) : subit 2, soigne la cible de 3 ──
       case 'damage2_then_heal3':
         if (target == null) return 'cible_requise';
         applyDamage(actor, 2);
         applyHeal(target, 3);
-        return '🥷 ${actor.name} subit 2 et soigne ${target.name} de 3';
+        return logTCore('🥷 {name} subit 2 et soigne {target} de 3', {'name': actor.name, 'target': target.name});
 
       // ── Inès : verrouille la capacité d'un joueur tant qu'elle est en vie ──
       // ── Meg : choisit une forme (Offensive/Défensive), alterne ensuite seule ──
@@ -385,7 +386,7 @@ class GameEngine with AbilityEngine {
       case 'lock_ability_while_alive':
         if (target == null) return 'cible_requise';
         target.abilityLockedByUid = actor.uid;
-        return '🔒 ${actor.name} verrouille la capacité de ${target.name} tant qu\'elle est en vie';
+        return logTCore("🔒 {name} verrouille la capacité de {target} tant qu'elle est en vie", {'name': actor.name, 'target': target.name});
 
       // ── Maxence : rend un joueur ivre pendant 2 tours (vision brouillée
       // sur SON écran uniquement — jetons, camps/cartes et blessures) ──
@@ -393,7 +394,7 @@ class GameEngine with AbilityEngine {
         if (target == null) return 'cible_requise';
         target.drunkTurnsRemaining = 2;
         target.drunkSeed = _rng.nextInt(999999) + 1; // jamais 0 (0 = "pas de graine")
-        return '🍺 ${actor.name} rend ${target.name} complètement ivre pendant 2 tours !';
+        return logTCore('🍺 {name} rend {target} complètement ivre pendant 2 tours !', {'name': actor.name, 'target': target.name});
 
       // ── Marion : place la cible à exactement 5 blessures (soin ou dégâts) ──
       case 'set_wounds7':
@@ -402,22 +403,22 @@ class GameEngine with AbilityEngine {
         target.wounds = 7;
         if (target.wounds >= effectiveMaxHp(target)) target.alive = false;
         final diff = 7 - before;
-        if (diff > 0) return '📍 ${actor.name} place ${target.name} à 7 blessures (subit $diff)';
-        if (diff < 0) return '📍 ${actor.name} place ${target.name} à 7 blessures (soigné de ${-diff})';
-        return '📍 ${actor.name} place ${target.name} à 7 blessures (déjà à 7)';
+        if (diff > 0) return logTCore('📍 {name} place {target} à 7 blessures (subit {n})', {'name': actor.name, 'target': target.name, 'n': '$diff'});
+        if (diff < 0) return logTCore('📍 {name} place {target} à 7 blessures (soigné de {n})', {'name': actor.name, 'target': target.name, 'n': '${-diff}'});
+        return logTCore('📍 {name} place {target} à 7 blessures (déjà à 7)', {'name': actor.name, 'target': target.name});
 
       // ── Léo : D4 à TOUS les joueurs, lui inclus ──
       case 'd4_all':
         final d = rollD4();
         for (final p in all) { if (p.alive) applyDamage(p, d); }
-        return '🔥 ${actor.name} lance D4($d) — TOUS les joueurs subissent $d blessures';
+        return logTCore('🔥 {name} lance D4({d}) — TOUS les joueurs subissent {d} blessures', {'name': actor.name, 'd': '$d'});
 
       case 'steal_equip_choice':
-        if (target == null || target.equipment.isEmpty) return '${actor.name} — aucun équipement à voler';
+        if (target == null || target.equipment.isEmpty) return logTCore('{name} — aucun équipement à voler', {'name': actor.name});
         final e = target.equipment.removeAt(_rng.nextInt(target.equipment.length));
         actor.equipment.add(e); _equipPassive(actor, e);
         recalcPassives(target); // sinon la victime garde le passif de l'objet volé
-        return '🗡 ${actor.name} vole "${e.name}" à ${target.name}';
+        return logTCore('🗡 {name} vole "{item}" à {target}', {'name': actor.name, 'item': trCore(e.name), 'target': target.name});
 
       case 'draw_dark':
         actor.abilityUsed = false; // répétable
@@ -464,17 +465,17 @@ class GameEngine with AbilityEngine {
         target.equipment.add(dagueCard);
         recalcPassives(target);
         actor.abilityUsed = false; // répétable
-        return '🗡️ ${actor.name} inflige $dealtMarin à ${target.name} et lui donne une Dague du Voleur';
+        return logTCore('🗡️ {name} inflige {dmg} à {target} et lui donne une Dague du Voleur', {'name': actor.name, 'dmg': '$dealtMarin', 'target': target.name});
 
       // ── Julien : 2 dégâts à une cible choisie, ou se soigne de 1 si aucune cible (une fois par tour) ──
       case 'damage2_or_heal1':
         if (target == null) {
           applyHeal(actor, 1);
-          return '😈 ${actor.name} se soigne de 1 blessure';
+          return logTCore('😈 {name} se soigne de 1 blessure', {'name': actor.name});
         }
         final dealtJulien = applyDamage(target, 2);
         if (!target.alive) target.killedByUid = actor.uid;
-        return '😈 ${actor.name} inflige $dealtJulien blessures à ${target.name}';
+        return logTCore('😈 {name} inflige {dmg} blessures à {target}', {'name': actor.name, 'dmg': '$dealtJulien', 'target': target.name});
 
       // ── Vlad (Shadow) : D4 dégâts, répétable — portée adjacente seulement ──
       case 'd4_bonus_attack':
@@ -483,7 +484,7 @@ class GameEngine with AbilityEngine {
         final dealt = applyDamage(target, d);
         if (!target.alive) target.killedByUid = actor.uid;
         actor.abilityUsed = false; // répétable
-        return '💨 ${actor.name} lance D4($d) → $dealt blessures à ${target.name}';
+        return logTCore('💨 {name} lance D4({d}) → {dmg} blessures à {target}', {'name': actor.name, 'd': '$d', 'dmg': '$dealt', 'target': target.name});
 
       // ── Travert : D6 dégâts, unique ──
       case 'd6_global_attack':
@@ -491,7 +492,7 @@ class GameEngine with AbilityEngine {
         final d = rollD6();
         final dealt = applyDamage(target, d);
         if (!target.alive) target.killedByUid = actor.uid;
-        return '🎲 ${actor.name} lance D6($d) → $dealt blessures à ${target.name}';
+        return logTCore('🎲 {name} lance D6({d}) → {dmg} blessures à {target}', {'name': actor.name, 'd': '$d', 'dmg': '$dealt', 'target': target.name});
 
       // ── Nils : stocke les blessures infligées, puis les déverse ──
       case 'store_damage_nils':
@@ -504,7 +505,7 @@ class GameEngine with AbilityEngine {
         final dealt = applyDamage(target, stored);
         if (!target.alive) target.killedByUid = actor.uid;
         actor.storedDamage = 0;
-        return '📦 ${actor.name} déverse $stored blessures stockées sur ${target.name} ($dealt reçues) !';
+        return logTCore('📦 {name} déverse {stored} blessures stockées sur {target} ({dmg} reçues) !', {'name': actor.name, 'stored': '$stored', 'target': target.name, 'dmg': '$dealt'});
 
       // ── Agathe : vole 1 PV MAX à un joueur, définitivement (max 5x) ──
       case 'steal_max_hp':
@@ -515,7 +516,7 @@ class GameEngine with AbilityEngine {
         // Le vol peut faire mourir la cible si ses blessures actuelles
         // dépassent désormais son nouveau PV max réduit.
         if (target.wounds >= effectiveMaxHp(target)) target.alive = false;
-        return '🧛 ${actor.name} vole 1 PV MAX à ${target.name} (elle: ${effectiveMaxHp(actor)} PV max, lui: ${effectiveMaxHp(target)} PV max)';
+        return logTCore('🧛 {name} vole 1 PV MAX à {target} (elle: {hp1} PV max, lui: {hp2} PV max)', {'name': actor.name, 'target': target.name, 'hp1': '${effectiveMaxHp(actor)}', 'hp2': '${effectiveMaxHp(target)}'});
 
       // ── Rémi (bot) : choix automatique raisonnable de 2 effets sur 10 ──
       // (le joueur humain passe par sa propre boîte de dialogue de choix —
@@ -535,7 +536,7 @@ class GameEngine with AbilityEngine {
           text: '${kRemiAllChoices[c1]}\n${kRemiAllChoices[c2]}',
           effect: 'remi_custom:$c1,$c2',
         ));
-        return '🛠️ ${actor.name} fabrique son équipement personnalisé';
+        return logTCore('🛠️ {name} fabrique son équipement personnalisé', {'name': actor.name});
 
       // ── Christine : choisit une zone adjacente (humain) ou zone fournie
       // par l'appelant (bot — voir solo_controller.dart / game_provider.dart
@@ -566,14 +567,14 @@ class GameEngine with AbilityEngine {
         target.wounds = (tMax - selfDmg).clamp(0, tMax);
         target.alive = true;
         target.deathPassiveProcessed = false; // pourra redéclencher ses propres passifs de mort à l'avenir
-        return '✝️ ${actor.name} s\'inflige $selfDmg blessures pour ramener ${target.name} à la vie (${target.wounds}/$tMax blessures) !';
+        return logTCore("✝️ {name} s'inflige {dmg} blessures pour ramener {target} à la vie ({w}/{max} blessures) !", {'name': actor.name, 'dmg': '$selfDmg', 'target': target.name, 'w': '${target.wounds}', 'max': '$tMax'});
 
       // ── Luc : met le feu à un joueur de son choix ──
       case 'luc_ignite':
         if (target == null) return 'cible_requise';
         target.lucFireTurnsRemaining = 2;
         target.lucFireSourceUid = actor.uid;
-        return '🔥 ${actor.name} met le feu à ${target.name} — 2 blessures par tour pendant 2 tours, +1 dégât à ses attaques !';
+        return logTCore('🔥 {name} met le feu à {target} — 2 blessures par tour pendant 2 tours, +1 dégât à ses attaques !', {'name': actor.name, 'target': target.name});
 
       // ── Oscar : dépense son XP au choix parmi 3 options ──
       case 'oscar_xp_spend':
@@ -582,26 +583,26 @@ class GameEngine with AbilityEngine {
           if (actor.oscarXp < 3) return 'oscar_not_enough';
           if (target == null) return 'cible_requise';
           if (target.equipment.isEmpty) {
-            return '💧 ${actor.name} tente de voler un équipement à ${target.name}, mais il n\'en a aucun !';
+            return logTCore("💧 {name} tente de voler un équipement à {target}, mais il n'en a aucun !", {'name': actor.name, 'target': target.name});
           }
           actor.oscarXp -= 3;
           final stolen = target.equipment.removeAt(_rng.nextInt(target.equipment.length));
           actor.equipment.add(stolen);
           equipPassivePublic(actor, stolen);
           recalcPassives(target);
-          return '💧 ${actor.name} dépense 3 XP — vole "${stolen.name}" à ${target.name} !';
+          return logTCore('💧 {name} dépense 3 XP — vole "{item}" à {target} !', {'name': actor.name, 'item': trCore(stolen.name), 'target': target.name});
         }
         if (extra == 'plant') {
           if (actor.oscarXp < 2) return 'oscar_not_enough';
           actor.oscarXp -= 2;
           applyHeal(actor, 2);
-          return '🌿 ${actor.name} dépense 2 XP — se soigne de 2 blessures.';
+          return logTCore('🌿 {name} dépense 2 XP — se soigne de 2 blessures.', {'name': actor.name});
         }
         if (extra == 'fire') {
           if (actor.oscarXp < 4) return 'oscar_not_enough';
           actor.oscarXp -= 4;
           actor.oscarFireBonus = true;
-          return '🔥 ${actor.name} dépense 4 XP — sa prochaine attaque ce tour infligera 2 dégâts de plus !';
+          return logTCore('🔥 {name} dépense 4 XP — sa prochaine attaque ce tour infligera 2 dégâts de plus !', {'name': actor.name});
         }
         return 'oscar_choice';
 
@@ -611,7 +612,7 @@ class GameEngine with AbilityEngine {
         final dealt = applyDamage(target, 8);
         if (!target.alive) target.killedByUid = actor.uid;
         final selfDealt = applyDamage(actor, 5);
-        return '⚡ ${actor.name} inflige $dealt à ${target.name} — et s\'inflige $selfDealt blessures en retour !';
+        return logTCore("⚡ {name} inflige {dmg} à {target} — et s'inflige {self} blessures en retour !", {'name': actor.name, 'dmg': '$dealt', 'target': target.name, 'self': '$selfDealt'});
 
       // ── Carapatte : D6 lifesteal, unique ──
       case 'd6_lifesteal':
@@ -620,13 +621,13 @@ class GameEngine with AbilityEngine {
         final dealt = applyDamage(target, d);
         if (!target.alive) target.killedByUid = actor.uid;
         applyHeal(actor, dealt);
-        return '🐢 ${actor.name} lance D6($d) → inflige $dealt à ${target.name}, se soigne de $dealt';
+        return logTCore('🐢 {name} lance D6({d}) → inflige {dmg} à {target}, se soigne de {dmg}', {'name': actor.name, 'd': '$d', 'dmg': '$dealt', 'target': target.name});
 
       // ── Cambou : full heal + bouclier ──
       case 'full_heal_shield_turn':
         actor.wounds = 0; actor.shield = true; actor.shieldCharges = 99;
         actor.abilityUsed = true; // Unique — ne doit plus jamais pouvoir être réutilisé de toute la partie
-        return '🌙 ${actor.name} se soigne et se protège';
+        return logTCore('🌙 {name} se soigne et se protège', {'name': actor.name});
 
       // ── Océane : D4 soigne tout le monde SAUF 1 joueur au choix ──
       case 'd4_heal_neighbors':
@@ -636,11 +637,11 @@ class GameEngine with AbilityEngine {
         for (final p in all) {
           if (p.alive && p.uid != target.uid) { applyHeal(p, d); count++; }
         }
-        return '🌊 ${actor.name} lance D4($d) — soigne $count joueur(s) (sauf ${target.name})';
+        return logTCore('🌊 {name} lance D4({d}) — soigne {n} joueur(s) (sauf {target})', {'name': actor.name, 'd': '$d', 'n': '$count', 'target': target.name});
 
       // ── Albane : rembobine (relance ses dés de déplacement, géré côté UI) ──
       case 'double_move_dice':
-        return '⏪ ${actor.name} rembobine le temps — relancera ses dés de déplacement';
+        return logTCore('⏪ {name} rembobine le temps — relancera ses dés de déplacement', {'name': actor.name});
 
       // ── Amélia : sacrifice 2 PV pour soigner la cible de 4 ──
       case 'ally_sacrifice_heal':
@@ -721,25 +722,25 @@ class GameEngine with AbilityEngine {
       List<Terrain> layout, {Player? target}) {
     if (card.type == CardType.equipement) {
       actor.equipment.add(card); _equipPassive(actor, card);
-      return {'log': '⚔️ ${actor.name} équipe : ${card.name}', 'needsTarget': false};
+      return {'log': logTCore('⚔️ {name} équipe : {card}', {'name': actor.name, 'card': trCore(card.name)}), 'needsTarget': false};
     }
     final eff = card.effect;
     switch (eff) {
       case 'heal_self_2':
         applyHeal(actor, 2);
-        return {'log': '💚 ${actor.name} se soigne de 2', 'needsTarget': false};
+        return {'log': logTCore('💚 {name} se soigne de 2', {'name': actor.name}), 'needsTarget': false};
       case 'extra_turn':
         actor.newTurn = true;
-        return {'log': '⏰ ${actor.name} jouera un tour supplémentaire', 'needsTarget': false};
+        return {'log': logTCore('⏰ {name} jouera un tour supplémentaire', {'name': actor.name}), 'needsTarget': false};
       case 'hunter_reveal_heal':
-        if (actor.character!.faction == Faction.hunter) { actor.revealed = true; actor.wounds = 0; return {'log': '✨ ${actor.name} se révèle et soigne toutes ses blessures', 'needsTarget': false}; }
+        if (actor.character!.faction == Faction.hunter) { actor.revealed = true; actor.wounds = 0; return {'log': logTCore('✨ {name} se révèle et soigne toutes ses blessures', {'name': actor.name}), 'needsTarget': false}; }
         return {'log': "${actor.name} ne remplit pas la condition", 'needsTarget': false};
       case 'shadow_reveal_heal':
-        if (actor.character!.faction == Faction.shadow) { actor.revealed = true; actor.wounds = 0; return {'log': '🌑 ${actor.name} se révèle et soigne toutes ses blessures', 'needsTarget': false}; }
+        if (actor.character!.faction == Faction.shadow) { actor.revealed = true; actor.wounds = 0; return {'log': logTCore('🌑 {name} se révèle et soigne toutes ses blessures', {'name': actor.name}), 'needsTarget': false}; }
         return {'log': "${actor.name} ne remplit pas la condition", 'needsTarget': false};
       case 'aoe_same_zone_2':
         for (final p in all) { if (p.alive && p.uid != actor.uid && p.zoneIndex == actor.zoneIndex) applyDamage(p, 2); }
-        return {'log': '🔥 Feu Primordial — 2 dégâts sur la zone de ${actor.name}', 'needsTarget': false};
+        return {'log': logTCore('🔥 Feu Primordial — 2 dégâts sur la zone de {name}', {'name': actor.name}), 'needsTarget': false};
       case 'shield_next_turn':
         actor.shield = true; actor.shieldCharges = 99;
         return {'log': "🛡 ${actor.name} protégé jusqu'au prochain tour", 'needsTarget': false};
@@ -756,49 +757,49 @@ class GameEngine with AbilityEngine {
         final hitStr = hit > 0
             ? '$hit joueur(s) touché(s), 3 blessures chacun'
             : 'personne sur cette zone';
-        return {'log': '💣 Dynamite — D4($d4)+D6($d6)=$sum désigne le $terrainLabel : $hitStr', 'needsTarget': false,
+        return {'log': logTCore('💣 Dynamite — D4({d4})+D6({d6})={sum} désigne le {zone} : {hit}', {'d4': '$d4', 'd6': '$d6', 'sum': '$sum', 'zone': '$terrainLabel', 'hit': hitStr}), 'needsTarget': false,
           'diceResult': {'d4': d4, 'd6': d6, 'sum': sum, 'label': 'Dynamite'}};
       case 'terrain4_heal_or_dmg':
         // Terrain 6 = Chapelle Sacrée (id:2) → soigne. Partout ailleurs → 2 dégâts
         final t6idx = terrainLayoutIdx(layout, 2);
-        if (actor.zoneIndex == t6idx) { applyHeal(actor, 2); return {'log': '💧 Eau du Temple — sur le terrain 6, soigné de 2', 'needsTarget': false}; }
-        applyDamage(actor, 2); return {'log': '💧 Eau du Temple — pas sur le terrain 6, subit 2 dégâts', 'needsTarget': false};
+        if (actor.zoneIndex == t6idx) { applyHeal(actor, 2); return {'log': logTCore('💧 Eau du Temple — sur le terrain 6, soigné de 2', {}), 'needsTarget': false}; }
+        applyDamage(actor, 2); return {'log': logTCore('💧 Eau du Temple — pas sur le terrain 6, subit 2 dégâts', {}), 'needsTarget': false};
       case 'aoe_all_except_self_2':
         for (final p in all) { if (p.alive && p.uid != actor.uid) applyDamage(p, 2); }
-        return {'log': '⚡ Éclair Purificateur — tous les autres joueurs subissent 2 blessures', 'needsTarget': false};
+        return {'log': logTCore('⚡ Éclair Purificateur — tous les autres joueurs subissent 2 blessures', {}), 'needsTarget': false};
       case 'low_hp_reveal_heal':
         if (actor.character!.hp <= 11) {
           actor.revealed = true; actor.wounds = 0;
-          return {'log': '🍫 ${actor.name} (${actor.character!.hp} PV max ≤ 11) se révèle et soigne toutes ses blessures', 'needsTarget': false};
+          return {'log': logTCore("🍫 {name} ({hp} PV max ≤ 11) se révèle et soigne toutes ses blessures", {'name': actor.name, 'hp': '${actor.character!.hp}'}), 'needsTarget': false};
         }
-        return {'log': '🍫 ${actor.name} a ${actor.character!.hp} PV max — la carte n\'a aucun effet (besoin ≤ 11 PV max)', 'needsTarget': false};
+        return {'log': logTCore("🍫 {name} a {hp} PV max — la carte n'a aucun effet (besoin ≤ 11 PV max)", {'name': actor.name, 'hp': '${actor.character!.hp}'}), 'needsTarget': false};
       case 'force_shadow_reveal':
         if (actor.character?.faction == Faction.shadow && !actor.revealed) {
           actor.revealed = true;
-          return {'log': '🪞 Miroir Divin — ${actor.name} est un Shadow, forcé à se révéler !', 'needsTarget': false};
+          return {'log': logTCore('🪞 Miroir Divin — {name} est un Shadow, forcé à se révéler !', {'name': actor.name}), 'needsTarget': false};
         }
-        return {'log': '🪞 Miroir Divin — ${actor.name} n\'est pas Shadow, aucun effet', 'needsTarget': false};
+        return {'log': logTCore("🪞 Miroir Divin — {name} n'est pas Shadow, aucun effet", {'name': actor.name}), 'needsTarget': false};
       case 'heal_self_4':
         applyHeal(actor, 4);
-        return {'log': '🍗 ${actor.name} se soigne de 4', 'needsTarget': false};
+        return {'log': logTCore('🍗 {name} se soigne de 4', {'name': actor.name}), 'needsTarget': false};
       case 'heal_all_except_self_2':
         for (final p in all) { if (p.alive && p.uid != actor.uid) applyHeal(p, 2); }
-        return {'log': '🍓 Fraise Tagada Piquante — tous les autres joueurs se soignent de 2', 'needsTarget': false};
+        return {'log': logTCore('🍓 Fraise Tagada Piquante — tous les autres joueurs se soignent de 2', {}), 'needsTarget': false};
       case 'flamme_arcades':
         final t6idx2 = terrainLayoutIdx(layout, 2);
         if (actor.zoneIndex == t6idx2) {
           applyHeal(actor, 2);
-          return {'log': '🔥 Flamme des Arcades — sur le terrain 6, ${actor.name} se soigne de 2', 'needsTarget': false};
+          return {'log': logTCore('🔥 Flamme des Arcades — sur le terrain 6, {name} se soigne de 2', {'name': actor.name}), 'needsTarget': false};
         }
         applyDamage(actor, 1);
-        return {'log': '🔥 Flamme des Arcades — pas sur le terrain 6, ${actor.name} subit 1', 'needsTarget': false};
+        return {'log': logTCore('🔥 Flamme des Arcades — pas sur le terrain 6, {name} subit 1', {'name': actor.name}), 'needsTarget': false};
       case 'reroll_move':
         final d4r = rollD4(); final d6r = rollD6(); final sumr = d4r + d6r;
         final tidr = sumToTerrainId(sumr);
         final idxr = tidr != null ? terrainLayoutIdx(layout, tidr) : -1;
         if (idxr >= 0) actor.zoneIndex = idxr;
         // Signal 'reroll_move' pour que le controller déclenche l'effet du terrain
-        return {'log': '🍾 Bouteille de Ricard — ${actor.name} se déplace (résultat $sumr)',
+        return {'log': logTCore('🍾 Bouteille de Ricard — {name} se déplace (résultat {n})', {'name': actor.name, 'n': '$sumr'}),
           'needsTarget': false, 'special': 'reroll_move',
           'diceResult': {'d4': d4r, 'd6': d6r, 'sum': sumr, 'label': 'Ricard'}};
       // Cartes nécessitant une cible
@@ -996,7 +997,7 @@ class GameEngine with AbilityEngine {
     if (target.equipment.isEmpty) {
       applyDamage(target, 1);
       if (!target.alive) target.killedByUid = actor.uid;
-      return {'log': '🔮 Vision — ${target.name} n\'a pas d\'équipement, subit 1 blessure', 'needsTarget': false};
+      return {'log': logTCore("🔮 Vision — {target} n'a pas d'équipement, subit 1 blessure", {'target': target.name}), 'needsTarget': false};
     }
     return {'log': '', 'needsTarget': false, 'needsTargetChoice': true,
       'punishActorUid': actor.uid, 'punishTargetUid': target.uid};
@@ -1157,7 +1158,7 @@ class GameEngine with AbilityEngine {
     // se déclenche à chaque attaque, quel que soit le résultat des dégâts.
     applyVictorCharm(attacker, target, all);
     applyMaximeFirstAttacker(attacker, target, actual);
-    String log = '⚔️ ${attacker.name} attaque ${target.name} — $actual dégâts';
+    String log = logTCore('⚔️ {name} attaque {target} — {dmg} dégâts', {'name': attacker.name, 'target': target.name, 'dmg': '$actual'});
 
     // Rémi : équipement personnalisé — effets choisis qui se déclenchent
     // à chaque attaque réussie (dégâts > 0). Suit l'équipement, pas le
@@ -1342,7 +1343,7 @@ class GameEngine with AbilityEngine {
     }
     applyVictorCharm(attacker, target, all);
     applyMaximeFirstAttacker(attacker, target, actual);
-    String log = '⚔️ ${attacker.name} attaque ${target.name} — $actual dégâts';
+    String log = logTCore('⚔️ {name} attaque {target} — {dmg} dégâts', {'name': attacker.name, 'target': target.name, 'dmg': '$actual'});
     // Scott : contre-attaque (uniquement s'il survit à l'attaque)
     bool scottCountered = false;
     int? counterD4, counterD6, counterDmg;
@@ -2114,7 +2115,7 @@ class GameEngine with AbilityEngine {
       if (idx >= target.equipment.length) idx = 0;
       final e = target.equipment.removeAt(idx);
       actor.equipment.add(e); _equipPassive(actor, e); recalcPassives(target);
-      return '🗡 ${actor.name} vole "${e.name}" à ${target.name}';
+      return logTCore('🗡 {name} vole "{item}" à {target}', {'name': actor.name, 'item': trCore(e.name), 'target': target.name});
     } else {
       if (idx >= actor.equipment.length) idx = 0;
       final e = actor.equipment.removeAt(idx);
