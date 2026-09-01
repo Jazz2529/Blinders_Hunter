@@ -430,9 +430,16 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
         appBar: AppBar(
           backgroundColor: kBg2, elevation: 0,
           title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(s.isHuman ? '⚔️ Ton tour' : '🤖 ${s.current.name} joue…',
+            Text(s.isHuman ? ui('your_turn_simple') : ui('bot_plays').replaceAll('{name}', s.current.name),
               style: cinzel(15, c: s.isHuman ? kGold2 : kTextSub)),
-            Text(s.phase.name, style: body(11, c: kTextSub)),
+            Text(switch (s.phase.name) {
+              'ability'      => ui('phase_ability2'),
+              'move'         => ui('phase_move2'),
+              'zoneEffect'   => ui('phase_zone_effect2'),
+              'cardDrawn'    => ui('phase_card_drawn2'),
+              'attack'       => ui('phase_attack2'),
+              _              => s.phase.name,
+            }, style: body(11, c: kTextSub)),
           ]),
           actions: [
             // Victor uniquement : bouton pour consulter ses barres de charme
@@ -1278,7 +1285,7 @@ class _CasinoWidgetState extends State<_CasinoWidget>
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: _bet! ? const Color(0xFF7B2FBE) : const Color(0xFF1B6CA8))),
-            child: Text('Pari : ${_bet! ? "IMPAIR" : "PAIR"}',
+            child: Text(ui('bet_label').replaceAll('{value}', _bet! ? ui('odd_simple') : ui('even_simple')),
               style: cinzel(13, c: gold, fw: FontWeight.w700)),
           ),
           const SizedBox(height: 16),
@@ -1338,7 +1345,7 @@ class _CasinoWidgetState extends State<_CasinoWidget>
                 textAlign: TextAlign.center),
             const SizedBox(height: 12),
             BHButton(
-              label: _won! ? '🎯 Choisir une cible (3 blessures)' : '💀 Continuer',
+              label: _won! ? ui('btn_choose_target_3dmg') : ui('btn_continue_death'),
               gold: _won!, danger: !_won!, onTap: _confirm),
           ],
         ],
@@ -1749,7 +1756,7 @@ class _RoleRevealScreenState extends State<_RoleRevealScreen>
                       padding: const EdgeInsets.all(12),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Row(children: [
-                          Expanded(child: Text(char.name,
+                          Expanded(child: Text(tr(char.name),
                             style: cinzel(15, c: kGold2, fw: FontWeight.w900),
                             overflow: TextOverflow.ellipsis)),
                           Container(
@@ -1766,7 +1773,7 @@ class _RoleRevealScreenState extends State<_RoleRevealScreen>
                           decoration: BoxDecoration(
                             color: fbg.withValues(alpha: 0.4),
                             borderRadius: BorderRadius.circular(8)),
-                          child: Text(char.ability,
+                          child: Text(tr(char.ability),
                             style: body(10, c: kText), textAlign: TextAlign.center)),
                         const SizedBox(height: 6),
                         Container(
@@ -1774,9 +1781,9 @@ class _RoleRevealScreenState extends State<_RoleRevealScreen>
                           decoration: BoxDecoration(color: kBg3,
                             borderRadius: BorderRadius.circular(8)),
                           child: Column(children: [
-                            Text('🏆 OBJECTIF', style: cinzel(8, c: kTextSub, ls: 1)),
+                            Text(ui('info_win_condition'), style: cinzel(8, c: kTextSub, ls: 1)),
                             const SizedBox(height: 3),
-                            Text(char.winCondition,
+                            Text(tr(char.winCondition),
                               style: body(10, c: kGold2),
                               textAlign: TextAlign.center),
                           ])),
@@ -1905,7 +1912,7 @@ class _TurnHeader extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(
-            s.isHuman ? '⚔️ Ton tour' : '🤖 Tour de ${s.current.name}',
+            s.isHuman ? ui('your_turn_simple') : ui('bot_turn_of').replaceAll('{name}', s.current.name),
             style: cinzel(12, c: s.isHuman ? kGold2 : kTextSub),
           ),
           Text(_phaseLabel(s.phase), style: body(10, c: kTextDim)),
@@ -1993,7 +2000,7 @@ class _PlayerCardSide extends StatelessWidget {
           padding: const EdgeInsets.all(8),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             // Nom + faction
-            Text(c.name, style: cinzel(11, c: fc, fw: FontWeight.w900),
+            Text(tr(c.name), style: cinzel(11, c: fc, fw: FontWeight.w900),
               overflow: TextOverflow.ellipsis),
             const SizedBox(height: 3),
             Row(children: [
@@ -2003,8 +2010,8 @@ class _PlayerCardSide extends StatelessWidget {
                   color: fc.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(4)),
                 child: Text(
-                  c.faction.name == 'hunter' ? '🔵 HUNTER'
-                  : c.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE',
+                  c.faction.name == 'hunter' ? ui('faction_hunter')
+                  : c.faction.name == 'shadow' ? ui('faction_shadow') : ui('faction_neutral'),
                   style: cinzel(7, c: fc)),
               ),
             ]),
@@ -2013,7 +2020,7 @@ class _PlayerCardSide extends StatelessWidget {
             Row(children: [
               Text('🗡', style: const TextStyle(fontSize: 12)),
               const SizedBox(width: 4),
-              Text('${me.wounds} blessures',
+              Text(ui('wounds_count').replaceAll('{n}', '${me.wounds}'),
                 style: body(11, c: woundColor, fw: FontWeight.w700)),
             ]),
             const SizedBox(height: 6),
@@ -2024,9 +2031,9 @@ class _PlayerCardSide extends StatelessWidget {
               decoration: BoxDecoration(
                 color: kBg3, borderRadius: BorderRadius.circular(6)),
               child: Column(children: [
-                Text('🏆 OBJECTIF', style: cinzel(7, c: kTextSub, ls: 1)),
+                Text(ui('info_win_condition'), style: cinzel(7, c: kTextSub, ls: 1)),
                 const SizedBox(height: 2),
-                Text(c.winCondition, style: body(9, c: kGold2),
+                Text(tr(c.winCondition), style: body(9, c: kGold2),
                   textAlign: TextAlign.center, maxLines: 3,
                   overflow: TextOverflow.ellipsis),
               ]),
@@ -2080,7 +2087,7 @@ class _HpLeaderboard extends StatelessWidget {
       color: kBg1,
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('🗡 BLESSURES', style: cinzel(8, c: kGold, ls: 2)),
+        Text(ui('wounds_header'), style: cinzel(8, c: kGold, ls: 2)),
         const SizedBox(height: 3),
         Expanded(
           child: Row(children: players.map((p) {

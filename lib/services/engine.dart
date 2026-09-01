@@ -1010,15 +1010,15 @@ class GameEngine with AbilityEngine {
     // aucune information ne doit jamais filtrer sur sa vraie faction.
     final targetEff = effectiveAbility(target);
     if (targetEff == 'chameleon_passive') {
-      return {'log': '🔮 Carte Vision — ${target.name} ne subit aucune blessure', 'needsTarget': false};
+      return {'log': logTCore('🔮 Carte Vision — {target} ne subit aucune blessure', {'target': target.name}), 'needsTarget': false};
     }
     // Ne pas révéler la faction dans les logs publics
     if (target.character!.faction == f) {
       applyDamage(target, dmg);
       if (!target.alive) target.killedByUid = actor.uid;
-      return {'log': '🔮 Carte Vision — ${target.name} subit $dmg blessures', 'needsTarget': false};
+      return {'log': logTCore('🔮 Carte Vision — {target} subit {n} blessures', {'target': target.name, 'n': '$dmg'}), 'needsTarget': false};
     }
-    return {'log': '🔮 Carte Vision — ${target.name} ne subit aucune blessure', 'needsTarget': false};
+    return {'log': logTCore('🔮 Carte Vision — {target} ne subit aucune blessure', {'target': target.name}), 'needsTarget': false};
   }
 
   // ─── Attaque ─────────────────────────────

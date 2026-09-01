@@ -445,7 +445,7 @@ class _GameScreenState extends State<GameScreen> {
             onPressed: () => _confirmLeaveGame(ctx, gp),
           ),
           title:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-            Text(isMyTurn?'⚔️ Ton tour':'⌛ Tour de ${gp.currentPlayer?.name??"—"}',
+            Text(isMyTurn?ui('your_turn_simple'):ui('turn_of_waiting').replaceAll('{name}', gp.currentPlayer?.name??"—"),
               style:cinzel(15,c:isMyTurn?kGold2:kTextSub)),
             Builder(builder: (_) {
               final ts = gs?.turnStartedAt;
@@ -2812,8 +2812,8 @@ class _RevealQuoteBannerState extends State<_RevealQuoteBanner> {
     final fc = factionColor(displayChar.faction.name);
     final fb = factionBg(displayChar.faction.name);
     final imgPath = effectiveCharacterImagePath(displayChar.id);
-    final fLabel = displayChar.faction.name == 'hunter' ? '🔵 HUNTER'
-        : displayChar.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE';
+    final fLabel = displayChar.faction.name == 'hunter' ? ui('faction_hunter')
+        : displayChar.faction.name == 'shadow' ? ui('faction_shadow') : ui('faction_neutral');
 
     return Positioned.fill(
       child: IgnorePointer(
@@ -2853,7 +2853,7 @@ class _RevealQuoteBannerState extends State<_RevealQuoteBanner> {
                         ))))),
                 Padding(padding: const EdgeInsets.all(20),
                   child: Column(children: [
-                    Text('${p.name} s\'est révélé !',
+                    Text(ui('has_revealed').replaceAll('{name}', p.name),
                       style: cinzel(20, c: fc, fw: FontWeight.w900),
                       textAlign: TextAlign.center),
                     const SizedBox(height: 8),
@@ -2865,7 +2865,7 @@ class _RevealQuoteBannerState extends State<_RevealQuoteBanner> {
                         border: Border.all(color: fc, width: 1.5)),
                       child: Text(fLabel, style: cinzel(13, c: fc, fw: FontWeight.w700))),
                     const SizedBox(height: 8),
-                    Text('Il est ${displayChar.name}',
+                    Text(ui('he_is').replaceAll('{char}', tr(displayChar.name)),
                       style: cinzel(15, c: kGold2, fw: FontWeight.w700)),
                     const SizedBox(height: 10),
                     Container(
@@ -3419,23 +3419,23 @@ class _MultiCasinoWidgetState extends State<_MultiCasinoWidget>
           Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
             Expanded(child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: BHButton(label: '⚫ Pair', onTap: () => _roll(false)))),
+              child: BHButton(label: ui('btn_even'), onTap: () => _roll(false)))),
             Expanded(child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: BHButton(label: '🔴 Impair', onTap: () => _roll(true)))),
+              child: BHButton(label: ui('btn_odd'), onTap: () => _roll(true)))),
           ]),
         ] else ...[
-          Text('Résultat : $_result ${(_result! % 2 == 0) ? "(Pair)" : "(Impair)"}',
+          Text(ui('casino_result').replaceAll('{n}', '$_result').replaceAll('{parity}', (_result! % 2 == 0) ? '(${ui('even_simple')})' : '(${ui('odd_simple')})'),
             style: cinzel(20, c: _won! ? Colors.greenAccent : kRed,
               fw: FontWeight.w900)),
           const SizedBox(height: 8),
           if (_won!)
-            Text('✅ Gagné ! Choisissez une cible', style: body(12, c: Colors.greenAccent))
+            Text(ui('won_choose_target'), style: body(12, c: Colors.greenAccent))
           else
-            Text('❌ Perdu — vous subissez 2 blessures', style: body(12, c: kRed)),
+            Text(ui('lost_take2'), style: body(12, c: kRed)),
           const SizedBox(height: 12),
           BHButton(
-            label: _won! ? '🎯 Choisir une cible' : '💸 Subir 2 blessures',
+            label: _won! ? ui('btn_choose_target_short') : ui('btn_take2_short'),
             gold: _won!,
             danger: !_won!,
             onTap: () {

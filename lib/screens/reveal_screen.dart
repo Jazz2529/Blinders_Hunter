@@ -12,6 +12,7 @@ import '../data/characters_data.dart';
 import '../data/game_data.dart';
 import '../data/interactions_data.dart';
 import 'shine_effect.dart';
+import '../services/i18n.dart';
 
 class RevealFullScreen extends StatefulWidget {
   final Player player;
@@ -88,8 +89,8 @@ class RevealFullScreenState extends State<RevealFullScreen>
     final fc = displayChar != null ? factionColor(displayChar.faction.name) : kGold;
     final fb = displayChar != null ? factionBg(displayChar.faction.name) : kBg2;
     final imgPath = displayChar != null ? effectiveCharacterImagePath(displayChar.id) : null;
-    final fLabel  = displayChar?.faction.name == 'hunter' ? '🔵 HUNTER'
-        : displayChar?.faction.name == 'shadow' ? '🔴 SHADOW' : '🟡 NEUTRE';
+    final fLabel  = displayChar?.faction.name == 'hunter' ? ui('faction_hunter')
+        : displayChar?.faction.name == 'shadow' ? ui('faction_shadow') : ui('faction_neutral');
 
     return GestureDetector(
       onTap: widget.onDone,
@@ -143,7 +144,7 @@ class RevealFullScreenState extends State<RevealFullScreen>
                       // Infos
                       Padding(padding: const EdgeInsets.all(20),
                         child: Column(children: [
-                        Text('${p.name} s\'est révélé !',
+                        Text(ui('has_revealed').replaceAll('{name}', p.name),
                           style: cinzel(22, c: fc, fw: FontWeight.w900),
                           textAlign: TextAlign.center),
                         const SizedBox(height: 8),
@@ -156,7 +157,7 @@ class RevealFullScreenState extends State<RevealFullScreen>
                           child: Text(fLabel, style: cinzel(14, c: fc, fw: FontWeight.w700))),
                         if (displayChar != null) ...[
                           const SizedBox(height: 8),
-                          Text('Il est ${displayChar.name}',
+                          Text(ui('he_is').replaceAll('{char}', tr(displayChar.name)),
                             style: cinzel(16, c: kGold2, fw: FontWeight.w700)),
                         ],
                         if (widget.isRealReveal && c != null) ...[
