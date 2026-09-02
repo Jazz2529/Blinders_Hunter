@@ -620,7 +620,7 @@ class SoloController extends ChangeNotifier {
         bot.equipment.add(e);
         _eg.equipPassivePublic(bot, e);
         _eg.recalcPassives(t); // sinon la victime garde à tort les passifs de l'objet volé (ex: Sniper)
-        _log(logT('🗼 {name} vole "{item}" à {target}', {'name': bot.name, 'item': tr(e.name), 'target': t.name}));
+        _log(logT('🗼 {name} vole "{item}" à {target}', {'name': bot.name, 'item': e.name, 'target': t.name}));
       }
     }
     // Carte éventuellement piochée par ce terrain — résolue immédiatement
@@ -681,7 +681,7 @@ class SoloController extends ChangeNotifier {
             bot.disguiseCharIdOverride = disguise.id;
             state!.pendingRevealAnimation = bot.uid;
             audio.playReveal();
-            _log(logT('🃏 {name} révèle : {char}', {'name': bot.name, 'char': tr(disguise.name)}));
+            _log(logT('🃏 {name} révèle : {char}', {'name': bot.name, 'char': disguise.name}));
           } else {
             // Cas limite (pas assez de personnages des 2 factions en jeu)
             bot.revealed = true;
@@ -922,7 +922,7 @@ class SoloController extends ChangeNotifier {
           final t1name = state!.terrainLayout[richardStartZone].name;
           final t2name = state!.terrainLayout[z2].name;
           state!.abilityOverlay = 'richard2_swap';
-          _log(logT('👑 {name} échange {zone1} ↔ {zone2} !', {'name': bot.name, 'zone1': tr(t2name), 'zone2': tr(t1name)}));
+          _log(logT('👑 {name} échange {zone1} ↔ {zone2} !', {'name': bot.name, 'zone1': t2name, 'zone2': t1name}));
           await _botApplyTerrainEffectFor(bot, difficulty);
         }
       } else if (log == 'casino_bet') {
@@ -977,10 +977,24 @@ class SoloController extends ChangeNotifier {
         if (zoneIdx == -1 || zoneIdx == bot.zoneIndex) zoneIdx = (bot.zoneIndex + 1) % 6;
       }
       bot.zoneIndex = zoneIdx;
-      _log(logT('🚶 {name} → {zone}', {'name': bot.name, 'zone': tr(state!.terrainLayout[zoneIdx].name)}));
+      final isAugustinBot = bot.character?.abilityEffect == 'heal_on_same_terrain' && bot.revealed;
+      if (isAugustinBot && sum == 7) {
+        _eg.applyHeal(bot, 2);
+        _log(logT('🚶 {name} → {zone}  •  🌾 Augustin (7) — soigné de 2', {'name': bot.name, 'zone': state!.terrainLayout[zoneIdx].name}));
+      } else if (isAugustinBot && sum >= 2 && sum <= 6) {
+        _eg.applyHeal(bot, 1);
+        _log(logT('🚶 {name} → {zone}  •  🌾 Augustin ({n}) — soigné de 1', {'name': bot.name, 'zone': state!.terrainLayout[zoneIdx].name, 'n': '$sum'}));
+      } else if (isAugustinBot && sum >= 8 && sum <= 10) {
+        // NOTE : un bot Augustin ne touche PAS d'or persistant — cette
+        // récompense n'a de sens que pour le joueur humain (son propre
+        // menu principal). Un simple message de log suffit pour le bot.
+        _log(logT('🚶 {name} → {zone}  •  🌾 Augustin ({n}) — aurait trouvé de l\'or (bot)', {'name': bot.name, 'zone': state!.terrainLayout[zoneIdx].name, 'n': '$sum'}));
+      } else {
+        _log(logT('🚶 {name} → {zone}', {'name': bot.name, 'zone': state!.terrainLayout[zoneIdx].name}));
+      }
       notifyListeners();
     } else {
-      _log(logT('🗺️ {name} (Christine) se déplace directement vers {zone}', {'name': bot.name, 'zone': tr(state!.terrainLayout[zoneIdx].name)}));
+      _log(logT('🗺️ {name} (Christine) se déplace directement vers {zone}', {'name': bot.name, 'zone': state!.terrainLayout[zoneIdx].name}));
       notifyListeners();
     }
 
@@ -1025,11 +1039,18 @@ class SoloController extends ChangeNotifier {
     if (_stopped) return;
     if (_ai.shouldAttack(bot, state!.players, state!.terrainLayout, difficulty)) {
       final targets = _eg.attackTargets(bot, state!.players, state!.terrainLayout);
-      final target = _ai.bestTarget(bot, targets, difficulty, context: 'attack');
+      var target = _ai.bestTarget(bot, targets, difficulty, context: 'attack');
+      // Maxence : un bot ivre a aussi 10% de chance de se frapper lui-même
+      // par confusion (même logique que le joueur humain).
+      if (target != null && bot.drunkTurnsRemaining > 0 && bot.uid != target.uid && Random().nextDouble() < 0.10) {
+        target = bot;
+      }
       if (target != null) {
+        final tgt = target; // capture finale — évite la perte du rétrécissement
+        // de nullabilité de Dart après réassignation conditionnelle plus haut
         final eff = bot.copiedEffect ?? bot.character?.abilityEffect;
         int dmg;
-        if (eff == 'double_attack_if_tanky' && target.revealed && target.character!.hp >= 13) {
+        if (eff == 'double_attack_if_tanky' && tgt.revealed && tgt.character!.hp >= 13) {
           // 🥭 Mango Loco : cible costaude → double lancer, dégâts additionnés
           final rA = _eg.rollAttack(); final rB = _eg.rollAttack();
           dmg = rA['damage']! + rB['damage']!;
@@ -1051,7 +1072,7 @@ class SoloController extends ChangeNotifier {
         // Mathieu : seules les attaques faites une fois RÉVÉLÉ comptent pour
         // le seuil des 3 attaques (une attaque en étant caché ne compte pas).
         if (bot.revealed) bot.attackCount++;
-        final attackRes = _eg.resolveAttack(bot, target, dmg, all: state!.players);
+        final attackRes = _eg.resolveAttack(bot, tgt, dmg, all: state!.players);
         final log = attackRes['log'] as String;
         _log(log);
         if ((bot.copiedEffect ?? bot.character?.abilityEffect ?? '') == 'third_attack_bonus'
@@ -1065,16 +1086,16 @@ class SoloController extends ChangeNotifier {
           state!.scottCounterDice = {'d4': (attackRes['counterD4'] as int?) ?? 0,
             'd6': (attackRes['counterD6'] as int?) ?? 0, 'dmg': (attackRes['counterDmg'] as int?) ?? 0};
         }
-        if (!target.alive) { _log(logT('💀 {name} est éliminé !', {'name': target.name}), cls: 'death'); }
+        if (!tgt.alive) { _log(logT('💀 {name} est éliminé !', {'name': tgt.name}), cls: 'death'); }
         // Pas de flash rouge en plus si la bannière "CONTRE-ATTAQUE" de Scott
         // est déjà affichée — redondant et visuellement trop envahissant.
         if (attackRes['scottCountered'] != true) {
-          state!.woundFlashUid = target.uid;
+          state!.woundFlashUid = tgt.uid;
           Future.delayed(const Duration(milliseconds: 800), () {
             if (state != null) { state!.woundFlashUid = null; }
           });
         }
-        await _checkWin(justDiedId: target.alive ? null : target.uid);
+        await _checkWin(justDiedId: tgt.alive ? null : tgt.uid);
       }
     }
     notifyListeners();
@@ -1090,7 +1111,7 @@ class SoloController extends ChangeNotifier {
       final tid2 = _eg.sumToTerrainId(s2);
       int z2 = tid2 != null ? _eg.terrainLayoutIdx(state!.terrainLayout, tid2) : (bot.zoneIndex+1)%6;
       if (z2 == -1 || z2 == bot.zoneIndex) z2 = (bot.zoneIndex+1)%6;
-      bot.zoneIndex = z2; _log(logT('🚶 {name} → {zone}', {'name': bot.name, 'zone': tr(state!.terrainLayout[z2].name)}));
+      bot.zoneIndex = z2; _log(logT('🚶 {name} → {zone}', {'name': bot.name, 'zone': state!.terrainLayout[z2].name}));
     }
 
     _log(logT('⏩ {name} termine son tour', {'name': bot.name}), cls: 'bot');
@@ -1112,7 +1133,7 @@ class SoloController extends ChangeNotifier {
     final p = state!.current; p.revealed = true;
     state!.pendingRevealAnimation = p.uid;
     audio.playReveal();
-    _log(logT('🃏 {name} révèle : {char}', {'name': p.name, 'char': tr(p.character!.name)}), cls: 'player');
+    _log(logT('🃏 {name} révèle : {char}', {'name': p.name, 'char': p.character!.name}), cls: 'player');
     // Clémence : démarrer le pouvoir constructeur juste après la révélation
     if (p.character?.abilityEffect == 'builder_power') {
       state!.builderStep = 1;
@@ -1230,9 +1251,9 @@ class SoloController extends ChangeNotifier {
       _log(log, cls: 'player');
       s.swapZone1 = null; s.swapZone2 = null;
       s.pendingTargetAction = null;
-      // Richard II active l'effet du terrain qui vient d'arriver sur SA
-      // case de départ (celui avec lequel il a échangé), pas celui qu'il a
-      // emporté avec lui en se déplaçant.
+      // Richard II active l'effet du terrain sur lequel il se trouve
+      // MAINTENANT, après l'échange (voir swapTerrainZones() dans le
+      // moteur pour le détail du calcul).
       s.abilityOverlay = 'richard2_swap';
       humanApplyTerrainEffect(nextPhaseIfDefault: GamePhase.attack, zoneOverride: richardActivatesZone);
       notifyListeners();
@@ -1330,7 +1351,7 @@ class SoloController extends ChangeNotifier {
     p.disguiseCharIdOverride = disguise.id; // pour afficher la carte complète
     state!.pendingRevealAnimation = p.uid;
     audio.playReveal();
-    _log(logT('🃏 {name} révèle : {char}', {'name': p.name, 'char': tr(disguise.name)}), cls: 'player'); notifyListeners();
+    _log(logT('🃏 {name} révèle : {char}', {'name': p.name, 'char': disguise.name}), cls: 'player'); notifyListeners();
   }
 
   void humanUseAbility({Player? target, String? passive, String? extra}) async {
@@ -1479,7 +1500,7 @@ class SoloController extends ChangeNotifier {
         p.abilityUsed = !target.character!.abilityRepeatable;
         s.pendingTargetAction = null;
         s.abilityOverlay = 'tommy_copy';
-        _log(logT("🎭 {name} copie le pouvoir de {target} : {ability}", {'name': p.name, 'target': target.name, 'ability': tr(target.character!.ability)}), cls: 'player');
+        _log(logT("🎭 {name} copie le pouvoir de {target} : {ability}", {'name': p.name, 'target': target.name, 'ability': target.character!.ability}), cls: 'player');
         // Tommy utilise sa capacité alors que Richard II est révélé
         if (_eg.checkTommyRichardInteraction(s.players)) {
           audio.playInteractionVoice(kTommyRichardInteraction.key);
@@ -1656,7 +1677,7 @@ class SoloController extends ChangeNotifier {
           final chosen = unused[_rng.nextInt(unused.length)];
           p.copiedEffect = chosen.abilityEffect;
           p.abilityUsed = true;
-          _log(logT('📖 Baptiste copie le pouvoir de {target} : {ability}', {'target': tr(chosen.name), 'ability': tr(chosen.ability)}), cls: 'player');
+          _log(logT('📖 Baptiste copie le pouvoir de {target} : {ability}', {'target': chosen.name, 'ability': chosen.ability}), cls: 'player');
         }
 
       // ── Louna: insensible ce tour ──
@@ -1761,7 +1782,7 @@ class SoloController extends ChangeNotifier {
         _eg.equipPassivePublic(target, item);
         _eg.recalcPassives(p); // sinon Marin garde à tort le passif de l'objet qu'il vient de donner
         _eg.applyDamage(target, 2);
-        _log(logT('💰 Marin donne "{item}" à {target} et inflige 2', {'item': tr(item.name), 'target': target.name}), cls: 'player');
+        _log(logT('💰 Marin donne "{item}" à {target} et inflige 2', {'item': item.name, 'target': target.name}), cls: 'player');
         await _checkWin(justDiedId: target.alive ? null : target.uid);
         if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; } notifyListeners(); return;
 
@@ -1798,7 +1819,7 @@ class SoloController extends ChangeNotifier {
         if (target.equipment.isNotEmpty) {
           final ej = target.equipment.removeAt(_rng.nextInt(target.equipment.length));
           p.equipment.add(ej); _eg.equipPassivePublic(p, ej); _eg.recalcPassives(target);
-          _log(logT('🎵 Jazzon inflige 1 à {target} et vole "{item}"', {'target': target.name, 'item': tr(ej.name)}), cls: 'player');
+          _log(logT('🎵 Jazzon inflige 1 à {target} et vole "{item}"', {'target': target.name, 'item': ej.name}), cls: 'player');
         } else {
           _log(logT("🎵 Jazzon inflige 1 à {target} (pas d'équipement)", {'target': target.name}), cls: 'player');
         }
@@ -2247,7 +2268,20 @@ class SoloController extends ChangeNotifier {
     // le RÉSOUT (ex: remiCraftEquipment) qui marquera abilityUsed=true, au
     // moment où Hailey l'active réellement — pas au moment où elle le copie.
     state!.abilityOverlay = 'hailey_copy';
-    _log(logT('📖 {name} copie le pouvoir de {target} : {ability}', {'name': p.name, 'target': tr(chosen.name), 'ability': tr(chosen.ability)}), cls: 'player');
+    _log(logT('📖 {name} copie le pouvoir de {target} : {ability}', {'name': p.name, 'target': chosen.name, 'ability': chosen.ability}), cls: 'player');
+    // Certains pouvoirs se déclenchent normalement à la révélation — Hailey
+    // étant déjà révélée au moment de copier, ce déclenchement n'arrive
+    // jamais tout seul : on le force manuellement ici (même logique que
+    // pour la révélation normale de Clémence, voir plus haut).
+    if (p.copiedEffect == 'builder_power') {
+      state!.builderStep = 1;
+      state!.builderEffect1 = null;
+      state!.builderEffect2 = null;
+      state!.builderOffered = _eg.builderDraw3();
+      state!.phase = GamePhase.ability;
+      notifyListeners();
+      return;
+    }
     state!.phase = GamePhase.move; notifyListeners();
   }
 
@@ -2295,7 +2329,7 @@ class SoloController extends ChangeNotifier {
       killer.equipment.add(item);
       _eg.equipPassivePublic(killer, item);
       _eg.recalcPassives(dead); // au cas où il ressuscite (Bob) avec un passif d'objet qu'il n'a plus
-      _log(logT('🎒 {name} récupère "{item}" sur {target}', {'name': killer.name, 'item': tr(item.name), 'target': dead.name}), cls: 'player');
+      _log(logT('🎒 {name} récupère "{item}" sur {target}', {'name': killer.name, 'item': item.name, 'target': dead.name}), cls: 'player');
     }
     s.lootDeadQueue.removeAt(0);
     if (s.lootDeadQueue.isEmpty) s.lootKillerUid = null;
@@ -2310,9 +2344,23 @@ class SoloController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void humanMove(int zoneIdx) {
+  void humanMove(int zoneIdx, {int diceSum = 0}) {
     final p = state!.current; p.zoneIndex = zoneIdx;
-    _log(logT('🚶 → {zone}', {'zone': tr(state!.terrainLayout[zoneIdx].name)}), cls: 'player');
+    final isAugustin = p.character?.abilityEffect == 'heal_on_same_terrain' && p.revealed;
+    if (isAugustin && diceSum == 7) {
+      _eg.applyHeal(p, 2);
+      _log(logT('🚶 → {zone}  •  🌾 Augustin (7) — soigné de 2', {'zone': state!.terrainLayout[zoneIdx].name}), cls: 'player');
+    } else if (isAugustin && diceSum >= 2 && diceSum <= 6) {
+      _eg.applyHeal(p, 1);
+      _log(logT('🚶 → {zone}  •  🌾 Augustin ({n}) — soigné de 1', {'zone': state!.terrainLayout[zoneIdx].name, 'n': '$diceSum'}), cls: 'player');
+    } else if (isAugustin && diceSum >= 8 && diceSum <= 10) {
+      // Or persistant (menu principal), pas une ressource de partie — même
+      // logique que la version multijoueur.
+      Prefs.addGold(20);
+      _log(logT("🚶 → {zone}  •  🌾 Augustin ({n}) — trouve 20 pièces d'or !", {'zone': state!.terrainLayout[zoneIdx].name, 'n': '$diceSum'}), cls: 'player');
+    } else {
+      _log(logT('🚶 → {zone}', {'zone': state!.terrainLayout[zoneIdx].name}), cls: 'player');
+    }
     state!.phase = GamePhase.zoneEffect; notifyListeners();
   }
 
@@ -2330,7 +2378,7 @@ class SoloController extends ChangeNotifier {
     p.zoneIndex = zoneIdx;
     s.pendingTargetAction = null;
     s.abilityOverlay = 'christine_map';
-    _log(logT('🗺️ Christine se déplace directement vers {zone}', {'zone': tr(s.terrainLayout[zoneIdx].name)}), cls: 'player');
+    _log(logT('🗺️ Christine se déplace directement vers {zone}', {'zone': s.terrainLayout[zoneIdx].name}), cls: 'player');
     humanApplyTerrainEffect(nextPhaseIfDefault: GamePhase.attack, zoneOverride: zoneIdx);
   }
 
@@ -2380,7 +2428,7 @@ class SoloController extends ChangeNotifier {
     final card = _eg.drawCard(deck, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles); state!.pendingCard = card;
     state!.phase = GamePhase.cardDrawn;
     if (card.deck != DeckType.vision) {
-      _log(logT('🃏 Tu pioches : {card}', {'card': tr(card.name)}), cls: 'player');
+      _log(logT('🃏 Tu pioches : {card}', {'card': card.name}), cls: 'player');
       // Julien pioche le Bucket de Poulet
       if (card.id == 'L16' && state!.current.character?.id == 'julien') {
         audio.playInteractionVoice(kJulienBucketInteraction.key);
@@ -2561,7 +2609,7 @@ class SoloController extends ChangeNotifier {
         _eg.equipPassivePublic(state!.current, e);
         // Retirer les passifs de la victime et les recalculer
         _eg.recalcPassives(target);
-        _log(logT('🗼 Tu voles "{item}" à {target}', {'item': tr(e.name), 'target': target.name}), cls: 'player');
+        _log(logT('🗼 Tu voles "{item}" à {target}', {'item': e.name, 'target': target.name}), cls: 'player');
       } else {
         _log(logT('🗼 {target} ne possède aucun équipement', {'target': target.name}), cls: 'player');
       }
@@ -2582,7 +2630,7 @@ class SoloController extends ChangeNotifier {
       state!.current.equipment.add(e);
       _eg.equipPassivePublic(state!.current, e);
       _eg.recalcPassives(target);
-      _log(logT('🗼 Tu voles "{item}" à {target}', {'item': tr(e.name), 'target': target.name}), cls: 'player');
+      _log(logT('🗼 Tu voles "{item}" à {target}', {'item': e.name, 'target': target.name}), cls: 'player');
     }
     state!.stealTargetUid = null;
     state!.pendingTargetAction = null;
@@ -2657,7 +2705,12 @@ class SoloController extends ChangeNotifier {
 
   void humanAttack(String targetId, int dmg) async {
     final attacker = state!.current;
-    final target = state!.players.firstWhere((p) => p.uid == targetId);
+    var target = state!.players.firstWhere((p) => p.uid == targetId);
+    // Maxence : un joueur ivre a 10% de chance de se frapper lui-même par
+    // confusion au lieu de sa cible voulue.
+    if (attacker.drunkTurnsRemaining > 0 && attacker.uid != target.uid && Random().nextDouble() < 0.10) {
+      target = attacker;
+    }
     // Fifi Golden: force 5 dégâts
     final actualDmg = state!.fifiGoldenTurn ? 5 : dmg;
     // Mathieu: incrémenter compteur — seulement si déjà révélé (une attaque
@@ -2952,7 +3005,7 @@ class SoloController extends ChangeNotifier {
             dead.equipment.remove(picked);
             killer.equipment.add(picked);
             _eg.equipPassivePublic(killer, picked);
-            _log(logT('🎒 {name} récupère "{item}" sur {target}', {'name': killer.name, 'item': tr(picked.name), 'target': dead.name}), cls: 'player');
+            _log(logT('🎒 {name} récupère "{item}" sur {target}', {'name': killer.name, 'item': picked.name, 'target': dead.name}), cls: 'player');
           }
         } else {
           state!.lootKillerUid = killerUid;

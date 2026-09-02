@@ -115,6 +115,16 @@ class AudioService extends ChangeNotifier {
     await _musicPlayer.stop();
   }
 
+  /// Coupe TOUT (musique + tous les effets sonores) — à appeler quand
+  /// l'application passe en arrière-plan ou se ferme, pour éviter que la
+  /// musique/un son continue de jouer après avoir quitté l'app (notamment
+  /// sur téléphone, où l'app peut rester "vivante" quelques instants en
+  /// arrière-plan avant d'être réellement tuée par l'OS).
+  Future<void> stopEverything() async {
+    await stopMusic();
+    await stopAllSfx();
+  }
+
   /// Arrête TOUS les effets sonores/bruits de partie (dégâts, dés, voice
   /// lines, corde qui brûle...) — à appeler systématiquement en quittant une
   /// partie (retour au menu), sinon un son en cours (ex: corde qui brûle en

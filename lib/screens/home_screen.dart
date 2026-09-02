@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/game_provider.dart';
+import '../services/firebase_service.dart';
 import '../services/display_settings.dart';
 import '../services/persistence.dart';
 import '../services/i18n.dart';
@@ -415,6 +416,8 @@ class SettingsDialog extends StatefulWidget {
 }
 
 class SettingsDialogState extends State<SettingsDialog> {
+  bool _busy = false;
+
   @override
   Widget build(BuildContext ctx) {
     return Dialog(
@@ -600,6 +603,91 @@ class SettingsDialogState extends State<SettingsDialog> {
           ),
 
           const SizedBox(height: 16),
+          // Compte — retrouver sa progression (or + cosmétiques) sur un
+          // autre appareil/navigateur (ex : la version web du jeu).
+          SectionLabel(ui('account_upper')),
+          const SizedBox(height: 10),
+          if (Prefs.accountCode() == null) ...[
+            GestureDetector(
+              onTap: _busy ? null : () => _createAccount(ctx),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: kGold.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: kGold.withValues(alpha: 0.6)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.person_add_alt, color: kGold, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(ui('btn_create_account'), style: body(12, c: kGold)),
+                    Text(ui('create_account_desc'), style: body(10, c: kTextDim)),
+                  ])),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: _busy ? null : () => _linkAccount(ctx),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: kBg3,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: kBord2),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.login, color: kText, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(ui('btn_have_code'), style: body(12, c: kText))),
+                ]),
+              ),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: kGreen.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: kGreen.withValues(alpha: 0.5)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const Icon(Icons.check_circle, color: kGreen, size: 16),
+                  const SizedBox(width: 6),
+                  Text(ui('account_linked'), style: body(11, c: kGreen)),
+                ]),
+                const SizedBox(height: 6),
+                Row(children: [
+                  Expanded(child: SelectableText(Prefs.accountCode()!,
+                    style: cinzel(15, c: kGold2, fw: FontWeight.w900))),
+                  GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: Prefs.accountCode()!));
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        SnackBar(content: Text(ui('code_copied')), backgroundColor: const Color(0xFF1C1309)));
+                    },
+                    child: const Icon(Icons.copy, color: kTextSub, size: 16)),
+                ]),
+                const SizedBox(height: 4),
+                Text(ui('remember_this_code'), style: body(9, c: kTextDim)),
+              ]),
+            ),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: _busy ? null : () => setState(() => Prefs.setAccountCode(null)),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: kBg3, borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: kBord2)),
+                child: Center(child: Text(ui('btn_unlink_account'), style: body(11, c: kTextSub))),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 16),
           // Réinitialisation de la progression
           SectionLabel(ui('progression_upper')),
           const SizedBox(height: 10),
@@ -630,6 +718,100 @@ class SettingsDialogState extends State<SettingsDialog> {
         ]),
       ),
     );
+  }
+
+  /// Crée un nouveau compte : génère un code unique, y envoie la
+  /// progression actuelle de cet appareil, et lie ce code localement.
+  Future<void> _createAccount(BuildContext ctx) async {
+    setState(() => _busy = true);
+    try {
+      final fb = FirebaseService.instance;
+      final code = await fb.generateAccountCode();
+      await fb.pushAccountData(code, Prefs.exportProgressionForAccount());
+      Prefs.setAccountCode(code);
+      if (ctx.mounted) {
+        setState(() {});
+        showDialog(context: ctx, builder: (dctx) => AlertDialog(
+          backgroundColor: kBg2,
+          title: Text(ui('account_created_title'), style: cinzel(15, c: kGold2)),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(ui('remember_this_code'), style: body(12)),
+            const SizedBox(height: 10),
+            Center(child: SelectableText(code, style: cinzel(20, c: kGold2, fw: FontWeight.w900))),
+          ]),
+          actions: [
+            TextButton(onPressed: () {
+              Clipboard.setData(ClipboardData(text: code));
+              Navigator.pop(dctx);
+            }, child: Text(ui('btn_copy_and_close'), style: cinzel(12, c: kGold))),
+          ],
+        ));
+      }
+    } catch (e) {
+      if (ctx.mounted) {
+        // Détail technique inclus (pas seulement le message générique) —
+        // aide à diagnostiquer (ex: règles de sécurité Firebase qui
+        // bloquent le chemin 'accounts/...', absent avant cette
+        // fonctionnalité et donc pas forcément déjà autorisé).
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(content: Text('${ui('account_error')}\n$e'),
+            backgroundColor: kRed, duration: const Duration(seconds: 6)));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Lie un compte EXISTANT via son code — écrase la progression locale
+  /// actuelle avec celle sauvegardée sous ce code.
+  Future<void> _linkAccount(BuildContext ctx) async {
+    final controller = TextEditingController();
+    final code = await showDialog<String>(context: ctx, builder: (dctx) => AlertDialog(
+      backgroundColor: kBg2,
+      title: Text(ui('btn_have_code'), style: cinzel(15, c: kGold2)),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.characters,
+        style: cinzel(16, c: kGold2),
+        decoration: InputDecoration(hintText: 'ABCD-1234-EFGH',
+          hintStyle: body(13, c: kTextDim)),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dctx),
+          child: Text(ui('btn_cancel'), style: cinzel(12, c: kTextSub))),
+        TextButton(onPressed: () => Navigator.pop(dctx, controller.text.trim().toUpperCase()),
+          child: Text(ui('btn_confirm'), style: cinzel(12, c: kGold))),
+      ],
+    ));
+    if (code == null || code.isEmpty) return;
+    setState(() => _busy = true);
+    try {
+      final fb = FirebaseService.instance;
+      final data = await fb.pullAccountData(code);
+      if (data == null) {
+        if (ctx.mounted) {
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            SnackBar(content: Text(ui('account_code_not_found')), backgroundColor: kRed));
+        }
+        return;
+      }
+      await Prefs.importProgressionFromAccount(data);
+      Prefs.setAccountCode(code);
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (ctx.mounted) {
+        // Détail technique inclus (pas seulement le message générique) —
+        // aide à diagnostiquer (ex: règles de sécurité Firebase qui
+        // bloquent le chemin 'accounts/...', absent avant cette
+        // fonctionnalité et donc pas forcément déjà autorisé).
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(content: Text('${ui('account_error')}\n$e'),
+            backgroundColor: kRed, duration: const Duration(seconds: 6)));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   void _confirmReset(BuildContext ctx) {

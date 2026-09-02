@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'services/game_provider.dart';
+import 'services/firebase_service.dart';
 import 'services/display_settings.dart';
 import 'services/persistence.dart';
 import 'services/i18n.dart';
@@ -83,7 +84,7 @@ class _RootWrapper extends StatefulWidget {
   @override State<_RootWrapper> createState() => _RootWrapperState();
 }
 
-class _RootWrapperState extends State<_RootWrapper> {
+class _RootWrapperState extends State<_RootWrapper> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
@@ -93,13 +94,35 @@ class _RootWrapperState extends State<_RootWrapper> {
     // seulement dans la boîte de dialogue des réglages elle-même — même
     // mécanisme que pour les réglages d'affichage.
     AppLanguage.instance.addListener(_onSettings);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
     DisplaySettings.instance.removeListener(_onSettings);
     AppLanguage.instance.removeListener(_onSettings);
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // paused/detached/hidden : l'app passe en arrière-plan ou se ferme (sur
+    // téléphone comme sur le web, où fermer l'onglet déclenche 'hidden'
+    // puis souvent 'paused' avant la vraie fermeture) — sans ça, la
+    // musique/les sons continuaient de jouer après avoir quitté l'app.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      audio.stopEverything();
+      // Si un compte est lié, on en profite pour pousser la progression à
+      // jour — s'assure qu'elle est bien sauvegardée avant de fermer/quitter
+      // l'app, sans avoir besoin d'un bouton "synchroniser" manuel.
+      final code = Prefs.accountCode();
+      if (code != null) {
+        FirebaseService.instance.pushAccountData(code, Prefs.exportProgressionForAccount());
+      }
+    }
   }
 
   void _onSettings() => setState(() {});

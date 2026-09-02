@@ -12,7 +12,7 @@ import 'shine_effect.dart';
 /// panneau d'infos : nom, faction, PV, capacité et condition de victoire.
 /// Sur écran étroit (téléphone), l'illustration passe au-dessus du texte.
 /// Tap n'importe où pour fermer.
-Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride, int? oscarXpOverride, String? maximeTargetName, String? megFormOverride, int? mathieuAttackCount, String? skinOverride, int? winsOverride}) {
+Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride, int? oscarXpOverride, String? maximeTargetName, String? megFormOverride, int? mathieuAttackCount, String? skinOverride, int? winsOverride, String? copiedAbilityText}) {
   return showDialog(
     context: ctx,
     barrierColor: Colors.black.withValues(alpha: 0.88),
@@ -24,8 +24,8 @@ Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverr
         behavior: HitTestBehavior.opaque,
         child: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride, winsOverride: winsOverride)
-                   : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride, winsOverride: winsOverride),
+            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride, winsOverride: winsOverride, copiedAbilityText: copiedAbilityText)
+                   : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride, winsOverride: winsOverride, copiedAbilityText: copiedAbilityText),
             const SizedBox(height: 12),
             Text(ui('tap_close_screen'), style: body(12, c: kTextDim)),
           ]),
@@ -216,7 +216,8 @@ class _WideLayout extends StatelessWidget {
   final int? mathieuAttackCount;
   final String? skinOverride;
   final int? winsOverride;
-  const _WideLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount, this.skinOverride, this.winsOverride});
+  final String? copiedAbilityText;
+  const _WideLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount, this.skinOverride, this.winsOverride, this.copiedAbilityText});
 
   @override
   Widget build(BuildContext ctx) {
@@ -235,7 +236,7 @@ class _WideLayout extends StatelessWidget {
       SizedBox(width: 320,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: imgH),
-          child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount),
+          child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, copiedAbilityText: copiedAbilityText),
         )),
     ]);
   }
@@ -252,7 +253,8 @@ class _NarrowLayout extends StatelessWidget {
   final int? mathieuAttackCount;
   final String? skinOverride;
   final int? winsOverride;
-  const _NarrowLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount, this.skinOverride, this.winsOverride});
+  final String? copiedAbilityText;
+  const _NarrowLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount, this.skinOverride, this.winsOverride, this.copiedAbilityText});
 
   @override
   Widget build(BuildContext ctx) {
@@ -269,7 +271,7 @@ class _NarrowLayout extends StatelessWidget {
       child: Column(children: [
         _CardImage(c: c, w: imgW, h: imgH, skinOverride: skinOverride, winsOverride: winsOverride),
         const SizedBox(height: 12),
-        Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount)),
+        Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, copiedAbilityText: copiedAbilityText)),
       ]),
     );
   }
@@ -338,7 +340,8 @@ class _InfoPanel extends StatelessWidget {
   final String? maximeTargetName;
   final String? megFormOverride;
   final int? mathieuAttackCount;
-  const _InfoPanel({required this.c, required this.fc, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount});
+  final String? copiedAbilityText;
+  const _InfoPanel({required this.c, required this.fc, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount, this.copiedAbilityText});
 
   @override
   Widget build(BuildContext ctx) {
@@ -445,7 +448,7 @@ class _InfoPanel extends StatelessWidget {
                 )),
               ],
               const SizedBox(height: 16),
-              _infoBlock(ui('info_ability'), tr(c.ability), fc),
+              _infoBlock(ui('info_ability'), copiedAbilityText != null ? '${ui("info_copied_power_prefix")} $copiedAbilityText' : tr(c.ability), fc),
               const SizedBox(height: 12),
               _infoBlock(ui('info_win_condition'), tr(c.winCondition), kGold),
             ],

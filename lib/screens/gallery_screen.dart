@@ -531,7 +531,7 @@ class _HpBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: col.withValues(alpha: 0.6)),
       ),
-      child: Text('\$hp \${ui(\'hp_suffix\')}', style: cinzel(10, c: col)),
+      child: Text("$hp ${ui('hp_suffix')}", style: cinzel(10, c: col)),
     );
   }
 }

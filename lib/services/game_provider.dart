@@ -73,6 +73,7 @@ class GameProvider extends ChangeNotifier {
   String? roomId;
   String? myUid;
   String? hostId;
+  List<String>? enabledCharacterIds; // null/vide = tous les personnages (défaut)
   GameState? gameState;
   Map<String, Player> players = {};
   String roomStatus = 'lobby';
@@ -182,6 +183,22 @@ class GameProvider extends ChangeNotifier {
   Future<void> kickPlayer(String uid) async {
     if (roomId == null || !isHost || uid == myUid) return;
     await _fb.kickPlayer(roomId!, uid);
+  }
+
+  /// Récupère la liste actuelle des personnages activés pour cette salle
+  /// (appelé à l'ouverture de l'écran de sélection) — liste vide = tous.
+  Future<void> fetchEnabledCharacters() async {
+    if (roomId == null) return;
+    enabledCharacterIds = await _fb.getEnabledCharacters(roomId!);
+    notifyListeners();
+  }
+
+  /// Met à jour la liste des personnages activés (hôte uniquement).
+  Future<void> updateEnabledCharacters(List<String> ids) async {
+    if (roomId == null || !isHost) return;
+    await _fb.setEnabledCharacters(roomId!, ids);
+    enabledCharacterIds = ids;
+    notifyListeners();
   }
 
   /// Quitte une partie EN COURS — le joueur est remplacé par un bot (qui
@@ -407,7 +424,7 @@ class GameProvider extends ChangeNotifier {
             bot.disguiseIconOverride = disguise.icon;
             bot.disguiseFactionOverride = disguise.faction.name;
             bot.disguiseCharIdOverride = disguise.id;
-            await _commitAll(all, logT('🃏 {name} révèle : {char}', {'name': bot.name, 'char': tr(disguise.name)}));
+            await _commitAll(all, logT('🃏 {name} révèle : {char}', {'name': bot.name, 'char': disguise.name}));
           } else {
             bot.revealed = true;
             await _commitAll(all, logT('🃏 {name} révèle sa carte', {'name': bot.name}));
@@ -499,7 +516,17 @@ class GameProvider extends ChangeNotifier {
         if (offered.isNotEmpty) {
           final chosen = offered[Random().nextInt(offered.length)];
           bot.copiedEffect = chosen.abilityEffect;
-          await _commitAll(all, logT('📖 {name} copie le pouvoir de {target} : {ability}', {'name': bot.name, 'target': tr(chosen.name), 'ability': tr(chosen.ability)}));
+          await _commitAll(all, logT('📖 {name} copie le pouvoir de {target} : {ability}', {'name': bot.name, 'target': chosen.name, 'ability': chosen.ability}));
+          // Certains pouvoirs se déclenchent normalement à la révélation —
+          // Hailey étant déjà révélée au moment de copier, ce déclenchement
+          // n'arrive jamais tout seul : on le force manuellement ici (même
+          // correctif que pour Tommy, voir plus bas dans ce fichier).
+          if (bot.copiedEffect == 'builder_power') {
+            final offered2 = _eg.builderDraw3();
+            await _fb.setPhase(roomId!, GamePhase.ability,
+                builderStep: 1, builderOffered: offered2, abilityOverlay: 'hailey_copy');
+            return;
+          }
           await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack, abilityOverlay: 'hailey_copy');
         }
       } else if (target != null || !needsTarget) {
@@ -627,10 +654,16 @@ class GameProvider extends ChangeNotifier {
             newLayout[z2] = tmp;
             final t1name = newLayout[richardStartZone].name;
             final t2name = newLayout[z2].name;
-            await _commitAll(all, logT('👑 {name} échange {zone1} ↔ {zone2} !', {'name': bot.name, 'zone1': tr(t2name), 'zone2': tr(t1name)}));
+            await _commitAll(all, logT('👑 {name} échange {zone1} ↔ {zone2} !', {'name': bot.name, 'zone1': t2name, 'zone2': t1name}));
             await _fb.setTerrainLayout(roomId!, newLayout);
             await _fb.setPhase(roomId!, GamePhase.zoneEffect,
-                abilityOverlay: 'richard2_swap', richardActivateZone: richardStartZone);
+                // IMPORTANT : Richard II est maintenant à z2 (les zones ont
+                // été échangées) — il faut activer le terrain à SA position
+                // ACTUELLE (z2), pas à son ancienne position
+                // (richardStartZone), qui contient désormais un AUTRE
+                // terrain. C'était le bug : il activait systématiquement
+                // le terrain sur lequel il se trouvait de base.
+                abilityOverlay: 'richard2_swap', richardActivateZone: z2);
             await Future.delayed(const Duration(milliseconds: 700));
             await _botApplyTerrainEffect(botUid);
             all = _mutableAll();
@@ -668,7 +701,7 @@ class GameProvider extends ChangeNotifier {
         } else if (abLog != null && abLog.startsWith('christine_moved:')) {
           final movedZone = int.parse(abLog.split(':')[1]);
           _eg.applyDeathPassives(all);
-          await _commitAll(all, logT('🗺️ {name} se déplace directement vers {zone}', {'name': bot.name, 'zone': tr(layout[movedZone].name)}));
+          await _commitAll(all, logT('🗺️ {name} se déplace directement vers {zone}', {'name': bot.name, 'zone': layout[movedZone].name}));
           await _fb.setPhase(roomId!, GamePhase.attack, abilityOverlay: 'christine_map');
           await Future.delayed(const Duration(milliseconds: 700));
           await _botApplyTerrainEffect(botUid);
@@ -709,7 +742,7 @@ class GameProvider extends ChangeNotifier {
         if (zoneIdx == -1 || zoneIdx == bot.zoneIndex) zoneIdx = (bot.zoneIndex + 1) % 6;
       }
       bot.zoneIndex = zoneIdx;
-      await _commitAll(all, logT('🚶 {name} → {zone}', {'name': bot.name, 'zone': tr(layout[zoneIdx].name)}));
+      await _commitAll(all, logT('🚶 {name} → {zone}', {'name': bot.name, 'zone': layout[zoneIdx].name}));
       await Future.delayed(const Duration(milliseconds: 700));
 
       // ── Effet de terrain ──
@@ -764,12 +797,19 @@ class GameProvider extends ChangeNotifier {
     // ── Attaque ──────────────────────────────────────────────────────
     if (_ai.shouldAttack(bot, all, layout, _botDifficulty)) {
       final targets = _eg.attackTargets(bot, all, layout);
-      final target = _ai.bestTarget(bot, targets, _botDifficulty, context: 'attack');
+      var target = _ai.bestTarget(bot, targets, _botDifficulty, context: 'attack');
+      // Maxence : un bot ivre a aussi 10% de chance de se frapper lui-même
+      // par confusion (même logique que le joueur humain).
+      if (target != null && bot.drunkTurnsRemaining > 0 && bot.uid != target.uid && Random().nextDouble() < 0.10) {
+        target = bot;
+      }
       if (target != null) {
+        final tgt = target; // capture finale — évite la perte du rétrécissement
+        // de nullabilité de Dart après réassignation conditionnelle plus haut
         final roll2 = _eg.rollAttack();
         final dmg = roll2['damage']!;
         if (bot.revealed) bot.attackCount++;
-        final attackRes = _eg.resolveAttack(bot, target, dmg, all: all);
+        final attackRes = _eg.resolveAttack(bot, tgt, dmg, all: all);
         _eg.applyDeathPassives(all);
         // Gège le Fantôme : attaque automatiquement en plus dès qu'un
         // Hunter révélé attaque — ce mécanisme manquait ENTIÈREMENT ici,
@@ -778,14 +818,14 @@ class GameProvider extends ChangeNotifier {
         // joueur humain (voir attackPlayer un peu plus bas).
         final (gegeLog, gegeTriggered) = bot.bazooka
             ? _eg.applyGegePassiveBazooka(bot, all)
-            : _eg.applyGegePassiveEx(bot, target, all);
+            : _eg.applyGegePassiveEx(bot, tgt, all);
         var fullLog = attackRes['log'] as String;
         if (gegeLog != null) fullLog = '$fullLog\n$gegeLog';
         // Gège se déclenche aussi si CE bot subit lui-même une contre-
         // attaque de Scott (rôles inversés — Scott devient l'attaquant).
         bool gegeTriggered2 = false;
         if (attackRes['scottCountered'] == true && bot.alive) {
-          final (gegeLog2, t2) = _eg.applyGegePassiveEx(target, bot, all);
+          final (gegeLog2, t2) = _eg.applyGegePassiveEx(tgt, bot, all);
           if (gegeLog2 != null) { fullLog = '$fullLog\n$gegeLog2'; gegeTriggered2 = t2; }
         }
         await _commitAll(all, fullLog);
@@ -794,7 +834,7 @@ class GameProvider extends ChangeNotifier {
             lastDiceLabel: 'Attaque',
             lastDiceTimestamp: DateTime.now().millisecondsSinceEpoch,
             abilityOverlay: (gegeTriggered || gegeTriggered2) ? 'gege_ghost' : null);
-        final tgtNow = all.where((p) => p.uid == target.uid).firstOrNull;
+        final tgtNow = all.where((p) => p.uid == tgt.uid).firstOrNull;
         if (tgtNow != null) {
           if (await _checkWin(all, justDiedId: tgtNow.alive ? null : tgtNow.uid)) return;
         }
@@ -826,8 +866,8 @@ class GameProvider extends ChangeNotifier {
     var bot = all.where((p) => p.uid == botUid).firstOrNull;
     if (bot == null || !bot.alive) return;
     await _fb.addLog(roomId!,
-        deck == DeckType.vision ? '🔮 ${bot.name} pioche une carte Vision (secrète)'
-                                 : logT('🃏 {name} pioche : {card}', {'name': bot.name, 'card': tr(card.name)}));
+        deck == DeckType.vision ? logT('🔮 {name} pioche une carte Vision (secrète)', {'name': bot.name})
+                                 : logT('🃏 {name} pioche : {card}', {'name': bot.name, 'card': card.name}));
     Player? cardTarget;
     if (_cardNeedsTarget(card.effect)) {
       cardTarget = _ai.bestTarget(bot, all, _botDifficulty, context: card.effect);
@@ -911,7 +951,7 @@ class GameProvider extends ChangeNotifier {
             b.equipment.add(e);
             _eg.equipPassivePublic(b, e);
             _eg.recalcPassives(t2);
-            await _commitAll(all, logT('🗼 {name} vole "{item}" à {target}', {'name': b.name, 'item': tr(e.name), 'target': t2.name}));
+            await _commitAll(all, logT('🗼 {name} vole "{item}" à {target}', {'name': b.name, 'item': e.name, 'target': t2.name}));
           }
         }
         break;
@@ -1066,7 +1106,17 @@ class GameProvider extends ChangeNotifier {
       return;
     }
     actor.copiedEffect = chosen.abilityEffect;
-    await _commitAll(all, logT('📖 {name} copie le pouvoir de {target} : {ability}', {'name': actor.name, 'target': tr(chosen.name), 'ability': tr(chosen.ability)}));
+    await _commitAll(all, logT('📖 {name} copie le pouvoir de {target} : {ability}', {'name': actor.name, 'target': chosen.name, 'ability': chosen.ability}));
+    // Certains pouvoirs se déclenchent normalement à la révélation — Hailey
+    // étant déjà révélée au moment de copier, ce déclenchement n'arrive
+    // jamais tout seul : on le force manuellement ici (même correctif que
+    // pour Tommy, voir tommy_copied plus bas dans ce fichier).
+    if (actor.copiedEffect == 'builder_power') {
+      final offered = _eg.builderDraw3();
+      await _fb.setPhase(roomId!, GamePhase.ability,
+          haileyOffered: const [], builderStep: 1, builderOffered: offered, abilityOverlay: 'hailey_copy');
+      return;
+    }
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, haileyOffered: const [], abilityOverlay: 'hailey_copy');
   }
 
@@ -1076,7 +1126,7 @@ class GameProvider extends ChangeNotifier {
     final isClemence = p.character?.abilityEffect == 'builder_power';
     final isJeanne = p.character?.abilityEffect == 'prophete_mark';
     final offered = isClemence ? _eg.builderDraw3() : <String>[];
-    await _commitPlayer(p, '🃏 ${p.name} révèle : ${p.character!.name}');
+    await _commitPlayer(p, logT('🃏 {name} révèle : {char}', {'name': p.name, 'char': p.character!.name}));
     final revealTs = DateTime.now().millisecondsSinceEpoch;
     // Diffuse la réplique de révélation (visible/audible de tous) — combiné
     // avec la transition de phase suivante dans UNE SEULE écriture Firebase
@@ -1146,13 +1196,13 @@ class GameProvider extends ChangeNotifier {
             (k, v) => MapEntry(k, List<String>.from(v))));
     queue[deckName] = [firstId, secondId];
     await _fb.addLog(roomId!,
-        '🔮 ${me?.name ?? "Elaia"} a organisé la pile ${_deckLabel(deckName)}.');
+        logT('🔮 {name} a organisé la pile {deck}.', {'name': me?.name ?? 'Elaia', 'deck': _deckLabel(deckName)}));
     await _fb.setPhase(roomId!, GamePhase.ability,
         elaiaStep: 0, forcedDeckQueue: queue, abilityOverlay: 'elaia_vision');
   }
 
   String _deckLabel(String d) => switch (d) {
-    'tenebres' => 'Ténèbres', 'lumiere' => 'Lumière', 'vision' => 'Vision',
+    'tenebres' => tr('Ténèbres'), 'lumiere' => tr('Lumière'), 'vision' => tr('Vision'),
     _ => d,
   };
 
@@ -1317,7 +1367,7 @@ class GameProvider extends ChangeNotifier {
     p.disguiseIconOverride = disguise.icon;
     p.disguiseFactionOverride = disguise.faction.name;
     p.disguiseCharIdOverride = disguise.id; // pour afficher HP et carte complète
-    await _commitPlayer(p, '🃏 ${p.name} révèle : ${disguise.name}');
+    await _commitPlayer(p, logT('🃏 {name} révèle : {char}', {'name': p.name, 'char': disguise.name}));
   }
 
   /// Quitte l'écran de révélation des rôles. La phase globale ne passe
@@ -1374,7 +1424,7 @@ class GameProvider extends ChangeNotifier {
     if (!actor.alive) actor.killedByUid = actor.uid;
     actor.abilityUsed = true;
     _eg.applyDeathPassives(all);
-    final log = '⚡ ${actor.name} inflige $dealt à ${t.name} — et s\'inflige $selfDealt blessures en retour !';
+    final log = logT("⚡ {name} inflige {dmg} à {target} — et s'inflige {self} blessures en retour !", {'name': actor.name, 'dmg': '$dealt', 'target': t.name, 'self': '$selfDealt'});
     await _commitAll(all, log);
     bool endedHongYi = false;
     if (!t.alive) endedHongYi = await _checkWin(all, justDiedId: t.uid);
@@ -1436,7 +1486,7 @@ class GameProvider extends ChangeNotifier {
     if (log == 'christine_zone_choice') return; // zone invalide, sécurité
     actor.abilityUsed = true;
     _eg.applyDeathPassives(all);
-    await _commitAll(all, logT('🗺️ {name} se déplace directement vers {zone}', {'name': actor.name, 'zone': tr(gameState!.terrainLayout[zoneIdx].name)}));
+    await _commitAll(all, logT('🗺️ {name} se déplace directement vers {zone}', {'name': actor.name, 'zone': gameState!.terrainLayout[zoneIdx].name}));
     await _fb.setPhase(roomId!, GamePhase.zoneEffect, clearPending: true,
         richardActivateZone: zoneIdx, abilityOverlay: 'christine_map');
   }
@@ -1480,9 +1530,15 @@ class GameProvider extends ChangeNotifier {
     actor.abilityUsed = false; // répétable
     _eg.applyDeathPassives(all);
     await _commitAll(all, log);
+    // IMPORTANT : vérifie directement la condition (comme dans engine.dart)
+    // plutôt que log.contains('invalide') — ce texte est désormais traduit
+    // en anglais quand cette langue est active, donc ne contient plus jamais
+    // cette sous-chaîne française.
+    final wasInvalid = myIdx < 0 || myIdx >= actor.equipment.length ||
+        theirIdx < 0 || theirIdx >= target.equipment.length;
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
         tristanTargetUid: '__clear__', tristanGiveIdx: -1,
-        abilityOverlay: log.contains('invalide') ? null : 'tristan_swap');
+        abilityOverlay: wasInvalid ? null : 'tristan_swap');
   }
 
   /// Baptiste étape 2 : montant confirmé — résout la résurrection.
@@ -1553,7 +1609,7 @@ class GameProvider extends ChangeNotifier {
     final label2 = kRemiAllChoices[choice2] ?? choice2;
     actor.equipment.add(GameCard(
       id: 'remi_custom_${actor.uid}',
-      name: 'Invention de Rémi',
+      name: tr('Invention de Rémi'),
       deck: DeckType.lumiere,
       type: CardType.equipement,
       text: '$label1\n$label2',
@@ -1569,6 +1625,13 @@ class GameProvider extends ChangeNotifier {
     final tgt = target != null
         ? all.firstWhere((p) => p.uid == target.uid, orElse: () => actor)
         : null;
+    // Capturés AVANT l'appel — nécessaire pour distinguer correctement,
+    // après coup, "était déjà au maximum" (bloqué, aucun changement) de
+    // "vient tout juste d'atteindre le maximum" (succès), qui auraient
+    // sinon le même état final indiscernable.
+    final preMaxHpModifier = actor.maxHpModifier;
+    final preActorEquipEmpty = actor.equipment.isEmpty;
+    final preTgtEquipEmpty = tgt?.equipment.isEmpty ?? true;
     final log = _eg.applyAbility(actor, all, gameState!.terrainLayout, target: tgt);
     if ((actor.copiedEffect ?? actor.character?.abilityEffect) == 'full_heal_shield_turn') {
       // Cambou : "passez votre tour" fait partie intégrante du texte de la
@@ -1628,7 +1691,7 @@ class GameProvider extends ChangeNotifier {
       final parts = log.split(':');
       final copiedName = parts.length > 1 ? parts[1] : '?';
       final copiedAbilityText = parts.length > 2 ? parts.sublist(2).join(':') : '';
-      await _commitAll(all, logT('🎭 {name} copie le pouvoir de {target} : {ability}', {'name': actor.name, 'target': tr(copiedName), 'ability': tr(copiedAbilityText)}));
+      await _commitAll(all, logT('🎭 {name} copie le pouvoir de {target} : {ability}', {'name': actor.name, 'target': copiedName, 'ability': copiedAbilityText}));
       // Tommy utilise sa capacité alors que Richard II est révélé
       if (_eg.checkTommyRichardInteraction(all)) {
         audio.playInteractionVoice(kTommyRichardInteraction.key);
@@ -1727,13 +1790,21 @@ class GameProvider extends ChangeNotifier {
       audio.playInteractionVoice(_eg.travertInteraction(all).key);
     }
 
-    final overlay = log.contains('déjà au maximum')
+    // IMPORTANT : ces 3 branches vérifiaient auparavant le texte du LOG
+    // traduit (ex: log.contains('déjà au maximum')) — une fois la
+    // traduction anglaise activée, ce texte ne contient plus jamais ces
+    // sous-chaînes françaises, cassant silencieusement la détection.
+    // Corrigé en revérifiant directement les CONDITIONS sous-jacentes
+    // (identiques à celles utilisées dans engine.dart pour produire ces
+    // mêmes messages), indépendamment de la langue active.
+    final eff = actor.copiedEffect ?? actor.character?.abilityEffect;
+    final overlay = (eff == 'steal_max_hp' && preMaxHpModifier >= 5)
         ? null // Agathe déjà à +5 PV max : aucun effet, pas d'animation
-        : log.contains('échange impossible')
+        : (eff == 'swap_equipment' && (preActorEquipEmpty || preTgtEquipEmpty))
           ? null // Tristan : échange impossible (équipement manquant), pas d'animation
-          : (actor.copiedEffect ?? actor.character?.abilityEffect) == 'damage2_or_heal1'
-            ? (log.contains('se soigne de 1 blessure') ? 'julien_heal' : 'julien_attack')
-            : _abilityOverlays[actor.copiedEffect ?? actor.character?.abilityEffect ?? ''];
+          : eff == 'damage2_or_heal1'
+            ? (tgt == null ? 'julien_heal' : 'julien_attack')
+            : _abilityOverlays[eff ?? ''];
     final dice = _extractDiceFromLog(log);
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
         abilityOverlay: overlay, abilityDiceResult: dice);
@@ -1755,11 +1826,21 @@ class GameProvider extends ChangeNotifier {
     final p = all.firstWhere((x) => x.uid == myUid);
     p.zoneIndex = zoneIdx;
     final t = gameState!.terrainLayout[zoneIdx];
-    if (diceSum == 7 && p.character?.abilityEffect == 'heal_on_same_terrain' && p.revealed) {
+    final isAugustin = p.character?.abilityEffect == 'heal_on_same_terrain' && p.revealed;
+    if (isAugustin && diceSum == 7) {
       _eg.applyHeal(p, 2);
-      await _commitAll(all, logT('🚶 {name} → {zone}  •  🌾 Augustin (7) — soigné de 2', {'name': p.name, 'zone': tr(t.name)}));
+      await _commitAll(all, logT('🚶 {name} → {zone}  •  🌾 Augustin (7) — soigné de 2', {'name': p.name, 'zone': t.name}));
+    } else if (isAugustin && diceSum >= 2 && diceSum <= 6) {
+      _eg.applyHeal(p, 1);
+      await _commitAll(all, logT('🚶 {name} → {zone}  •  🌾 Augustin ({n}) — soigné de 1', {'name': p.name, 'zone': t.name, 'n': '$diceSum'}));
+    } else if (isAugustin && diceSum >= 8 && diceSum <= 10) {
+      // Or persistant (menu principal), pas une ressource de partie — géré
+      // localement sur l'appareil de CE joueur, comme le reste de sa
+      // progression (or, cosmétiques...).
+      Prefs.addGold(20);
+      await _commitAll(all, logT('🚶 {name} → {zone}  •  🌾 Augustin ({n}) — trouve 20 pièces d\'or !', {'name': p.name, 'zone': t.name, 'n': '$diceSum'}));
     } else {
-      await _commitAll(all, logT('🚶 {name} → {zone}', {'name': p.name, 'zone': tr(t.name)}));
+      await _commitAll(all, logT('🚶 {name} → {zone}', {'name': p.name, 'zone': t.name}));
     }
     // Déplacement confirmé côté serveur — le jet de dés "en attente" (voir
     // pendingMoveD4 etc, plus haut) n'a plus besoin d'être conservé pour
@@ -1769,7 +1850,7 @@ class GameProvider extends ChangeNotifier {
     await _fb.setPhase(roomId!, GamePhase.zoneEffect,
         richardActivateZone: -1,
         lastDiceResult: d4 > 0 ? {'d4': d4, 'd6': d6, 'sum': diceSum} : null,
-        lastDiceLabel: d4 > 0 ? 'Déplacement' : null,
+        lastDiceLabel: d4 > 0 ? ui('phase_move') : null,
         lastDiceTimestamp: d4 > 0 ? DateTime.now().millisecondsSinceEpoch : null);
   }
 
@@ -1837,7 +1918,7 @@ class GameProvider extends ChangeNotifier {
         actor.equipment.add(e);
         _eg.equipPassivePublic(actor, e);   // active le passif de l'équipement volé
         _eg.recalcPassives(t);              // retire le passif de la victime
-        await _commitAll(all, logT('🗼 {name} vole "{item}" à {target}', {'name': actor.name, 'item': tr(e.name), 'target': t.name}));
+        await _commitAll(all, logT('🗼 {name} vole "{item}" à {target}', {'name': actor.name, 'item': e.name, 'target': t.name}));
       } else {
         await _commitAll(all, logT("🗼 {target} n'a aucun équipement à voler", {'target': t.name}));
       }
@@ -1859,7 +1940,7 @@ class GameProvider extends ChangeNotifier {
       actor.equipment.add(e);
       _eg.equipPassivePublic(actor, e);
       _eg.recalcPassives(t);
-      await _commitAll(all, logT('🗼 {name} vole "{item}" à {target}', {'name': actor.name, 'item': tr(e.name), 'target': t.name}));
+      await _commitAll(all, logT('🗼 {name} vole "{item}" à {target}', {'name': actor.name, 'item': e.name, 'target': t.name}));
     }
     final endedSteal2 = await _checkWin(all, justDiedId: t.alive ? null : t.uid);
     if (endedSteal2) return;
@@ -1898,9 +1979,9 @@ class GameProvider extends ChangeNotifier {
     // Cartes Vision : nom secret — log public générique
     if (deck == DeckType.vision) {
       await _fb.addLog(roomId!, logT('🔮 {name} pioche une carte Vision (secrète)', {'name': me!.name}));
-      await _fb.addPrivateLog(roomId!, myUid!, logT('🔮 Tu as pioché : {card}', {'card': tr(card.name)}));
+      await _fb.addPrivateLog(roomId!, myUid!, logT('🔮 Tu as pioché : {card}', {'card': card.name}));
     } else {
-      await _fb.addLog(roomId!, logT('🃏 {name} pioche : {card}', {'name': me!.name, 'card': tr(card.name)}));
+      await _fb.addLog(roomId!, logT('🃏 {name} pioche : {card}', {'name': me!.name, 'card': card.name}));
       // Julien pioche le Bucket de Poulet
       if (card.id == 'L16' && me!.character?.id == 'julien') {
         audio.playInteractionVoice(kJulienBucketInteraction.key);
@@ -2028,7 +2109,7 @@ class GameProvider extends ChangeNotifier {
     await _commitAll(all, log);
     final endedPunish = await _checkWin(all, justDiedId: target.alive ? null : target.uid);
     if (endedPunish) return;
-    await _fb.setPhase(roomId!, GamePhase.attack, clearPending: true);
+    await _fb.setPhase(roomId!, GamePhase.attack, clearPending: true, clearPunish: true);
   }
 
   /// Vision Suprême : ferme la popup de révélation privée une fois consultée.
@@ -2075,7 +2156,12 @@ class GameProvider extends ChangeNotifier {
     if (gameState?.hasAttacked == true) return; // une seule attaque par tour
     final all = _mutableAll();
     final attacker = all.firstWhere((p) => p.uid == myUid);
-    final target = all.firstWhere((p) => p.uid == targetId);
+    var target = all.firstWhere((p) => p.uid == targetId);
+    // Maxence : un joueur ivre a 10% de chance de se frapper lui-même par
+    // confusion au lieu de sa cible voulue.
+    if (attacker.drunkTurnsRemaining > 0 && attacker.uid != target.uid && Random().nextDouble() < 0.10) {
+      target = attacker;
+    }
     // Snapshot des vivants avant l'attaque — pour ne considérer que les morts
     // VRAIMENT causées par cette attaque (bazooka notamment), pas un mort
     // plus ancien resté par erreur non traité.
@@ -2117,15 +2203,21 @@ class GameProvider extends ChangeNotifier {
       // soignées du même montant que les dégâts qui auraient été infligés
       // (aucune réduction, ni sur le soin ni sur les dégâts normaux).
       final isCarlaBaz = (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'heal_hunter_on_attack';
+      // Oscar : cumule 1 XP par blessure RÉELLEMENT infligée — manquait
+      // ENTIÈREMENT ici, cette branche bazooka appliquant les dégâts
+      // directement via applyDamage() sans jamais passer par resolveAttack()
+      // (seul endroit où ce suivi existait auparavant).
+      final isOscarBaz = _eg.effectiveAbility(attacker) == 'oscar_xp_spend' && attacker.revealed;
       for (final t in bazTargets) {
         if (isCarlaBaz && attacker.revealed && t.character?.faction == Faction.hunter && t.revealed) {
           if (bazDmg > 0) _eg.applyHeal(t, bazDmg);
         } else {
-          _eg.applyDamage(t, bazDmg);
+          final actualBaz = _eg.applyDamage(t, bazDmg);
+          if (isOscarBaz && actualBaz > 0) attacker.oscarXp += actualBaz;
         }
         if (!t.alive) t.killedByUid = attacker.uid;
       }
-      log = '💥 ${attacker.name} (Bazooka) — $bazDmg dégâts à tous !';
+      log = logT('💥 {name} (Bazooka) — {n} dégâts à tous !', {'name': attacker.name, 'n': '$bazDmg'});
     } else {
       final res = _eg.resolveAttack(attacker, target, baseDmg, all: all);
       log = res['log'] as String;
@@ -2213,8 +2305,6 @@ class GameProvider extends ChangeNotifier {
       final z1 = gs.swapZone1!;
       if (z1 == zoneIdx) return;
       final all = _mutableAll();
-      final richard = all.firstWhere((p) => p.uid == myUid);
-      final richardStartZone = richard.zoneIndex; // avant tout changement
       // Tous les joueurs présents sur les 2 zones échangées suivent leur
       // tuile (échangent aussi de position) — Richard inclus, pour le
       // déplacement visuel sur le plateau.
@@ -2226,14 +2316,16 @@ class GameProvider extends ChangeNotifier {
       final newLayout = List<Terrain>.from(gs.terrainLayout);
       final tmp = newLayout[z1]; newLayout[z1] = newLayout[zoneIdx]; newLayout[zoneIdx] = tmp;
       final t1name = newLayout[z1].name; final t2name = newLayout[zoneIdx].name;
-      await _commitAll(all, logT('👑 Richard II échange {zone1} ↔ {zone2} !', {'zone1': tr(t2name), 'zone2': tr(t1name)}));
+      await _commitAll(all, logT('👑 Richard II échange {zone1} ↔ {zone2} !', {'zone1': t2name, 'zone2': t1name}));
       await _fb.setTerrainLayout(roomId!, newLayout);
-      // Richard active l'effet du terrain qui vient d'arriver sur SA case de
-      // départ (celui avec lequel il a échangé), pas celui qu'il a emporté
-      // avec lui en se déplaçant.
+      // IMPORTANT : Richard active l'effet de la zone CIBLE qu'il a choisie
+      // (celle avec laquelle il a échangé) — utilisé directement via le
+      // paramètre zoneIdx plutôt que recalculé via richard.zoneIndex après
+      // coup, pour éliminer tout risque de valeur périmée en cas de
+      // réutilisation répétée de cette capacité répétable.
       await _fb.setPhase(roomId!, GamePhase.zoneEffect,
           clearPending: true, swapZone1: -1, swapZone2: -1,
-          abilityOverlay: 'richard2_swap', richardActivateZone: richardStartZone);
+          abilityOverlay: 'richard2_swap', richardActivateZone: zoneIdx);
     }
   }
 
@@ -2254,7 +2346,7 @@ class GameProvider extends ChangeNotifier {
     if (p.felipeOnBorrowedTime && p.alive) {
       p.felipeOnBorrowedTime = false;
       p.alive = false;
-      await _commitPlayer(p, '🩸 ${p.name} (Felipe) n\'a pas pu se sauver à temps — il succombe à ses blessures.');
+      await _commitPlayer(p, logT("🩸 {name} (Felipe) n'a pas pu se sauver à temps — il succombe à ses blessures.", {'name': p.name}));
       final all0 = _mutableAll();
       await _checkWin(all0, justDiedId: p.uid);
       if (gameState?.phase == GamePhase.gameOver) return;
@@ -2314,7 +2406,7 @@ class GameProvider extends ChangeNotifier {
       // enchaîne directement sur le joueur suivant plutôt que de lui poser
       // une phase "capacité" pour un joueur déjà mort.
       await _fb.addLog(roomId!,
-          '💀 ${nextPlayer.name} meurt avant même le début de son tour — passage au joueur suivant');
+          logT('💀 {name} meurt avant même le début de son tour — passage au joueur suivant', {'name': nextPlayer.name}));
       await endTurn(actingUid: nextPlayer.uid);
       return;
     }
@@ -2366,7 +2458,7 @@ class GameProvider extends ChangeNotifier {
         final deadP = all.where((p) => p.uid == justDiedId).firstOrNull;
         if (killerP != null && deadP != null) {
           final rewardName = gameState?.jeanneReward ?? '';
-          bannerText = '${killerP.name} a éliminé ${deadP.name} (cible de Jeanne) !\n${_eg.jeanneRewardLabel(rewardName)}';
+          bannerText = logT('{killer} a éliminé {victim} (cible de Jeanne) !\n{reward}', {'killer': killerP.name, 'victim': deadP.name, 'reward': _eg.jeanneRewardLabel(rewardName)});
           bannerTs = DateTime.now().millisecondsSinceEpoch;
         }
       }
@@ -2415,7 +2507,7 @@ class GameProvider extends ChangeNotifier {
             _eg.recalcPassives(dead);
             final names = items.map((e) => '"${e.name}"').join(', ');
             await _commitAll(all,
-                "✝️ ${killer.name} récupère TOUT l'équipement de ${dead.name} grâce au Crucifix d'Argent : $names");
+                logT("✝️ {name} récupère TOUT l'équipement de {target} grâce au Crucifix d'Argent : {items}", {'name': killer.name, 'target': dead.name, 'items': names}));
           }
         } else if (lootAccumulator != null) {
           lootAccumulator.add(MapEntry(killerUid, deadUid));

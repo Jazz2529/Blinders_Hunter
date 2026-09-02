@@ -3,6 +3,7 @@
 
 import '../services/persistence.dart';
 import 'cosmetics_data.dart';
+import 'game_data.dart';
 
 const Map<String, String> kRevealQuotes = {
   'albane': "[Your time ends now]",
@@ -308,6 +309,17 @@ String? cardImagePath(String effect) => kCardImages[effect];
 
 /// Réplique personnalisée affichée (et jouée en audio) quand ce personnage
 /// se révèle — visible/audible de tous les joueurs.
+/// Retrouve le texte de capacité (déjà en français, à passer par tr()) du
+/// PERSONNAGE dont l'effet correspond à `effect` — utilisé pour afficher,
+/// sur la carte d'un joueur ayant copié un pouvoir (Hailey, Tommy...), le
+/// texte du pouvoir RÉELLEMENT actif plutôt que celui de son propre
+/// personnage d'origine. Renvoie null si aucun personnage ne correspond
+/// (effet non trouvé, ou vide).
+String? characterAbilityForEffect(String? effect) {
+  if (effect == null || effect.isEmpty) return null;
+  return kAllCharacters.where((c) => c.abilityEffect == effect).firstOrNull?.ability;
+}
+
 String revealQuoteFor(String characterId) =>
     kRevealQuotes[characterId] ?? '« ... »';
 

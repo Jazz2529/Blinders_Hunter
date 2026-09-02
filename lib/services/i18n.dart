@@ -56,6 +56,15 @@ String ui(String key) {
 /// tr()/ui(), ce n'est pas le texte final qui sert de clé mais un GABARIT
 /// FIXE, indépendant des valeurs insérées à chaque appel.
 String logT(String template, Map<String, String> params) => core.logTCore(template, params);
+
+/// Résout un message de journal STOCKÉ (par logT()/logTCore(), donc
+/// potentiellement encodé en "brut" — voir resolveLogCore() dans
+/// i18n_core.dart pour le détail) en texte final, selon la langue ACTUELLE
+/// de CET appareil. À appeler à chaque AFFICHAGE d'une entrée de journal —
+/// jamais au moment de sa création — pour que chaque joueur voie le
+/// journal dans SA PROPRE langue en multijoueur, indépendamment de la
+/// langue de l'auteur de chaque message.
+String resolveLog(String raw) => core.resolveLogCore(raw);
 /// Enveloppe un écran pour qu'il se reconstruise IMMÉDIATEMENT dès que la
 /// langue change — nécessaire pour tout écran ouvert via Navigator.push
 /// (configuration solo, règles, stats, boutique, catalogue...), qui ne

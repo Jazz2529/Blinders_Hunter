@@ -390,13 +390,17 @@ class GameEngine with AbilityEngine {
         target.abilityLockedByUid = actor.uid;
         return logTCore("🔒 {name} verrouille la capacité de {target} tant qu'elle est en vie", {'name': actor.name, 'target': target.name});
 
-      // ── Maxence : rend un joueur ivre pendant 2 tours (vision brouillée
-      // sur SON écran uniquement — jetons, camps/cartes et blessures) ──
+      // ── Maxence : rend un joueur ivre pendant 2 tours (vision TOTALEMENT
+      // brouillée sur SON écran uniquement — jetons, camps/cartes, boutons
+      // de cible et journal — aucune info fiable pour LUI. Les autres
+      // joueurs voient tout normalement, y compris ce message.) ──
       case 'maxence_drunk':
         if (target == null) return 'cible_requise';
+        applyDamage(target, 2);
+        if (!target.alive) target.killedByUid = actor.uid;
         target.drunkTurnsRemaining = 2;
         target.drunkSeed = _rng.nextInt(999999) + 1; // jamais 0 (0 = "pas de graine")
-        return logTCore('🍺 {name} rend {target} complètement ivre pendant 2 tours !', {'name': actor.name, 'target': target.name});
+        return logTCore('🍺 {name} rend {target} complètement ivre pendant 2 tours (2 blessures infligées) !', {'name': actor.name, 'target': target.name});
 
       // ── Marion : place la cible à exactement 5 blessures (soin ou dégâts) ──
       case 'set_wounds7':
@@ -571,12 +575,13 @@ class GameEngine with AbilityEngine {
         target.deathPassiveProcessed = false; // pourra redéclencher ses propres passifs de mort à l'avenir
         return logTCore("✝️ {name} s'inflige {dmg} blessures pour ramener {target} à la vie ({w}/{max} blessures) !", {'name': actor.name, 'dmg': '$selfDmg', 'target': target.name, 'w': '${target.wounds}', 'max': '$tMax'});
 
-      // ── Luc : met le feu à un joueur de son choix ──
+      // ── Luc : met le feu à un joueur de son choix — brûlure croissante
+      // (1→2→3→4→5, plafonnée) tant que Luc reste en vie, capacité unique.
       case 'luc_ignite':
         if (target == null) return 'cible_requise';
-        target.lucFireTurnsRemaining = 2;
+        target.lucFireTurnsRemaining = 1; // réutilisé comme "niveau de brûlure actuel"
         target.lucFireSourceUid = actor.uid;
-        return logTCore('🔥 {name} met le feu à {target} — 2 blessures par tour pendant 2 tours, +1 dégât à ses attaques !', {'name': actor.name, 'target': target.name});
+        return logTCore('🔥 {name} met le feu à {target} — brûlure croissante tant que {name} reste en vie !', {'name': actor.name, 'target': target.name});
 
       // ── Oscar : dépense son XP au choix parmi 3 options ──
       case 'oscar_xp_spend':
@@ -1092,9 +1097,6 @@ class GameEngine with AbilityEngine {
         && attacker.revealed && !attacker.maximeUsedFirstBonus) {
       dmg *= 2; attacker.maximeUsedFirstBonus = true; // consommé, ne se reproduit plus
     }
-    // Luc : le joueur EN FEU inflige 1 dégât de plus à ses attaques, tant
-    // que le feu dure (indépendamment de qui a attaqué qui).
-    if (dmg > 0 && attacker.lucFireTurnsRemaining > 0) dmg += 1;
     // Maxence : passif révélé — chaque attaque lui inflige 1 blessure, mais
     // ajoute 2 dégâts à cette même attaque. Peut potentiellement le tuer
     // lui-même s'il est déjà très affaibli.
@@ -1169,22 +1171,22 @@ class GameEngine with AbilityEngine {
       final remiChoicesA = remiActiveChoices(attacker);
       if (remiChoicesA.contains('remi_heal1')) {
         applyHeal(attacker, 1);
-        log += ' | 💚 ${attacker.name} se soigne de 1';
+        log += ' | ' + logTCore('💚 {name} se soigne de 1', {'name': attacker.name});
       }
       if (remiChoicesA.contains('remi_heal2')) {
         applyHeal(attacker, 2);
-        log += ' | 💚💚 ${attacker.name} se soigne de 2';
+        log += ' | ' + logTCore('💚💚 {name} se soigne de 2', {'name': attacker.name});
       }
       if (remiChoicesA.contains('remi_steal') && target.equipment.isNotEmpty) {
         final stolen = target.equipment.removeAt(0);
         attacker.equipment.add(stolen);
         equipPassivePublic(attacker, stolen);
         recalcPassives(target);
-        log += ' | 🦹 ${attacker.name} vole "${stolen.name}"';
+        log += ' | ' + logTCore('🦹 {name} vole "{item}"', {'name': attacker.name, 'item': trCore(stolen.name)});
       }
       if (remiChoicesA.contains('remi_forceattack') && target.alive) {
         target.forcedToAttackNextTurn = true;
-        log += ' | ⚡ ${target.name} devra attaquer quelqu\'un à son prochain tour';
+        log += ' | ' + logTCore("⚡ {target} devra attaquer quelqu'un à son prochain tour", {'target': target.name});
       }
     }
 
@@ -1308,8 +1310,6 @@ class GameEngine with AbilityEngine {
     if (atkEff == 'maxime_double_first' && attacker.revealed && !attacker.maximeUsedFirstBonus) {
       dmg *= 2; attacker.maximeUsedFirstBonus = true;
     }
-    // Luc : le joueur EN FEU inflige 1 dégât de plus à ses attaques.
-    if (dmg > 0 && attacker.lucFireTurnsRemaining > 0) dmg += 1;
     // Maxence : passif révélé — chaque attaque lui inflige 1 blessure, mais
     // ajoute 2 dégâts à cette même attaque.
     if (atkEff == 'maxence_selfharm_boost' && attacker.revealed) {
@@ -1318,6 +1318,13 @@ class GameEngine with AbilityEngine {
       if (!attacker.alive) attacker.killedByUid = attacker.uid;
     }
     // Tom : dégâts bonus PERMANENTS cumulés (+2 par Shadow éliminé).
+    // Rémi : équipement personnalisé — bonus de dégâts choisis (suit
+    // l'équipement, pas le personnage) — manquait ENTIÈREMENT ici, donc
+    // jamais appliqué si l'attaquant était un joueur humain en multijoueur
+    // (seule resolveAttackFull, utilisée par le solo, l'avait).
+    final remiChoicesAtk = remiActiveChoices(attacker);
+    if (remiChoicesAtk.contains('remi_dmg1') && dmg > 0) dmg += 1;
+    if (remiChoicesAtk.contains('remi_dmg2') && dmg > 0) dmg += 2;
     if (dmg > 0 && attacker.tomBonusDmg > 0) dmg += attacker.tomBonusDmg;
     // Toge Sainte (porteur = attaquant) : vos propres attaques infligent 1
     // blessure de moins — appliqué EN DERNIER, après tous les bonus
@@ -1356,6 +1363,32 @@ class GameEngine with AbilityEngine {
     applyVictorCharm(attacker, target, all);
     applyMaximeFirstAttacker(attacker, target, actual);
     String log = logTCore('⚔️ {name} attaque {target} — {dmg} dégâts', {'name': attacker.name, 'target': target.name, 'dmg': '$actual'});
+    // Rémi : équipement personnalisé — effets choisis qui se déclenchent
+    // à chaque attaque réussie (dégâts > 0) — manquait ENTIÈREMENT ici,
+    // donc jamais déclenché si l'attaquant était un joueur humain en
+    // multijoueur (seule resolveAttackFull, utilisée par le solo, l'avait).
+    if (actual > 0) {
+      final remiChoicesA2 = remiActiveChoices(attacker);
+      if (remiChoicesA2.contains('remi_heal1')) {
+        applyHeal(attacker, 1);
+        log += ' | ' + logTCore('💚 {name} se soigne de 1', {'name': attacker.name});
+      }
+      if (remiChoicesA2.contains('remi_heal2')) {
+        applyHeal(attacker, 2);
+        log += ' | ' + logTCore('💚💚 {name} se soigne de 2', {'name': attacker.name});
+      }
+      if (remiChoicesA2.contains('remi_steal') && target.equipment.isNotEmpty) {
+        final stolen = target.equipment.removeAt(0);
+        attacker.equipment.add(stolen);
+        equipPassivePublic(attacker, stolen);
+        recalcPassives(target);
+        log += ' | ' + logTCore('🦹 {name} vole "{item}"', {'name': attacker.name, 'item': trCore(stolen.name)});
+      }
+      if (remiChoicesA2.contains('remi_forceattack') && target.alive) {
+        target.forcedToAttackNextTurn = true;
+        log += ' | ' + logTCore("⚡ {target} devra attaquer quelqu'un à son prochain tour", {'target': target.name});
+      }
+    }
     // Scott : contre-attaque (uniquement s'il survit à l'attaque)
     bool scottCountered = false;
     int? counterD4, counterD6, counterDmg;
@@ -2143,7 +2176,6 @@ class GameEngine with AbilityEngine {
   /// emporté avec lui. Retourne (log, idxTerrainQueRichardDoitActiver).
   (String, int) swapTerrainZones(int zone1, int zone2, List<Player> all,
       List<Terrain> layout, Player richard) {
-    final richardStartZone = richard.zoneIndex; // avant tout changement
     // Échange les deux tuiles dans le layout
     final tmp = layout[zone1];
     layout[zone1] = layout[zone2];
@@ -2156,10 +2188,13 @@ class GameEngine with AbilityEngine {
     }
     final t1 = layout[zone1]; // nouvelle tuile en zone1 (anciennement zone2)
     final t2 = layout[zone2]; // nouvelle tuile en zone2 (anciennement zone1)
-    // Richard active le terrain qui vient d'arriver sur SA case de départ
-    // (celui avec lequel il a échangé) — pas celui qu'il a emporté avec lui.
-    final richardActivatesZone = richardStartZone;
-    return ('👑 Richard II échange ${t2.name} ↔ ${t1.name} !', richardActivatesZone);
+    // IMPORTANT : Richard active l'effet de la zone CIBLE qu'il a choisie
+    // (zone2, celle avec laquelle il a échangé) — utilisé directement via
+    // le paramètre plutôt que recalculé via richard.zoneIndex après coup,
+    // pour éliminer tout risque de valeur périmée en cas de réutilisation
+    // répétée de cette capacité répétable.
+    final richardActivatesZone = zone2;
+    return (logTCore('👑 Richard II échange {zone1} ↔ {zone2} !', {'zone1': trCore(t2.name), 'zone2': trCore(t1.name)}), richardActivatesZone);
   }
 
   void recalcPassives(Player p) {
@@ -2321,15 +2356,23 @@ class GameEngine with AbilityEngine {
       if (p.poisonTurnsRemaining <= 0) p.poisonSourceUid = null;
     }
 
-    // Luc : feu — 2 blessures par tour pendant 2 tours, +1 dégât aux
-    // attaques du joueur en feu tant que ça dure (voir resolveAttackFull et
-    // resolveAttack pour ce second effet).
+    // Luc : feu — brûlure CROISSANTE (1→2→3→4→5, plafonnée à 5) tant que
+    // Luc (la source) reste en vie. S'éteint immédiatement si Luc meurt,
+    // même si la cible, elle, est toujours vivante.
     if (p.alive && p.lucFireTurnsRemaining > 0) {
-      applyDamage(p, 2);
-      p.lucFireTurnsRemaining--;
-      logs.add('🔥 ${p.name} brûle et subit 2 blessures (${p.lucFireTurnsRemaining} tour(s) restant(s))');
-      if (!p.alive) p.killedByUid = p.lucFireSourceUid; // attribue le kill à Luc
-      if (p.lucFireTurnsRemaining <= 0) p.lucFireSourceUid = null;
+      final source = all.where((pp) => pp.uid == p.lucFireSourceUid).firstOrNull;
+      if (source == null || !source.alive) {
+        // Luc est mort (ou introuvable) — le feu s'éteint, plus aucune
+        // blessure supplémentaire.
+        p.lucFireTurnsRemaining = 0;
+        p.lucFireSourceUid = null;
+      } else {
+        final level = p.lucFireTurnsRemaining;
+        applyDamage(p, level);
+        logs.add(logTCore('🔥 {name} brûle et subit {n} blessures', {'name': p.name, 'n': '$level'}));
+        if (!p.alive) p.killedByUid = p.lucFireSourceUid; // attribue le kill à Luc
+        p.lucFireTurnsRemaining = level + 1; // s'intensifie SANS plafond tant que Luc est en vie
+      }
     }
 
     // Maxence : ivresse — purement visuelle (aucun dégât), décompte au
@@ -2346,7 +2389,7 @@ class GameEngine with AbilityEngine {
     // Fijacked: soigne 1 par équipement
     if (eff == 'heal_per_equip_eot' && p.equipment.isNotEmpty) {
       applyHeal(p, p.equipment.length);
-      logs.add('🏺 Fijacked soigné de \${p.equipment.length}');
+      logs.add(logTCore('🏺 Fijacked soigné de {n}', {'n': '${p.equipment.length}'}));
     }
     // Meg : si une forme a déjà été choisie, elle bascule automatiquement
     // (Offensive ↔ Défensive) au début de chacun de ses tours suivants.

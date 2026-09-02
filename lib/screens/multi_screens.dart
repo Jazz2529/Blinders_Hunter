@@ -114,6 +114,31 @@ class LobbyScreen extends StatelessWidget {
                 );
               },
             )),
+            if (gp.isHost) ...[
+              const SizedBox(height: 16),
+              SectionLabel(ui('char_pool_section')),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () => Navigator.push(ctx, MaterialPageRoute(
+                  builder: (_) => const CharacterPoolScreen())),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: kBg3, borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: kBord2)),
+                  child: Row(children: [
+                    const Icon(Icons.groups, color: kGold, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(
+                      (gp.enabledCharacterIds == null || gp.enabledCharacterIds!.isEmpty)
+                          ? ui('char_pool_all')
+                          : ui('char_pool_n').replaceAll('{n}', '${gp.enabledCharacterIds!.length}'),
+                      style: body(12, c: kText))),
+                    const Icon(Icons.chevron_right, color: kTextSub, size: 18),
+                  ]),
+                ),
+              ),
+            ],
           ])),
           Container(color:kBg2,padding:const EdgeInsets.all(14),child:Column(children:[
             if (gp.isHost)
@@ -727,7 +752,7 @@ class _GameScreenState extends State<GameScreen> {
       barrierDismissible: false,
       builder: (dctx) => AlertDialog(
         backgroundColor: kBg2,
-        title: Text('🔮 Une Vision te vise', style: cinzel(15, c: kGold2)),
+        title: Text(ui('vision_targets_you'), style: cinzel(15, c: kGold2)),
         content: Text(
           hasEquip
             ? ui('give_equip_or_dmg')
@@ -737,7 +762,7 @@ class _GameScreenState extends State<GameScreen> {
           if (hasEquip)
             TextButton(
               onPressed: () { Navigator.pop(dctx); gp.guardedAction(() => gp.resolvePunishChoice(true)); },
-              child: Text('⚔️ Donner un équipement', style: cinzel(12, c: kGold)),
+              child: Text(ui('btn_give_equip'), style: cinzel(12, c: kGold)),
             ),
           TextButton(
             onPressed: () { Navigator.pop(dctx); gp.guardedAction(() => gp.resolvePunishChoice(false)); },
@@ -762,7 +787,7 @@ class _GameScreenState extends State<GameScreen> {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('🔮 Vision Suprême', style: cinzel(13, c: kGold)),
+            Text(ui('supreme_vision_title'), style: cinzel(13, c: kGold)),
             const SizedBox(height: 6),
             Text(target.name, style: cinzel(13, c: kTextSub)),
             const SizedBox(height: 8),
@@ -871,7 +896,7 @@ class _GameScreenState extends State<GameScreen> {
                     style: body(10, c: const Color(0xFF9B59B6))),
                   const SizedBox(height: 4),
                   ...gp.privateLog.reversed.map((m) =>
-                    Text(m, style: body(11, c: const Color(0xFFCE93D8)))),
+                    Text(resolveLog(m), style: body(11, c: const Color(0xFFCE93D8)))),
                 ],
               ),
             ),
@@ -892,7 +917,7 @@ class _GameScreenState extends State<GameScreen> {
               if (cls == 'player') c = kGold2;
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Text(msg, style: body(12, c: c)),
+                child: Text(resolveLog(msg), style: body(12, c: c)),
               );
             },
           )),
@@ -964,9 +989,9 @@ void _showEquipmentFor(BuildContext ctx, Player p) {
                     Text(deckIcon(eq.deck.name), style: const TextStyle(fontSize: 20)),
                     const SizedBox(width: 10),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(eq.name, style: cinzel(12, c: kGold2, fw: FontWeight.w700)),
+                      Text(tr(eq.name), style: cinzel(12, c: kGold2, fw: FontWeight.w700)),
                       const SizedBox(height: 4),
-                      Text(eq.text, style: body(11, c: kTextSub)),
+                      Text(eq.text.split('\n').map(tr).join('\n'), style: body(11, c: kTextSub)),
                     ])),
                   ]),
                 );
@@ -1014,11 +1039,10 @@ Future<void> _confirmKickPlayer(BuildContext ctx, GameProvider gp, Player p) asy
 Future<void> _confirmLeaveGame(BuildContext ctx, GameProvider gp) async {
   final confirmed = await showDialog<bool>(context: ctx, builder: (dctx) => AlertDialog(
     backgroundColor: kBg2,
-    title: Text('⚠️ Quitter la partie ?', style: cinzel(15, c: kGold)),
+    title: Text(ui('quit_game_title'), style: cinzel(15, c: kGold)),
     content: Text(
-      'Un bot prendra ta place et continuera à jouer avec ton personnage '
-      'actuel — la partie se poursuit normalement pour les autres joueurs. '
-      "${ui('cannot_return_warning')}",
+      ui('bot_takes_over_desc') + ' ' +
+      ui('cannot_return_warning'),
       style: body(13)),
     actions: [
       TextButton(
@@ -1075,7 +1099,9 @@ Future<void> showMultiPlayerCard(BuildContext ctx, Player p, GameProvider gp) as
       megFormOverride: drunkChar == null && shown.abilityEffect == 'meg_shapeshift' ? p.megForm : null,
       mathieuAttackCount: drunkChar == null && (p.copiedEffect ?? shown.abilityEffect) == 'third_attack_bonus' ? p.attackCount : null,
       skinOverride: drunkChar == null ? p.equippedCharacterSkin : null,
-      winsOverride: drunkChar == null ? p.shineWins : null);
+      winsOverride: drunkChar == null ? p.shineWins : null,
+      copiedAbilityText: (drunkChar == null && p.copiedEffect != null)
+          ? tr(characterAbilityForEffect(p.copiedEffect) ?? '') : null);
   }
   final isNils = (p.copiedEffect ?? p.character?.abilityEffect) == 'store_damage_nils';
   if (drunkChar == null && (p.equipment.isNotEmpty || isNils) && ctx.mounted) {
@@ -1134,9 +1160,9 @@ class _WaitPanel extends StatelessWidget {
 
     if (punishTargetUid != null && punishTargetUid != gp.myUid) {
       final target = gp.players[punishTargetUid];
-      statusText = 'En attente de ${target?.name ?? "\u2014"}\u2026';
+      statusText = ui('waiting_for_player').replaceAll('{name}', target?.name ?? '\u2014');
       extraContent = Text(
-        'Il doit choisir entre donner un équipement ou subir 1 blessure',
+        ui('must_give_or_take1'),
         style: body(11, c: kTextSub), textAlign: TextAlign.center);
     } else if (gs?.lastDrawnCardId != null &&
         (DateTime.now().millisecondsSinceEpoch - (gs?.lastDrawnCardTimestamp ?? 0)) < 4000) {
@@ -1194,17 +1220,31 @@ class _WaitPanel extends StatelessWidget {
       if (gp.log.isNotEmpty) {
         final raw = gp.log.last;
         final sep = raw.indexOf('||');
-        lastMsg = sep >= 0 ? raw.substring(sep + 2) : raw;
+        lastMsg = sep >= 0 ? resolveLog(raw.substring(sep + 2)) : resolveLog(raw);
       }
       extraContent = lastMsg == null ? null : Text(lastMsg,
         style: body(12, c: kTextSub), textAlign: TextAlign.center,
         maxLines: 2, overflow: TextOverflow.ellipsis);
     }
 
+    // IMPORTANT : c'est le SPECTATEUR (gp.me, cet appareil) qui doit être
+    // ivre pour que tout ceci s'applique — pas le joueur qui joue
+    // actuellement. Un joueur ivre ne doit pouvoir se fier à AUCUNE
+    // information affichée (qui joue, quelle action, quel jeton) : tout est
+    // remplacé par du contenu confus/aléatoire, y compris quand ce n'est
+    // PAS son tour. Les autres joueurs (non ivres) continuent de tout voir
+    // normalement.
+    final drunkVision = DrunkVision.forViewer(gp.me);
+    if (drunkVision != null) {
+      statusText = ui('someone_is_playing');
+      extraContent = null;
+    }
+    final displayToken = mover == null ? '🔵' : (drunkVision?.tokenFor(mover.uid) ?? mover.token);
+
     // ── Structure commune, identique à _BotPanel (solo) ──────────────────
     return Column(mainAxisSize: MainAxisSize.min, children: [
       const SizedBox(height: 10),
-      TokenWidget(tokenId: mover?.token ?? '🔵', size: 48),
+      TokenWidget(tokenId: displayToken, size: 48),
       const SizedBox(height: 4),
       Text(statusText, style: cinzel(13, c: kTextSub), textAlign: TextAlign.center),
       const SizedBox(height: 12),
@@ -1354,8 +1394,8 @@ class _ActionPanelState extends State<_ActionPanel> {
   void _showJulienChoice(BuildContext ctx) {
     showDialog(context: ctx, builder: (dctx) => AlertDialog(
       backgroundColor: kBg2,
-      title: Text('😈 Julien', style: cinzel(16, c: kGold2)),
-      content: Text('Infliger 2 blessures à un joueur, ou se soigner de 1 blessure ?',
+      title: Text(ui('julien_title'), style: cinzel(16, c: kGold2)),
+      content: Text(ui('julien_choice'),
         style: body(13)),
       actions: [
         TextButton(
@@ -1484,7 +1524,7 @@ class _ActionPanelState extends State<_ActionPanel> {
         return [
           // Bandeaux d'état persistants (visibles de tous)
           if (gp.gameState?.fifiGoldenTurn == true)
-            const _StatusBanner('🍀 Tour parfait actif — dés au maximum !', kGreen),
+            _StatusBanner(ui('fifi_golden_turn'), kGreen),
           if ((gp.gameState?.bonusTurnsRemaining ?? 0) > 0)
             _StatusBanner('🥷 ${gp.gameState!.bonusTurnsRemaining} tour(s) bonus restant(s)', kGold),
           if (gp.gameState?.markedPlayerUid != null && gp.gameState?.markedPlayerUid != '__clear__')
@@ -1505,7 +1545,9 @@ class _ActionPanelState extends State<_ActionPanel> {
                   megFormOverride: gp.me!.character!.abilityEffect == 'meg_shapeshift' ? gp.me!.megForm : null,
                   mathieuAttackCount: (gp.me!.copiedEffect ?? gp.me!.character!.abilityEffect) == 'third_attack_bonus' ? gp.me!.attackCount : null,
                   skinOverride: gp.me!.equippedCharacterSkin,
-                  winsOverride: gp.me!.shineWins);
+                  winsOverride: gp.me!.shineWins,
+                  copiedAbilityText: gp.me!.copiedEffect != null
+                      ? tr(characterAbilityForEffect(gp.me!.copiedEffect) ?? '') : null);
               }
             })),
           if ((me?.copiedEffect ?? me?.character?.abilityEffect) == 'double_move_dice' && me?.revealed == true)
@@ -1515,7 +1557,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               decoration: BoxDecoration(
                 color: kBg3, borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: kGold.withValues(alpha: 0.4))),
-              child: Text('⏱ Albane — ton pouvoir s\'active automatiquement lors du déplacement : lance les dés puis relance pour garder le meilleur.',
+              child: Text(ui('albane_auto_power'),
                 style: body(11, c: kGold2), textAlign: TextAlign.center),
             ),
           if(me?.revealed==true) ...[
@@ -1589,7 +1631,7 @@ class _ActionPanelState extends State<_ActionPanel> {
                     const SizedBox(width: 6),
                     Text(
                       (me?.attackCount ?? 0) >= 3
-                          ? 'Bonus +2 dégâts actif (${me?.attackCount} attaques)'
+                          ? ui('bonus_2dmg_active').replaceAll('{n}', '${me?.attackCount}')
                           : 'Attaques : ${me?.attackCount ?? 0}/3',
                       style: cinzel(11, c: (me?.attackCount ?? 0) >= 3 ? kGold : kTextSub)),
                   ]),
@@ -1602,7 +1644,7 @@ class _ActionPanelState extends State<_ActionPanel> {
         if (_showingSwapTargets) {
           final others = gp.players.values.where((p) => p.alive && p.uid != gp.myUid).toList();
           return [
-            Text('🌀 Échangez votre place avec qui ?', style: cinzel(11, c: kGold)),
+            Text(ui('swap_with_who'), style: cinzel(11, c: kGold)),
             const SizedBox(height: 6),
             if (others.isEmpty) Text(ui('no_other_player_alive'), style: body(13, c: kTextSub)),
             ...others.map((t) => BHButton(
@@ -1624,12 +1666,12 @@ class _ActionPanelState extends State<_ActionPanel> {
         if (_sum == null) {
           return [
             if (hasPortail)
-              BHButton(label: '🌀 Échanger de place avec un joueur', outlined: true,
+              BHButton(label: ui('btn_swap_place'), outlined: true,
                 onTap: () => setState(() { _showingSwapTargets = true; })),
             // Albane/Boussole : lancer les deux d'un coup
             if (hasDoubleRoll)
               BHButton(
-                label: hasAlbane ? '⏱ Albane — lancer 2 dés (choisir le meilleur)' : '🧭 Boussole — lancer 2 dés (choisir le meilleur)',
+                label: hasAlbane ? ui('albane_roll2_best') : ui('compass_roll2_best'),
                 gold: true,
                 onTap: () {
                   final r1 = GameEngine.instance.rollMove();
@@ -1768,17 +1810,19 @@ class _ActionPanelState extends State<_ActionPanel> {
           all = gp.attackTargets;
           if (all.isEmpty) {
             return [
-              Text('💨 Vlad — aucun joueur adjacent à portée.',
+              Text(ui('vlad_no_adjacent2'),
                 style: body(13, c: kTextSub), textAlign: TextAlign.center),
               const SizedBox(height: 8),
               BHButton(label: '← Retour', outlined: true,
                 onTap: () => _act(gp.backToAbility)),
             ];
           } // attackTargets already filters by adjacency
-        } else if (pta == 'clemence_target' || pta == 'terrain_damage9' || pta == 'set_marker7_choice' || pta == 'set_wounds7' || pta == 'vampirisation') {
-          // Clémence, Terrain 9, Premier Secours ("vous compris"), Marion et
-          // la Chauve-souris Vampire ("un joueur de votre choix", sans
-          // exclusion explicite) peuvent se cibler eux-mêmes
+        } else if (pta == 'clemence_target' || pta == 'terrain_damage9' || pta == 'set_marker7_choice' || pta == 'set_wounds7' || pta == 'vampirisation' || pta == 'damage2_then_heal3') {
+          // Clémence, Terrain 9, Premier Secours ("vous compris"), Marion,
+          // la Chauve-souris Vampire et Raph du Soleil Levant ("un joueur
+          // de votre choix", sans exclusion explicite dans le texte de la
+          // capacité — il doit pouvoir se soigner lui-même) peuvent se
+          // cibler eux-mêmes.
           all = gp.players.values.where((p) => p.alive).toList();
         } else if (pta == 'copy_ability') {
           // Tommy : seulement les joueurs révélés au pouvoir copiable
@@ -1838,8 +1882,9 @@ class _ActionPanelState extends State<_ActionPanel> {
               style: cinzel(12, c: kGold)), const SizedBox(height: 8),
             ...layout.asMap().entries.where((e) => e.key != myZoneIdx).map((entry) {
               final idx = entry.key; final terrain = entry.value;
+              final dv = DrunkVision.forViewer(gp.me);
               final here = gp.players.values.where((p) => p.alive && p.zoneIndex == idx)
-                  .map((p) => p.token).join(' ');
+                  .map((p) => dv?.tokenFor(p.uid) ?? p.token).join(' ');
               return Padding(padding: const EdgeInsets.only(bottom: 6),
                 child: BHButton(
                   label: 'Zone ${idx+1} — ${terrain.icon} ${terrain.name}'
@@ -1879,14 +1924,16 @@ class _ActionPanelState extends State<_ActionPanel> {
           final stealTargetUid = gp.gameState?.stealTargetUid;
           final src = stealTargetUid != null ? gp.players[stealTargetUid] : null;
           final equipList = src?.equipment ?? [];
+          final dv = DrunkVision.forViewer(gp.me);
+          final srcLabel = (dv != null && src != null) ? tr(dv.cardFor(src.uid).name) : (src?.name ?? '?');
           return [
-            Text('🗼 Quel objet de ${src?.name ?? "?"} voulez-vous voler ?',
+            Text('🗼 Quel objet de $srcLabel voulez-vous voler ?',
               style: cinzel(11, c: kGold)),
             const SizedBox(height: 6),
             if (equipList.isEmpty)
               Text(ui('no_equipment_available'), style: body(12, c: kTextSub))
             else ...equipList.asMap().entries.map((entry) => BHButton(
-              label: entry.value.name,
+              label: dv != null ? ui('mystery_item').replaceAll('{n}', '${entry.key + 1}') : entry.value.name,
               onTap: () => _act(() => gp.resolveStealItem(entry.key)),
             )),
           ];
@@ -1941,8 +1988,12 @@ class _ActionPanelState extends State<_ActionPanel> {
                 await gp.useAbility(target: t);
               }
             }
+            final dv = DrunkVision.forViewer(gp.me);
+            final label = dv != null
+                ? '${tr(dv.cardFor(t.uid).name)} (${dv.tokenFor(t.uid)})  ?🩸'
+                : '${t.name} (${t.token})  ${t.wounds}🩸';
             return BHButton(
-              label:'${t.name} (${t.token})  ${t.wounds}🩸',
+              label: label,
               onTap: () => _act(onTap),
             );
           }),
@@ -1983,7 +2034,7 @@ class _ActionPanelState extends State<_ActionPanel> {
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(10),
               decoration: surfaceDecor(),
-              child: Text('✅ Tu as déjà attaqué ce tour-ci',
+              child: Text(ui('already_attacked_this_turn'),
                 style: body(12, c: kTextSub), textAlign: TextAlign.center),
             )
           else if(targets.isEmpty) Text(ui('no_target_in_range'),style:body(13,c:kTextSub)),
@@ -2004,11 +2055,17 @@ class _ActionPanelState extends State<_ActionPanel> {
                   onTap: () => _startAttack(targets.first.uid), // targetId utilisé seulement pour déclencher, bazooka gère tous
                 ),
             ] else ...[
-              ...targets.map((t)=>BHButton(
-                label:'Attaquer ${t.name} (${t.token})',
-                danger:true,
-                onTap:()=>_startAttack(t.uid),
-              )),
+              ...targets.map((t) {
+                final dv = DrunkVision.forViewer(gp.me);
+                final label = dv != null
+                    ? "Attaquer ${tr(dv.cardFor(t.uid).name)} (${dv.tokenFor(t.uid)})"
+                    : 'Attaquer ${t.name} (${t.token})';
+                return BHButton(
+                  label: label,
+                  danger:true,
+                  onTap:()=>_startAttack(t.uid),
+                );
+              }),
             ],
           ] else if (!alreadyAttacked) ...[
             Container(
@@ -2017,9 +2074,9 @@ class _ActionPanelState extends State<_ActionPanel> {
               decoration:BoxDecoration(color:kShadow.withOpacity(0.1),
                 borderRadius:BorderRadius.circular(10),border:Border.all(color:kShadow)),
               child:Column(children:[
-                Text('$_atkDmg dégâts',style:cinzel(28,c:kRed,fw:FontWeight.w900)),
+                Text(ui('dmg_suffix').replaceAll('{n}', '$_atkDmg'),style:cinzel(28,c:kRed,fw:FontWeight.w900)),
                 if (_atkD4b != null)
-                  Text('🥭 Cible costaude — attaque doublée : |${_atkD4}−${_atkD6}| + |${_atkD4b}−${_atkD6b}| = $_atkDmg',
+                  Text(ui('strong_target_double').replaceAll('{d4}','${_atkD4}').replaceAll('{d6}','${_atkD6}').replaceAll('{d4b}','${_atkD4b}').replaceAll('{d6b}','${_atkD6b}').replaceAll('{n}','$_atkDmg'),
                     style:body(11,c:kGold2), textAlign: TextAlign.center)
                 else if (!hasBazooka)
                   Text('|d4($_atkD4) − d6($_atkD6)| = $_atkDmg',style:body(12,c:kTextSub))
@@ -2102,7 +2159,7 @@ class _ActionPanelState extends State<_ActionPanel> {
     if (i == gp.me?.zoneIndex) return const SizedBox.shrink();
     final t = gp.gameState!.terrainLayout[i];
     return BHButton(
-      label: '${t.icon} ${t.num} — ${t.name}',
+      label: '${t.icon} ${t.num} — ${tr(t.name)}',
       onTap: () => _act(() => gp.moveTo(i, diceSum: _sum!, d4: _d4!, d6: _d6!)),
     );
   });
@@ -2115,7 +2172,7 @@ class _ActionPanelState extends State<_ActionPanel> {
     if (idx == -1 || idx == gp.me?.zoneIndex) idx = ((gp.me?.zoneIndex ?? 0) + 1) % 6;
     final t = layout[idx];
     return BHButton(
-      label: '→ ${t.icon} ${t.name}  (${t.keyword})',
+      label: '→ ${t.icon} ${tr(t.name)}  (${tr(t.keyword)})',
       onTap: () => _act(() => gp.moveTo(idx, diceSum: _sum!, d4: _d4!, d6: _d6!)),
     );
   }
@@ -2336,12 +2393,12 @@ class _DiceWidgetState extends State<_DiceWidget>
       ]),
       const SizedBox(height: 6),
       Text(widget.isAttack
-        ? '|d4(${widget.d4}) − d6(${widget.d6})| = ${widget.sum} dégâts'
-        : 'd4(${widget.d4}) + d6(${widget.d6}) = ${widget.sum}',
+        ? ui('attack_formula3').replaceAll('{d4}', '${widget.d4}').replaceAll('{d6}', '${widget.d6}').replaceAll('{sum}', '${widget.sum}')
+        : ui('move_formula3').replaceAll('{d4}', '${widget.d4}').replaceAll('{d6}', '${widget.d6}').replaceAll('{sum}', '${widget.sum}'),
         style: body(11, c: kTextSub)),
       if (!widget.isAttack && widget.sum == 7)
         Padding(padding: const EdgeInsets.only(top: 4),
-          child: Text('🎯 Choisis ta destination !', style: cinzel(11, c: kGold))),
+          child: Text(ui('choose_destination'), style: cinzel(11, c: kGold))),
     ]),
   );
 }
@@ -2477,7 +2534,7 @@ class _CardWidget extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  card.type == CardType.equipement ? '⚔ Équipement' : '✨ Usage unique',
+                  card.type == CardType.equipement ? ui('card_type_equipment') : ui('card_type_single_use'),
                   style: body(9, c: dc)),
               ),
             ]),
@@ -2518,7 +2575,7 @@ class _ClemenceBuilderPanel extends StatelessWidget {
         boxShadow: [BoxShadow(color: purple.withValues(alpha: 0.35), blurRadius: 18)],
       ),
       child: Column(children: [
-        Text('🎨 CLÉMENCE', style: cinzel(18, c: purple, fw: FontWeight.w900)),
+        Text(ui('clemence_title'), style: cinzel(18, c: purple, fw: FontWeight.w900)),
         const SizedBox(height: 4),
         Text(step == 1
           ? ui('choice_1_of_2')
@@ -2597,8 +2654,8 @@ class _ElaiaDeckChoicePanel extends StatelessWidget {
   Widget build(BuildContext ctx) {
     const purple = Color(0xFF6A3FA0);
     final decks = [
-      ('tenebres', '💀 Ténèbres'),
-      ('lumiere',  '✨ Lumière'),
+      ('tenebres', ui('deck_dark2')),
+      ('lumiere',  ui('deck_light2')),
       ('vision',   '🔮 Vision'),
     ];
     return Container(
@@ -2741,7 +2798,7 @@ class _LootChoicePanel extends StatelessWidget {
       child: Column(children: [
         Text('🎒 BUTIN', style: cinzel(18, c: gold, fw: FontWeight.w900)),
         const SizedBox(height: 4),
-        Text('${dead.name} est éliminé — récupérer un équipement ?',
+        Text(ui('target_eliminated_loot').replaceAll('{name}', dead.name),
           style: body(12, c: kTextSub), textAlign: TextAlign.center),
         const SizedBox(height: 14),
         ...dead.equipment.asMap().entries.map((e) => Padding(
@@ -3149,9 +3206,9 @@ class _MultiHaileyChoiceWidget extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: surfaceDecor(),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('📖 Hailey — Copier le pouvoir de qui ?', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
+        Text(ui('hailey_copy_title'), style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
         const SizedBox(height: 4),
-        Text('Ce choix est définitif — 3 Hunters non joués cette partie.',
+        Text(ui('hailey_final_choice'),
           style: body(12, c: kTextSub), textAlign: TextAlign.center),
         const SizedBox(height: 12),
         if (offered.isEmpty)
@@ -3204,10 +3261,11 @@ class _MultiChristineZoneWidget extends StatelessWidget {
         const SizedBox(height: 12),
         ...adj.map((idx) {
           final terrain = idx < layout.length ? layout[idx] : null;
+          final dv = DrunkVision.forViewer(gp.me);
           final playersHere = (gp.gameState?.playerOrder ?? const [])
               .map((uid) => gp.players[uid])
               .where((p) => p != null && p.alive && p.zoneIndex == idx)
-              .map((p) => p!.token).join(' ');
+              .map((p) => dv?.tokenFor(p!.uid) ?? p!.token).join(' ');
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: BHButton(
@@ -3285,9 +3343,9 @@ class _MultiMegChoiceWidget extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: surfaceDecor(),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('🐺 Meg — Choisissez votre forme', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
+        Text(ui('meg_choose_form_title'), style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
         const SizedBox(height: 4),
-        Text('Cette forme alternera automatiquement au début de chacun de vos tours suivants.',
+        Text(ui('meg_form_auto_alternate'),
           style: body(12, c: kTextSub), textAlign: TextAlign.center),
         const SizedBox(height: 12),
         BHButton(label: ui('btn_form_offensive'), gold: true,
@@ -3311,7 +3369,7 @@ class _MultiOscarChoiceWidget extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: surfaceDecor(),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('🧪 Oscar — Dépenser son XP', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
+        Text(ui('oscar_spend_xp_title'), style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
         const SizedBox(height: 4),
         Text('XP actuelle : $xp', style: body(13, c: kGold), textAlign: TextAlign.center),
         const SizedBox(height: 12),
@@ -3324,7 +3382,7 @@ class _MultiOscarChoiceWidget extends StatelessWidget {
           onTap: () => gp.guardedAction(() => gp.oscarChoice('plant'))),
         const SizedBox(height: 8),
         _MultiOscarOption(icon: '🔥', label: 'Feu', cost: 4, xp: xp,
-          desc: '+2 dégâts à ta prochaine attaque ce tour',
+          desc: ui('oscar_fire_desc'),
           onTap: () => gp.guardedAction(() => gp.oscarChoice('fire'))),
         const SizedBox(height: 10),
         BHButton(label: ui('no_spend'), outlined: true,
@@ -3697,7 +3755,7 @@ class _ScottCounterOverlayState extends State<_ScottCounterOverlay>
                       border: Border.all(color: Colors.orange.withValues(alpha: 0.6)),
                     ),
                     child: Text(
-                      'D4(${widget.dice!['d4']})  D6(${widget.dice!['d6']})  →  ${widget.dice!['dmg']} dégâts',
+                      ui('dice_result_dmg').replaceAll('{d4}', '${widget.dice!['d4']}').replaceAll('{d6}', '${widget.dice!['d6']}').replaceAll('{dmg}', '${widget.dice!['dmg']}'),
                       style: const TextStyle(
                         fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
                     ),
@@ -3721,6 +3779,18 @@ class _MultiLogStrip extends StatelessWidget {
   const _MultiLogStrip({required this.gp});
   @override
   Widget build(BuildContext ctx) {
+    // IMPORTANT : tant qu'un joueur est ivre (Maxence), le journal est
+    // entièrement masqué — sinon les messages passés/récents pourraient
+    // laisser deviner qui a été visé ou comment il se comporte.
+    final viewerDrunk = (gp.me?.drunkTurnsRemaining ?? 0) > 0;
+    if (viewerDrunk) {
+      return Container(
+        color: kBg1,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Text(ui('log_hidden_drunk'), style: body(11, c: kTextDim),
+          maxLines: 1, overflow: TextOverflow.ellipsis),
+      );
+    }
     final logs = gp.log.reversed.take(2).toList();
     return Container(
       color: kBg1,
@@ -3730,7 +3800,7 @@ class _MultiLogStrip extends StatelessWidget {
           final sep = entry.indexOf('||');
           final cls = sep >= 0 ? entry.substring(0, sep) : '';
           final msg = sep >= 0 ? entry.substring(sep + 2) : entry;
-          return Text(msg,
+          return Text(resolveLog(msg),
             style: TextStyle(fontSize: 11, color: switch (cls) {
               'death' => kRed, 'important' => kGold,
               'player' => kGreen, _ => kTextSub,
@@ -3749,12 +3819,24 @@ class _MultiLogPanel extends StatelessWidget {
   const _MultiLogPanel({required this.gp});
   @override
   Widget build(BuildContext ctx) {
+    final viewerDrunk = (gp.me?.drunkTurnsRemaining ?? 0) > 0;
+    if (viewerDrunk) {
+      return Container(
+        color: kBg1,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(ui('log_title2'), style: cinzel(11, c: kGold2, fw: FontWeight.w700, ls: 1)),
+          const SizedBox(height: 8),
+          Text(ui('log_hidden_drunk'), style: body(11, c: kTextDim)),
+        ]),
+      );
+    }
     final logs = gp.log.reversed.toList();
     return Container(
       color: kBg1,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('📜 Journal', style: cinzel(11, c: kGold2, fw: FontWeight.w700, ls: 1)),
+        Text(ui('log_title2'), style: cinzel(11, c: kGold2, fw: FontWeight.w700, ls: 1)),
         const SizedBox(height: 4),
         Expanded(
           child: ListView.builder(
@@ -3767,7 +3849,7 @@ class _MultiLogPanel extends StatelessWidget {
               final msg = sep >= 0 ? entry.substring(sep + 2) : entry;
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Text(msg,
+                child: Text(resolveLog(msg),
                   style: TextStyle(fontSize: 12, color: switch (cls) {
                     'death' => kRed, 'important' => kGold,
                     'player' => kGreen, _ => kTextSub,
@@ -3812,7 +3894,7 @@ class _MultiFifiDiceWidgetState extends State<_MultiFifiDiceWidget> {
           style: body(12, c: kTextSub), textAlign: TextAlign.center),
         const SizedBox(height: 20),
         // Déplacement
-        Text('🚶 DÉPLACEMENT : $_move', style: cinzel(13, c: kGold2)),
+        Text(ui('movement_label').replaceAll('{n}', '$_move'), style: cinzel(13, c: kGold2)),
         Slider(
           value: _move.toDouble(), min: 2, max: 10,
           divisions: 8, label: '$_move',
@@ -3821,7 +3903,7 @@ class _MultiFifiDiceWidgetState extends State<_MultiFifiDiceWidget> {
         ),
         const SizedBox(height: 12),
         // Attaque
-        Text('⚔️ DÉGÂTS ATTAQUE : $_atk', style: cinzel(13, c: kRed)),
+        Text(ui('attack_dmg_label').replaceAll('{n}', '$_atk'), style: cinzel(13, c: kRed)),
         Slider(
           value: _atk.toDouble(), min: 0, max: 5,
           divisions: 5, label: '$_atk',
@@ -3830,10 +3912,139 @@ class _MultiFifiDiceWidgetState extends State<_MultiFifiDiceWidget> {
         ),
         const SizedBox(height: 20),
         BHButton(
-          label: '✅ Confirmer — Dépl. $_move · Atk. $_atk',
+          label: ui('btn_confirm_move_atk').replaceAll('{move}', '$_move').replaceAll('{atk}', '$_atk'),
           gold: true,
           onTap: () => widget.gp.guardedAction(() => widget.gp.fifiConfirmChoices(_move, _atk)),
         ),
+      ]),
+    );
+  }
+}
+
+// ─── Sélection du pool de personnages (hôte uniquement) ────────────────────
+class CharacterPoolScreen extends StatefulWidget {
+  const CharacterPoolScreen({super.key});
+  @override
+  State<CharacterPoolScreen> createState() => _CharacterPoolScreenState();
+}
+
+class _CharacterPoolScreenState extends State<CharacterPoolScreen> {
+  Set<String>? _selected; // null tant que le chargement initial n'est pas fait
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final gp = context.read<GameProvider>();
+    await gp.fetchEnabledCharacters();
+    final current = gp.enabledCharacterIds;
+    setState(() {
+      // Liste vide/absente côté serveur = tous activés par défaut.
+      _selected = (current == null || current.isEmpty)
+          ? kAllCharacters.map((c) => c.id).toSet()
+          : current.toSet();
+      _loading = false;
+    });
+  }
+
+  void _toggle(String id) => setState(() {
+    if (_selected!.contains(id)) { _selected!.remove(id); } else { _selected!.add(id); }
+  });
+
+  void _selectAll() => setState(() => _selected = kAllCharacters.map((c) => c.id).toSet());
+  void _selectNone() => setState(() => _selected = {});
+
+  Future<void> _save() async {
+    final gp = context.read<GameProvider>();
+    // Liste vide ou tous sélectionnés → on envoie une liste vide (= "tous",
+    // comportement par défaut) plutôt qu'une énumération complète inutile.
+    final all = kAllCharacters.map((c) => c.id).toSet();
+    final toSave = (_selected!.isEmpty || _selected!.length == all.length)
+        ? <String>[] : _selected!.toList();
+    await gp.updateEnabledCharacters(toSave);
+    if (mounted) Navigator.pop(context);
+  }
+
+  Widget _buildFactionSection(Faction faction, String label) {
+    final chars = kAllCharacters.where((c) => c.faction == faction).toList();
+    final fc = factionColor(faction.name);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.only(top: 12, bottom: 6),
+        child: Text(label, style: cinzel(12, c: fc, ls: 1)),
+      ),
+      ...chars.map((c) {
+        final sel = _selected!.contains(c.id);
+        return GestureDetector(
+          onTap: () => _toggle(c.id),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: sel ? fc.withValues(alpha: 0.10) : kBg3,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: sel ? fc.withValues(alpha: 0.5) : kBord2),
+            ),
+            child: Row(children: [
+              Icon(sel ? Icons.check_box : Icons.check_box_outline_blank,
+                color: sel ? fc : kTextDim, size: 20),
+              const SizedBox(width: 10),
+              Expanded(child: Text(tr(c.name),
+                style: body(13, c: sel ? kText : kTextDim))),
+            ]),
+          ),
+        );
+      }),
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext ctx) {
+    if (_loading || _selected == null) {
+      return Scaffold(backgroundColor: kBg0,
+        appBar: AppBar(backgroundColor: kBg2, elevation: 0,
+          title: Text(ui('char_pool_title'), style: cinzel(16, c: kGold2))),
+        body: const Center(child: CircularProgressIndicator(color: kGold)));
+    }
+    return Scaffold(
+      backgroundColor: kBg0,
+      appBar: AppBar(backgroundColor: kBg2, elevation: 0,
+        title: Text(ui('char_pool_title'), style: cinzel(16, c: kGold2))),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            Expanded(child: Text(
+              ui('char_pool_selected_count').replaceAll('{n}', '${_selected!.length}').replaceAll('{total}', '${kAllCharacters.length}'),
+              style: body(12, c: kTextSub))),
+            TextButton(onPressed: _selectAll, child: Text(ui('btn_select_all'), style: body(11, c: kGold))),
+            TextButton(onPressed: _selectNone, child: Text(ui('btn_select_none'), style: body(11, c: kTextSub))),
+          ]),
+        ),
+        Expanded(child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          children: [
+            _buildFactionSection(Faction.hunter, ui('faction_hunter')),
+            _buildFactionSection(Faction.shadow, ui('faction_shadow')),
+            _buildFactionSection(Faction.neutral, ui('faction_neutral')),
+            const SizedBox(height: 14),
+          ],
+        )),
+        Container(color: kBg2, padding: const EdgeInsets.all(14),
+          child: BHButton(
+            label: ui('btn_save_selection'),
+            onTap: _selected!.length < 4 ? null : _save,
+            gold: _selected!.length >= 4,
+          )),
+        if (_selected!.length < 4)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(ui('char_pool_min_warning'), style: body(10, c: kRed)),
+          ),
       ]),
     );
   }

@@ -225,18 +225,18 @@ class _SoloSetupState extends State<SoloSetupScreen> with SingleTickerProviderSt
               SectionLabel(ui('composition_5')),
               const SizedBox(height: 8),
               _tokenRow(widget.playerTokenId, widget.playerName,
-                _forcedCharId != null ? _charOf(_forcedCharId!)?.name ?? 'Choisi' : ui('random_role')),
+                _forcedCharId != null ? tr(_charOf(_forcedCharId!)?.name ?? ui('chosen_label')) : ui('random_role')),
               _tokenRow('jason',  'Bot 1', ui('random_role')),
               _tokenRow('carla',  'Bot 2', ui('random_role')),
               _tokenRow('raph',   'Bot 3', ui('random_role')),
               _tokenRow('marin',  'Bot 4', ui('random_role')),
               const SizedBox(height: 6),
-              Text('2 Hunters · 2 Shadows · 1 Neutre',
+              Text(ui('composition_summary'),
                 style: body(12, c: kTextSub).copyWith(fontStyle: FontStyle.italic)),
             ])),
 
           const SizedBox(height: 24),
-          BHButton(label: '⚔  Lancer la partie', onTap: _launch, gold: true),
+          BHButton(label: ui('btn_launch_game'), onTap: _launch, gold: true),
           const SizedBox(height: 8),
         ]),
       ),
@@ -761,6 +761,19 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
   }
 
   void _showLog(BuildContext ctx, SoloController ctrl) {
+    final me = ctrl.state?.players.firstWhere((p) => !p.isBot, orElse: () => ctrl.state!.current);
+    final dv = DrunkVision.forViewer(me);
+    if (dv != null) {
+      showModalBottomSheet(
+        context: ctx,
+        backgroundColor: kBg2,
+        builder: (_) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(ui('log_hidden_drunk'), style: body(13, c: kTextDim), textAlign: TextAlign.center),
+        ),
+      );
+      return;
+    }
     final logs = List<LogEntry>.from(ctrl.state?.log.reversed.take(50).toList() ?? []);
     showModalBottomSheet(
       context: ctx,
@@ -769,7 +782,7 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
         padding: const EdgeInsets.all(14),
         children: logs.map((l) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
-          child: Text(l.message, style: TextStyle(fontSize: 12, color: switch (l.cls) {
+          child: Text(resolveLog(l.message), style: TextStyle(fontSize: 12, color: switch (l.cls) {
             'death' => kRed, 'important' => kGold,
             'player' => kGreen, 'bot' => const Color(0xFFA07AF0), _ => kTextSub,
           })),
@@ -1809,7 +1822,7 @@ class _RoleRevealScreenState extends State<_RoleRevealScreen>
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: fc, width: 2),
                         boxShadow: [BoxShadow(color: fc.withValues(alpha: 0.3), blurRadius: 12)]),
-                      child: Text("J'ai compris — Commencer !",
+                      child: Text(ui('btn_understood_start'),
                         textAlign: TextAlign.center,
                         style: cinzel(15, c: fc, fw: FontWeight.w700)),
                     ),
@@ -2152,7 +2165,9 @@ class _HpLeaderboard extends StatelessWidget {
         maximeTargetName: (isMe && effectiveChar.id == 'maxime')
           ? (maximeTarget?.name ?? ui('nobody_yet')) : null,
         megFormOverride: drunkChar == null && effectiveChar.abilityEffect == 'meg_shapeshift' ? p.megForm : null,
-        mathieuAttackCount: drunkChar == null && (p.copiedEffect ?? effectiveChar.abilityEffect) == 'third_attack_bonus' ? p.attackCount : null).then((_) {
+        mathieuAttackCount: drunkChar == null && (p.copiedEffect ?? effectiveChar.abilityEffect) == 'third_attack_bonus' ? p.attackCount : null,
+        copiedAbilityText: (drunkChar == null && p.copiedEffect != null)
+            ? tr(characterAbilityForEffect(p.copiedEffect) ?? '') : null).then((_) {
         if (drunkChar == null && (p.equipment.isNotEmpty || isNils) && ctx.mounted) _showEquipmentForSolo(ctx, p);
       });
     } else {
@@ -2225,9 +2240,9 @@ class _HpLeaderboard extends StatelessWidget {
                       Text(deckIcon(eq.deck.name), style: const TextStyle(fontSize: 20)),
                       const SizedBox(width: 10),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(eq.name, style: cinzel(12, c: kGold2, fw: FontWeight.w700)),
+                        Text(tr(eq.name), style: cinzel(12, c: kGold2, fw: FontWeight.w700)),
                         const SizedBox(height: 4),
-                        Text(eq.text, style: body(11, c: kTextSub)),
+                        Text(eq.text.split('\n').map(tr).join('\n'), style: body(11, c: kTextSub)),
                       ])),
                     ]),
                   );
@@ -2332,12 +2347,14 @@ class _BotPanel extends StatelessWidget {
   @override
   Widget build(BuildContext ctx) {
     final s = ctrl.state!;
-    final last = s.log.isNotEmpty ? s.log.last.message : '';
+    final last = s.log.isNotEmpty ? resolveLog(s.log.last.message) : '';
+    final me = s.players.firstWhere((p) => !p.isBot, orElse: () => s.current);
+    final dv = DrunkVision.forViewer(me);
     return Column(mainAxisSize: MainAxisSize.min, children: [
       const SizedBox(height: 10),
-      TokenWidget(tokenId: s.current.token, size: 48),
+      TokenWidget(tokenId: dv?.tokenFor(s.current.uid) ?? s.current.token, size: 48),
       const SizedBox(height: 4),
-      Text(ui('bot_thinking').replaceAll('{name}', s.current.name), style: cinzel(13, c: kTextSub)),
+      Text(dv != null ? ui('someone_is_playing') : ui('bot_thinking').replaceAll('{name}', s.current.name), style: cinzel(13, c: kTextSub)),
       const SizedBox(height: 12),
       const Padding(
         padding: EdgeInsets.symmetric(horizontal: 20),
@@ -2346,7 +2363,7 @@ class _BotPanel extends StatelessWidget {
       const SizedBox(height: 10),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Text(last, style: body(12, c: kTextSub),
+        child: Text(dv != null ? '' : last, style: body(12, c: kTextSub),
           textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
       ),
       // Vision = secret total, Lumière/Ténèbres = visible
@@ -2957,7 +2974,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
                     const Text('💥', style: TextStyle(fontSize: 13)),
                     const SizedBox(width: 6),
                     Expanded(child: Text(
-                      'Attaque groupée — ${targets.length} joueur${targets.length > 1 ? "s" : ""} à portée : ${targets.map((t) => t.name).join(", ")}',
+                      'Attaque groupée — ${targets.length} joueur${targets.length > 1 ? "s" : ""} à portée : ${DrunkVision.forViewer(me) != null ? targets.map((t) => tr(DrunkVision.forViewer(me)!.cardFor(t.uid).name)).join(", ") : targets.map((t) => t.name).join(", ")}',
                       style: body(11, c: kRed))),
                   ]),
                 ),
@@ -2989,6 +3006,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
               ...targets.map((t) => _TargetBtn(
                 player: t, danger: true,
                 prefix: hasHache ? '🪓 Attaquer ' : ui('attack_label_space'),
+                drunkVision: DrunkVision.forViewer(me),
                 onTap: () => hasHache ? _startHacheAtk(t.uid) : _startAtk(t.uid),
               )),
           ] else if (!alreadyAttacked) ...[
@@ -3118,6 +3136,12 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (context == 'ability_set5') {
       targets = s.players.where((p) => p.alive).toList();
     }
+    // Raph du Soleil Levant : "un joueur de votre choix" n'exclut pas
+    // explicitement soi-même dans le texte de la capacité — il doit
+    // pouvoir se soigner lui-même.
+    if (context == 'damage2_then_heal3' || context == 'ability_raph_heal') {
+      targets = s.players.where((p) => p.alive).toList();
+    }
     // Chauve-souris Vampire : "un joueur de votre choix" n'exclut pas
     // explicitement soi-même dans le texte de la carte.
     if (context == 'vampirisation') {
@@ -3139,7 +3163,8 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         ...s.terrainLayout.asMap().entries.where((e) => e.key != myZoneIdx).map((entry) {
           final idx = entry.key;
           final terrain = entry.value;
-          final playersHere = s.players.where((p) => p.alive && p.zoneIndex == idx).map((p) => p.token).join(' ');
+          final dv = DrunkVision.forViewer(me);
+          final playersHere = s.players.where((p) => p.alive && p.zoneIndex == idx).map((p) => dv?.tokenFor(p.uid) ?? p.token).join(' ');
           return Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: BHButton(
@@ -3197,15 +3222,17 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       final t = targetUid != null
           ? s.players.firstWhere((pl) => pl.uid == targetUid, orElse: () => s.current)
           : s.current;
+      final dv = DrunkVision.forViewer(me);
+      final srcLabel = dv != null ? tr(dv.cardFor(t.uid).name) : t.name;
       return [
         Container(padding: const EdgeInsets.all(10), decoration: surfaceDecor(),
-          child: Text('🗼 Quel objet de ${t.name} voulez-vous voler ?',
+          child: Text('🗼 Quel objet de $srcLabel voulez-vous voler ?',
             style: cinzel(12, c: kGold2))),
         const SizedBox(height: 8),
         ...t.equipment.asMap().entries.map((entry) => Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: BHButton(
-            label: entry.value.name,
+            label: dv != null ? ui('mystery_item').replaceAll('{n}', '${entry.key + 1}') : entry.value.name,
             onTap: () => ctrl.humanChooseStealItem(entry.key),
           ),
         )),
@@ -3223,7 +3250,8 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         const SizedBox(height: 8),
         ...adj.map((idx) {
           final terrain = s.terrainLayout[idx];
-          final playersHere = s.players.where((p) => p.alive && p.zoneIndex == idx).map((p) => p.token).join(' ');
+          final dv = DrunkVision.forViewer(me);
+          final playersHere = s.players.where((p) => p.alive && p.zoneIndex == idx).map((p) => dv?.tokenFor(p.uid) ?? p.token).join(' ');
           return Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: BHButton(
@@ -3317,6 +3345,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       else
         ...targets.map((t) => _TargetBtn(
           player: t,
+          drunkVision: DrunkVision.forViewer(me),
           onTap: () => _resolveTarget(t),
         )),
       BHButton(label: 'Annuler',  outlined: true,
@@ -3439,12 +3468,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     final tid = m[sum];
     int idx = tid != null ? s.terrainLayout.indexWhere((t) => t.id == tid) : -1;
     if (idx == -1 || idx == s.current.zoneIndex) idx = (s.current.zoneIndex + 1) % 6;
-    ctrl.humanMove(idx);
-    // Augustin: se soigne de 2 si 7
-    if (sum == 7 && s.current.character?.abilityEffect == 'heal_on_same_terrain' && s.current.revealed) {
-      ctrl.state!.players[ctrl.state!.currentIdx].wounds =
-        (ctrl.state!.players[ctrl.state!.currentIdx].wounds - 2).clamp(0, 999);
-    }
+    ctrl.humanMove(idx, diceSum: sum);
     setState(() { _d4 = _d6 = _sum = null; _sum2 = null; _d4b = null; _d6b = null; _albaneChose = false; });
     s.pendingMoveD4 = s.pendingMoveD6 = s.pendingMoveSum = null;
     s.pendingMoveSum2 = s.pendingMoveD4b = s.pendingMoveD6b = null;
@@ -3465,9 +3489,9 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (i == s.current.zoneIndex) return const SizedBox.shrink();
     final t = s.terrainLayout[i];
     return BHButton(
-      label: '${t.icon} ${t.num} — ${t.name}',
+      label: '${t.icon} ${t.num} — ${tr(t.name)}',
       onTap: () {
-        ctrl.humanMove(i);
+        ctrl.humanMove(i, diceSum: _sum ?? 0);
         setState(() { _d4 = _d6 = _sum = null; _sum2 = null; _d4b = null; _d6b = null; });
         s.pendingMoveD4 = s.pendingMoveD6 = s.pendingMoveSum = null;
         s.pendingMoveSum2 = s.pendingMoveD4b = s.pendingMoveD6b = null;
@@ -3482,9 +3506,9 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     if (idx == -1 || idx == s.current.zoneIndex) idx = (s.current.zoneIndex + 1) % 6;
     final t = s.terrainLayout[idx];
     return BHButton(
-      label: '→ ${t.icon} ${t.name}  (${t.keyword})',
+      label: '→ ${t.icon} ${tr(t.name)}  (${tr(t.keyword)})',
       onTap: () {
-        ctrl.humanMove(idx);
+        ctrl.humanMove(idx, diceSum: _sum ?? 0);
         setState(() { _d4 = _d6 = _sum = null; _sum2 = null; _d4b = null; _d6b = null; });
         s.pendingMoveD4 = s.pendingMoveD6 = s.pendingMoveSum = null;
         s.pendingMoveSum2 = s.pendingMoveD4b = s.pendingMoveD6b = null;
@@ -4187,12 +4211,12 @@ class _DiceWidgetState extends State<_DiceWidget>
       ]),
       const SizedBox(height: 6),
       Text(widget.isAttack
-        ? '|d4(${widget.d4}) − d6(${widget.d6})| = ${widget.sum} dégâts'
-        : 'd4(${widget.d4}) + d6(${widget.d6}) = ${widget.sum}',
+        ? ui('attack_formula3').replaceAll('{d4}', '${widget.d4}').replaceAll('{d6}', '${widget.d6}').replaceAll('{sum}', '${widget.sum}')
+        : ui('move_formula3').replaceAll('{d4}', '${widget.d4}').replaceAll('{d6}', '${widget.d6}').replaceAll('{sum}', '${widget.sum}'),
         style: body(11, c: kTextSub)),
       if (!widget.isAttack && widget.sum == 7)
         Padding(padding: const EdgeInsets.only(top: 4),
-          child: Text('🎯 Choisis ta destination !', style: cinzel(11, c: kGold))),
+          child: Text(ui('choose_destination'), style: cinzel(11, c: kGold))),
       if (widget.isAttack && widget.sum == 0)
         Padding(padding: const EdgeInsets.only(top: 4),
           child: Text(ui('attack_missed'), style: body(11, c: kTextDim))),
@@ -4420,12 +4444,16 @@ class _RemiChoiceRow extends StatelessWidget {
 class _TargetBtn extends StatelessWidget {
   final Player player; final VoidCallback onTap;
   final bool danger; final String prefix;
+  final DrunkVision? drunkVision; // spectateur ivre : confond l'affichage
   const _TargetBtn({required this.player, required this.onTap,
-    this.danger = false, this.prefix = ''});
+    this.danger = false, this.prefix = '', this.drunkVision});
 
   @override
   Widget build(BuildContext ctx) {
+    final dv = drunkVision;
     final hpColor = player.wounds >= 10 ? kRed : player.wounds >= 6 ? kGold : kGreen;
+    final displayToken = dv?.tokenFor(player.uid) ?? player.token;
+    final displayName = dv != null ? tr(dv.cardFor(player.uid).name) : player.name;
     // Pas de % basé sur les PV max (info secrète)
     return Container(
       width: double.infinity, margin: const EdgeInsets.only(bottom: 8),
@@ -4439,20 +4467,20 @@ class _TargetBtn extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           elevation: 0, alignment: Alignment.centerLeft),
         child: Row(children: [
-          TokenWidget(tokenId: player.token, size: 30),
+          TokenWidget(tokenId: displayToken, size: 30),
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('$prefix${player.name} (${player.token})', style: TextStyle(
+            Text('$prefix$displayName ($displayToken)', style: TextStyle(
               fontFamily: 'Cinzel', fontSize: 13,
               fontWeight: FontWeight.w700, color: danger ? kRed : kText)),
             const SizedBox(height: 4),
             // Blessures uniquement — pas de barre basée sur les PV max
-            Text('${player.wounds} blessure${player.wounds > 1 ? "s" : ""}',
-              style: body(10, c: hpColor)),
+            Text(dv != null ? '❓ blessures' : '${player.wounds} blessure${player.wounds > 1 ? "s" : ""}',
+              style: body(10, c: dv != null ? kTextDim : hpColor)),
           ])),
           const SizedBox(width: 8),
-          Text('🗡 ${player.wounds}',
-            style: TextStyle(fontSize: 11, fontFamily: 'Cinzel', color: hpColor)),
+          Text(dv != null ? '🗡 ?' : '🗡 ${player.wounds}',
+            style: TextStyle(fontSize: 11, fontFamily: 'Cinzel', color: dv != null ? kTextDim : hpColor)),
         ]),
       ),
     );
@@ -4485,12 +4513,21 @@ class _LogStrip extends StatelessWidget {
   const _LogStrip({required this.ctrl});
   @override
   Widget build(BuildContext ctx) {
+    final me = ctrl.state!.players.firstWhere((p) => !p.isBot, orElse: () => ctrl.state!.current);
+    if (DrunkVision.forViewer(me) != null) {
+      return Container(
+        color: kBg1,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Text(ui('log_hidden_drunk'), style: body(11, c: kTextDim),
+          maxLines: 1, overflow: TextOverflow.ellipsis),
+      );
+    }
     final logs = ctrl.state!.log.reversed.take(2).toList();
     return Container(
       color: kBg1,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
-        children: logs.map((l) => Text(l.message,
+        children: logs.map((l) => Text(resolveLog(l.message),
           style: TextStyle(fontSize: 11, color: switch (l.cls) {
             'death' => kRed, 'important' => kGold,
             'player' => kGreen, _ => kTextSub,
@@ -4547,7 +4584,7 @@ class _EquipmentPanel extends StatelessWidget {
             Text(_icon(eq.effect), style: const TextStyle(fontSize: 14)),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(eq.name, style: cinzel(11, c: kGold2)),
+              Text(tr(eq.name), style: cinzel(11, c: kGold2)),
               Text(_effectDesc(eq.effect), style: body(10, c: kTextSub)),
             ])),
           ]),

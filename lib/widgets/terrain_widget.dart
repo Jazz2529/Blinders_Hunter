@@ -388,7 +388,7 @@ class AdjacencyLegend extends StatelessWidget {
     children: [
       _dot(kGold2),
       const SizedBox(width: 3),
-      Text('Ta zone', style: body(8, c: kTextSub)),
+      Text(ui('your_zone'), style: body(8, c: kTextSub)),
       const SizedBox(width: 8),
       _dot(kGold),
       const SizedBox(width: 3),

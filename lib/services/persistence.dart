@@ -182,6 +182,41 @@ class Prefs {
     _sp?.setString('cosmetics_equipped', jsonEncode(eq));
   }
 
+  // ── Compte (code de récupération) ───────────────────────────────────────
+  /// Code du compte lié sur CET appareil — null si aucun compte lié
+  /// (progression purement locale, comme avant cette fonctionnalité).
+  static String? accountCode() => _sp?.getString('account_code');
+  static void setAccountCode(String? code) {
+    if (code == null) {
+      _sp?.remove('account_code');
+    } else {
+      _sp?.setString('account_code', code);
+    }
+  }
+
+  /// Exporte toute la progression (or + cosmétiques) sous forme de données
+  /// simples, prêtes à être envoyées vers le compte Firebase.
+  static Map<String, dynamic> exportProgressionForAccount() => {
+    'gold': gold(),
+    'cosmeticsOwned': ownedCosmetics().toList(),
+    'cosmeticsEquipped': equippedCosmetics(),
+  };
+
+  /// Applique une progression reçue du compte (écrase la progression
+  /// locale actuelle) — utilisé en se connectant à un compte existant sur
+  /// un nouvel appareil.
+  static Future<void> importProgressionFromAccount(Map<String, dynamic> data) async {
+    final sp = _sp;
+    if (sp == null) return;
+    final gold = data['gold'] as int? ?? 0;
+    await sp.setInt('gold', gold);
+    final owned = (data['cosmeticsOwned'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    await sp.setStringList('cosmetics_owned', owned);
+    final equipped = data['cosmeticsEquipped'] as Map? ?? {};
+    await sp.setString('cosmetics_equipped',
+        jsonEncode(equipped.map((k, v) => MapEntry(k.toString(), v.toString()))));
+  }
+
   // ── Réinitialisation complète de la progression ────────────────────────
   /// Efface l'or, les cosmétiques (débloqués + équipés), l'historique de
   /// parties et les statistiques par personnage (parties jouées/gagnées) —

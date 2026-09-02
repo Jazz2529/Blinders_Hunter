@@ -88,7 +88,10 @@ class RevealFullScreenState extends State<RevealFullScreen>
         : c;
     final fc = displayChar != null ? factionColor(displayChar.faction.name) : kGold;
     final fb = displayChar != null ? factionBg(displayChar.faction.name) : kBg2;
-    final imgPath = displayChar != null ? effectiveCharacterImagePath(displayChar.id) : null;
+    final imgPath = displayChar == null ? null
+        : p.disguiseCharIdOverride == null && p.equippedCharacterSkin != null
+            ? resolveSpecificSkinImagePath(displayChar.id, p.equippedCharacterSkin)
+            : effectiveCharacterImagePath(displayChar.id);
     final fLabel  = displayChar?.faction.name == 'hunter' ? ui('faction_hunter')
         : displayChar?.faction.name == 'shadow' ? ui('faction_shadow') : ui('faction_neutral');
 

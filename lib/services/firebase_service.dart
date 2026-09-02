@@ -128,12 +128,12 @@ class FirebaseService {
     final uid = await signInAnonymously();
 
     final data = await _get('rooms/$roomId');
-    if (data == null) throw Exception('Room introuvable : $roomId');
+    if (data == null) throw Exception(ui('err_room_not_found').replaceAll('{id}', roomId));
     final room = Map<String, dynamic>.from(data as Map);
-    if (room['status'] != 'lobby') throw Exception('Partie déjà commencée');
+    if (room['status'] != 'lobby') throw Exception(ui('err_game_started'));
 
     final playersMap = Map<String, dynamic>.from(room['players'] ?? {});
-    if (playersMap.length >= 7) throw Exception('Room pleine (max 7 joueurs)');
+    if (playersMap.length >= 7) throw Exception(ui('err_room_full'));
     if (playersMap.containsKey(uid)) return; // déjà dans la room
 
     final usedTokens = playersMap.values
@@ -153,12 +153,12 @@ class FirebaseService {
   /// puisqu'un bot n'a personne pour cliquer "prêt" à sa place.
   Future<void> addBot(String roomId) async {
     final data = await _get('rooms/$roomId');
-    if (data == null) throw Exception('Room introuvable : $roomId');
+    if (data == null) throw Exception(ui('err_room_not_found').replaceAll('{id}', roomId));
     final room = Map<String, dynamic>.from(data as Map);
-    if (room['status'] != 'lobby') throw Exception('Partie déjà commencée');
+    if (room['status'] != 'lobby') throw Exception(ui('err_game_started'));
 
     final playersMap = Map<String, dynamic>.from(room['players'] ?? {});
-    if (playersMap.length >= 7) throw Exception('Room pleine (max 7 joueurs)');
+    if (playersMap.length >= 7) throw Exception(ui('err_room_full'));
 
     final usedTokens = playersMap.values
         .map((p) => (p as Map)['token'] as String? ?? '')
@@ -280,6 +280,14 @@ class FirebaseService {
     return data as String?;
   }
 
+  /// Récupère la liste des personnages activés pour cette salle (liste
+  /// vide/null = tous les personnages, comportement par défaut).
+  Future<List<String>> getEnabledCharacters(String roomId) async {
+    final data = await _get('rooms/$roomId/enabledCharacterIds');
+    if (data == null) return [];
+    return (data as List).map((e) => e.toString()).toList();
+  }
+
   /// Marque le joueur comme prêt
   Future<void> setReady(String roomId, bool ready) async {
     final uid = currentUid!;
@@ -345,12 +353,12 @@ class FirebaseService {
     final uid = currentUid!;
     final data = await _get('rooms/$roomId');
     final room = Map<String, dynamic>.from(data as Map);
-    if (room['hostId'] != uid) throw Exception('Seul l\'hôte peut lancer la partie');
+    if (room['hostId'] != uid) throw Exception(ui('err_host_only_start'));
 
     final playersMap = Map<String, dynamic>.from(room['players']);
     final playerIds = playersMap.keys.toList();
     final n = playerIds.length;
-    if (n < 4) throw Exception('Il faut au minimum 4 joueurs');
+    if (n < 4) throw Exception(ui('err_min_4_players'));
 
     final players = playerIds.map((id) {
       final pm = Map<String, dynamic>.from(playersMap[id] as Map);
@@ -361,7 +369,13 @@ class FirebaseService {
         isReady: true,
       );
     }).toList();
-    _eg.assignRoles(players);
+    // Pool de personnages restreint par l'hôte (facultatif — liste vide ou
+    // absente = tous les personnages, comportement inchangé par défaut).
+    final poolRaw = room['enabledCharacterIds'] as List?;
+    final pool = (poolRaw != null && poolRaw.isNotEmpty)
+        ? poolRaw.map((e) => e.toString()).toList()
+        : null;
+    _eg.assignRolesWithPool(players, pool: pool);
     for (int i = 0; i < players.length; i++) {
       players[i].zoneIndex = i % 6;
     }
@@ -417,6 +431,73 @@ class FirebaseService {
   /// vraie étoile en consultant sa fiche.
   Future<void> setShineWins(String roomId, String uid, int wins) async {
     await _patch('rooms/$roomId/players/$uid', {'shineWins': wins});
+  }
+
+  // ─────────────────────────────────────────────
+  // POOL DE PERSONNAGES — restreindre quels personnages peuvent être
+  // piochés pour cette partie (réservé à l'hôte de la salle).
+  // ─────────────────────────────────────────────
+
+  /// Définit la liste des personnages activés pour cette salle (host
+  /// uniquement) — liste vide ou absente = tous les personnages (comportement
+  /// par défaut, inchangé).
+  Future<void> setEnabledCharacters(String roomId, List<String> ids) async {
+    final uid = currentUid!;
+    final data = await _get('rooms/$roomId');
+    final room = Map<String, dynamic>.from(data as Map);
+    if (room['hostId'] != uid) throw Exception(ui('err_host_only_start'));
+    await _put('rooms/$roomId/enabledCharacterIds', ids);
+  }
+
+
+  // pour retrouver son avancement sur un autre appareil/navigateur (ex :
+  // la version web du jeu, qui n'a pas les mêmes données locales que
+  // l'app mobile). Volontairement PAS un vrai système d'authentification
+  // (pas de mot de passe) — un simple code à retenir/noter, dans le même
+  // esprit qu'un code de sauvegarde.
+  // ─────────────────────────────────────────────
+
+  /// Alphabet volontairement privé des caractères ambigus (0/O, 1/I/l).
+  static const _kCodeAlphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+  String _randomCode() {
+    final r = Random.secure();
+    final buf = StringBuffer();
+    for (int g = 0; g < 3; g++) {
+      if (g > 0) buf.write('-');
+      for (int i = 0; i < 4; i++) {
+        buf.write(_kCodeAlphabet[r.nextInt(_kCodeAlphabet.length)]);
+      }
+    }
+    return buf.toString();
+  }
+
+  /// Génère un nouveau code UNIQUE (vérifie qu'il n'est pas déjà pris avant
+  /// de le renvoyer — collision extrêmement improbable mais autant être sûr).
+  Future<String> generateAccountCode() async {
+    while (true) {
+      final code = _randomCode();
+      final existing = await _get('accounts/$code');
+      if (existing == null) return code;
+    }
+  }
+
+  /// Envoie la progression ACTUELLE de cet appareil vers le compte — écrase
+  /// ce qu'il y avait avant sous ce code (appelé à la création du compte,
+  /// puis régulièrement pour garder le compte à jour).
+  Future<void> pushAccountData(String code, Map<String, dynamic> data) async {
+    await _put('accounts/$code', {
+      ...data,
+      'updatedAt': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  /// Récupère la progression sauvegardée sous ce code — renvoie null si le
+  /// code n'existe pas (mal recopié, jamais créé...).
+  Future<Map<String, dynamic>?> pullAccountData(String code) async {
+    final data = await _get('accounts/$code');
+    if (data == null) return null;
+    return Map<String, dynamic>.from(data as Map);
   }
 
   /// Met à jour plusieurs joueurs en une seule requête
@@ -519,6 +600,7 @@ class FirebaseService {
     int? publicRevealTimestamp,
     bool clearOverlay = false,
     bool clearPending = false,
+    bool clearPunish = false,
   }) async {
     final Map<String, dynamic> updates = {'phase': phase.name};
     if (currentPlayerId != null) {
@@ -530,9 +612,14 @@ class FirebaseService {
       updates['pendingTargetAction'] = null;
       updates['attackTargetId'] = null;
       updates['pendingDamage'] = null;
-      updates['pendingPunishActorUid'] = null;
-      updates['pendingPunishTargetUid'] = null;
-      updates['pendingPunishTimestamp'] = null;
+      // IMPORTANT : pendingPunish* n'est PLUS effacé ici — voir clearPunish
+      // ci-dessous. Bug corrigé : clearPending est utilisé par endTurn() et
+      // bien d'autres actions SANS RAPPORT avec la carte Vision — si le
+      // joueur visé par le "punish" attendait la fin du tour en cours avant
+      // de choisir, ce choix en attente était silencieusement effacé ici
+      // AVANT même d'avoir pu être résolu, et l'effet ne s'appliquait
+      // jamais. Désormais, seule la résolution RÉELLE du choix (voir
+      // resolvePunishChoice) l'efface, via ce nouveau paramètre dédié.
       updates['privateRevealTargetUid'] = null;
       updates['privateRevealForUid'] = null;
       updates['forcedAttackerUid'] = null;
@@ -541,6 +628,11 @@ class FirebaseService {
       updates['lootKillerUid'] = null;
       updates['lootDeadQueue'] = <String>[];
       updates['richardActivateZone'] = null;
+    }
+    if (clearPunish) {
+      updates['pendingPunishActorUid'] = null;
+      updates['pendingPunishTargetUid'] = null;
+      updates['pendingPunishTimestamp'] = null;
     }
     if (clearOverlay) {
       updates['abilityOverlay'] = null;

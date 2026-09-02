@@ -164,8 +164,9 @@ class _PlayerStatusCardState extends State<PlayerStatusCard>
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Luc : joueur en feu — visible de tous, aucune info cachée ici
-              // contrairement au charme de Victor.
+              // Luc : joueur en feu — affiche le NIVEAU de brûlure actuel
+              // (dégâts de la prochaine tique, 1 à 5) — visible de tous,
+              // aucune info cachée ici contrairement au charme de Victor.
               if (p.alive && p.lucFireTurnsRemaining > 0)
                 Padding(padding: const EdgeInsets.symmetric(horizontal: 1),
                   child: Text('🔥${p.lucFireTurnsRemaining}',

@@ -25,7 +25,7 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
   CharacterCard(id:'augustin', name:'Augustin', faction:Faction.hunter, hp:13, icon:'🌾',
-    ability:'Passif: si vous faites un 7 aux dés de déplacement, soignez 2 blessures',
+    ability:'Passif: aux dés de déplacement, un 7 vous soigne de 2 blessures, un résultat entre 2 et 6 vous soigne de 1 blessure, et un 8, 9 ou 10 vous rapporte 20 pièces d\'or (menu principal).',
     abilityEffect:'heal_on_same_terrain', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
@@ -184,7 +184,7 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'luc', name:'Luc', faction:Faction.shadow, hp:11, icon:'🔥',
-    ability:'Répétable: mettez le feu à un joueur de votre choix — pendant 2 tours, il perd 2 PV au début de son tour, mais ses attaques infligent 1 blessure de plus.',
+    ability:'Unique: mettez le feu à un joueur de votre choix — il brûle et subit des blessures croissantes au début de chacun de ses tours (1 → 2 → 3 → 4 → 5 etc), tant que VOUS êtes en vie. Le feu s\'éteint dès que vous mourez.',
     abilityEffect:'luc_ignite', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
 
@@ -199,7 +199,7 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'maxence', name:'Maxence', faction:Faction.shadow, hp:13, icon:'🩸',
-    ability:'Unique: choisissez un joueur et rendez-le ivre pendant 2 tours — sur son écran, tous les jetons changent aléatoirement d\'apparence, les camps et cartes personnages affichés sont aléatoires, et les blessures de tous les joueurs sont masquées.',
+    ability:'Unique: choisissez un joueur, infligez-lui 2 blessures et rendez-le complètement ivre pendant 2 tours — sur son écran, tous les jetons/noms/blessures affichés sont aléatoires, le journal et l\'indicateur "en train de jouer" sont masqués, et il a 10% de chance de s\'attaquer lui-même par confusion.',
     abilityEffect:'maxence_drunk', abilityRepeatable:false,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
 
