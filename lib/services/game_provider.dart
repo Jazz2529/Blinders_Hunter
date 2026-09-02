@@ -1678,6 +1678,11 @@ class GameProvider extends ChangeNotifier {
     if (log == 'meg_choice') {
       // Meg : ouvre l'écran de choix (Offensive/Défensive) — résolu ensuite
       // via megChooseForm(), pas ici (aucun target n'a encore été choisi).
+      // Même correctif que pour 'cible_requise' juste plus bas : sans
+      // persister actor ici, abilityUsed=true (déjà mis à jour en mémoire
+      // par applyAbility()) se perdait au prochain rafraîchissement.
+      await _fb.updatePlayer(roomId!, actor);
+      players = Map<String, Player>.from(players)..[actor.uid] = actor;
       await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: 'meg_choice');
       return;
     }
@@ -1749,6 +1754,14 @@ class GameProvider extends ChangeNotifier {
       return;
     }
     if (log == 'cible_requise') {
+      // IMPORTANT : applyAbility() a déjà mis à jour actor.abilityUsed=true
+      // en mémoire (LOCALE, dans `all`), mais RIEN ne l'enregistrait encore
+      // dans Firebase à ce stade — seule la phase changeait. Résultat : au
+      // prochain rafraîchissement de l'état depuis le serveur, abilityUsed
+      // revenait à sa valeur précédente (false), rendant une capacité
+      // pourtant UNIQUE (ex: Luc) de nouveau cliquable après utilisation.
+      await _fb.updatePlayer(roomId!, actor);
+      players = Map<String, Player>.from(players)..[actor.uid] = actor;
       await _fb.setPhase(roomId!, GamePhase.chooseTarget,
           pendingTargetAction: actor.copiedEffect ?? actor.character!.abilityEffect);
       return;
@@ -1766,7 +1779,12 @@ class GameProvider extends ChangeNotifier {
       return;
     }
     if (log == 'terrain_max_aoe') {
-      // Hong Yi : signale qu'une cible est requise (tout le monde, pas seulement adjacents)
+      // Hong Yi : signale qu'une cible est requise (tout le monde, pas
+      // seulement adjacents) — même correctif que pour 'cible_requise' :
+      // persister actor ici, sinon abilityUsed=true (capacité UNIQUE) se
+      // perdait au prochain rafraîchissement, la rendant re-cliquable.
+      await _fb.updatePlayer(roomId!, actor);
+      players = Map<String, Player>.from(players)..[actor.uid] = actor;
       await _fb.setPhase(roomId!, GamePhase.chooseTarget,
           pendingTargetAction: 'terrain_max_aoe');
       return;
