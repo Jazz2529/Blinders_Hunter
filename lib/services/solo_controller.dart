@@ -186,11 +186,44 @@ class AiBrain {
   final Random _rng = Random();
   final GameEngine _eg = GameEngine.instance;
   final Map<String, Faction> _memory = {};
+  // Coordination entre bots d'un MÊME camp : mémorise la DERNIÈRE cible
+  // ennemie CONNUE attaquée par ce camp, pour encourager les bots suivants
+  // à concentrer leurs attaques sur ELLE plutôt que de disperser les
+  // dégâts sur plusieurs ennemis en parallèle (achever une cible déjà
+  // engagée vaut mieux que blesser légèrement deux cibles différentes).
+  // Partagé car AiBrain est une SEULE instance pour tous les bots.
+  final Map<Faction, String> _lastFactionTarget = {};
 
   void remember(List<Player> players) {
     for (final p in players) {
       if (p.revealed && p.character != null) _memory[p.uid] = p.character!.faction;
     }
+  }
+
+  /// À appeler juste après qu'un bot a réellement attaqué quelqu'un — permet
+  /// aux PROCHAINS bots de son même camp de privilégier la même cible
+  /// (achever à plusieurs plutôt que disperser les dégâts). Ignoré pour les
+  /// bots Neutres, qui n'ont pas de "camp" à coordonner.
+  void recordAttack(Player bot, Player target) {
+    if (bot.character!.faction != Faction.neutral) {
+      _lastFactionTarget[bot.character!.faction] = target.uid;
+    }
+  }
+
+  /// Faction CONNUE de `t` du point de vue de `bot` — combine la
+  /// révélation PUBLIQUE (mémorisée dans _memory, partagée entre tous les
+  /// bots puisque tout le monde la voit) ET la connaissance PRIVÉE de CE
+  /// bot spécifiquement (via privatelyKnownBy, ex: Vision Suprême) — sans
+  /// jamais mélanger la connaissance privée d'un bot avec celle d'un
+  /// autre. Avant ce correctif, un bot qui utilisait Vision Suprême pour
+  /// découvrir secrètement une identité l'oubliait aussitôt : cette
+  /// information n'était jamais réutilisée pour ses décisions suivantes
+  /// (cibler, attaquer...).
+  Faction? _knownFactionFor(Player bot, Player t) {
+    if (_memory.containsKey(t.uid)) return _memory[t.uid];
+    if (t.revealed && t.character != null) return t.character!.faction;
+    if (t.privatelyKnownBy.contains(bot.uid) && t.character != null) return t.character!.faction;
+    return null;
   }
 
   double _probAttack(AiDifficulty d)  => switch(d){AiDifficulty.easy=>0.5,AiDifficulty.normal=>0.70,AiDifficulty.hard=>0.90};
@@ -221,7 +254,16 @@ class AiBrain {
       case 'heal_on_same_terrain':  return bot.wounds > 0;
 
       // ── Dégâts / effets globaux : utiles dès qu'un adversaire existe ──
-      case 'd4_all':               return true; // touche tout le monde, toujours pertinent
+      case 'd4_all':
+        // Léo : une fois que QUELQU'UN d'autre est déjà mort en premier,
+        // sa condition de victoire ("être le premier à mourir") est
+        // DÉFINITIVEMENT impossible à atteindre pour le reste de la
+        // partie — continuer à blesser tout le monde (lui y compris) n'a
+        // alors plus aucun intérêt, juste du dégât gratuit.
+        if (bot.character!.winEffect == 'die_first_only' && all.any((p) => !p.alive)) {
+          return false;
+        }
+        return true; // touche tout le monde, toujours pertinent sinon
       case 'aoe_zone6':            return othersAlive;
       case 'd6_global_attack':     return othersAlive;
       case 'd4_bonus_attack':
@@ -258,7 +300,16 @@ class AiBrain {
 
       // ── Nécessitent un joueur mort ──
       case 'baptiste_revive':
-        return all.any((p) => !p.alive) && bot.wounds < bot.character!.hp - 1;
+        // IMPORTANT : ne considérer l'utilisation utile QUE s'il existe un
+        // allié mort à ramener (ou si le bot est Neutre, sans notion
+        // d'ennemi) — avant, n'importe quel mort suffisait, y compris un
+        // ennemi CONNU, ce qui n'a aucun sens stratégique pour un Hunter/
+        // Shadow (ex: Baptiste ressuscitant un Shadow déjà révélé).
+        final deadForBaptiste = all.where((p) => !p.alive).toList();
+        if (deadForBaptiste.isEmpty) return false;
+        final hasAlliedDead = bot.character!.faction == Faction.neutral ||
+            deadForBaptiste.any((p) => _isAlly(bot, p));
+        return hasAlliedDead && bot.wounds < bot.character!.hp - 1;
       case 'bonus_turns': // Ninja : sans mort, "aucun effet" — inutile de le gâcher
         return all.any((p) => !p.alive);
 
@@ -352,11 +403,16 @@ class AiBrain {
     if (context == 'baptiste_revive') {
       final dead = all.where((p) => !p.alive).toList();
       if (dead.isEmpty) return null;
-      // Priorité à un allié mort (faction identique) si possible, sinon
-      // n'importe quel mort — ramener un ennemi n'a aucun intérêt tactique
-      // mais reste un choix légal si aucun allié n'est disponible.
+      // IMPORTANT : ne JAMAIS ramener un ennemi CONNU à la vie — ramener
+      // un allié uniquement (ou n'importe qui si le bot est Neutre, sans
+      // notion d'ennemi). _isAbilityUseful() garantit déjà qu'un allié
+      // mort existe avant d'en arriver là (sauf cas Neutre).
+      if (bot.character!.faction == Faction.neutral) {
+        return dead[_rng.nextInt(dead.length)];
+      }
       final allies = dead.where((p) => _isAlly(bot, p)).toList();
-      return (allies.isNotEmpty ? allies : dead)[_rng.nextInt((allies.isNotEmpty ? allies : dead).length)];
+      if (allies.isEmpty) return null;
+      return allies[_rng.nextInt(allies.length)];
     }
     final cands = all.where((p) => p.alive && p.uid != bot.uid).toList();
     if (cands.isEmpty) return null;
@@ -371,15 +427,66 @@ class AiBrain {
       if (allies.isEmpty) return cands.reduce((a,b)=>a.wounds>b.wounds?a:b);
       return allies.reduce((a,b)=>a.wounds>b.wounds?a:b);
     }
+    // ── Ciblage adapté à SA PROPRE condition de victoire (attaques
+    // normales uniquement — context vide) — avant, un bot avec une
+    // condition atypique (tuer une personne PRÉCISE, charmer 2 joueurs...)
+    // se comportait comme n'importe quel autre bot de son camp, ignorant
+    // totalement son véritable objectif.
+    if (context.isEmpty) {
+      final winEff = bot.character?.winEffect;
+      // Maxime : doit éliminer le PREMIER joueur à l'avoir attaqué.
+      if (winEff == 'maxime_kill_first_attacker' && bot.maximeFirstAttackerUid != null) {
+        final specific = cands.where((p) => p.uid == bot.maximeFirstAttackerUid).firstOrNull;
+        if (specific != null) return specific;
+      }
+      // Tommy : doit éliminer la personne dont il a copié le pouvoir —
+      // identifiable via son abilityEffect d'origine (un seul joueur peut
+      // avoir ce personnage précis en jeu).
+      if (winEff == 'kill_copied' && bot.copiedEffect != null) {
+        final specific = cands.where((p) =>
+          p.character?.abilityEffect == bot.copiedEffect).firstOrNull;
+        if (specific != null) return specific;
+      }
+      // Mango Loco : doit éliminer un joueur à 13 PV ou plus — priorité
+      // absolue à ces cibles précises plutôt qu'au score générique.
+      if (winEff == 'kill_hp13plus') {
+        final tanky = cands.where((p) => (p.character?.hp ?? 0) >= 13).toList();
+        if (tanky.isNotEmpty) {
+          tanky.sort((a,b) => (a.character!.hp - a.wounds).compareTo(b.character!.hp - b.wounds));
+          return tanky.first; // le plus proche de la mort parmi les costauds, pour achever
+        }
+      }
+      // Victor : doit charmer 2 joueurs à 100% — mieux vaut concentrer les
+      // attaques sur UN joueur déjà bien avancé (pour l'amener à 100%) que
+      // de disperser le charme sur tout le monde sans jamais en finir un.
+      if (winEff == 'victor_charm2' && bot.character?.abilityEffect == 'victor_charm') {
+        final notMaxed = cands.where((p) => (bot.charmLevels[p.uid] ?? 0) < 100).toList();
+        if (notMaxed.isNotEmpty) {
+          notMaxed.sort((a,b) => (bot.charmLevels[b.uid] ?? 0).compareTo(bot.charmLevels[a.uid] ?? 0));
+          return notMaxed.first;
+        }
+      }
+    }
     final scored = cands.map((t) {
       double s = 0;
-      final knownFaction = _memory[t.uid] ?? (t.revealed ? t.character!.faction : null);
+      final knownFaction = _knownFactionFor(bot, t);
       if (knownFaction != null && _isEnemy(bot, knownFaction)) s += 30;
       if (knownFaction != null && bot.character!.faction == knownFaction) s -= 50;
       final hpLeft = t.character!.hp - t.wounds;
       if (hpLeft <= 3) s += 40; else if (hpLeft <= 6) s += 15;
       if (d == AiDifficulty.hard) s += t.equipment.length * 5.0;
-      if (bot.character!.winEffect == 'die_first') s = _rng.nextDouble() * 20;
+      // Coordination : bonus si un ALLIÉ de mon camp vient déjà de
+      // s'engager contre cette même cible — mieux vaut l'achever à
+      // plusieurs qu'attaquer chacun quelqu'un de différent.
+      if (bot.character!.faction != Faction.neutral &&
+          _lastFactionTarget[bot.character!.faction] == t.uid) {
+        s += 25;
+      }
+      // Léo : veut mourir en premier — le corps du texte utilisait
+      // auparavant 'die_first', qui ne correspond à AUCUN winEffect réel
+      // ('die_first_only' est la vraie valeur) — cette
+      // vérification ne se déclenchait donc jamais.
+      if (bot.character!.winEffect == 'die_first_only') s = _rng.nextDouble() * 20;
       return (p: t, s: s);
     }).toList();
     scored.sort((a,b)=>b.s.compareTo(a.s));
@@ -394,7 +501,33 @@ class AiBrain {
     me.character!.faction != Faction.neutral && me.character!.faction == other.character!.faction;
 
   bool shouldAttack(Player bot, List<Player> all, List<Terrain> layout, AiDifficulty d) {
-    return _eg.attackTargets(bot, all, layout).isNotEmpty && _roll(_probAttack(d));
+    final targets = _eg.attackTargets(bot, all, layout);
+    if (targets.isEmpty) return false;
+    // IMPORTANT : ne jamais attaquer si TOUTES les cibles disponibles sont
+    // des alliés CONNUS (faction identique, révélée) — avant, le bot
+    // pouvait frapper un allié qu'il savait pertinemment être dans son
+    // propre camp simplement parce qu'aucune autre cible n'était à portée,
+    // ce qui n'a aucun sens stratégique (sauf en difficulté Facile, où un
+    // peu d'aléatoire reste voulu).
+    if (d != AiDifficulty.easy && bot.character!.faction != Faction.neutral) {
+      final allKnownAllies = targets.every((t) {
+        final knownFaction = _knownFactionFor(bot, t);
+        return knownFaction != null && bot.character!.faction == knownFaction;
+      });
+      if (allKnownAllies) return false;
+    }
+    // "Survivre" (Cambou, Carapatte, Rat d'Rouen...) : leur SEUL objectif
+    // est d'être en vie à la fin — inutile de prendre des risques en
+    // cherchant la bagarre une fois déjà bien blessé, alors qu'ils n'ont
+    // RIEN à gagner tactiquement à attaquer (contrairement à un Hunter/
+    // Shadow qui doit éliminer l'autre camp). Avant, ils attaquaient avec
+    // la même agressivité que n'importe quel autre bot, quel que soit leur
+    // propre état de santé.
+    if (bot.character?.winEffect == 'survive') {
+      final hpRatio = bot.wounds / bot.character!.hp;
+      if (hpRatio >= 0.5) return _roll(_probAttack(d) * 0.3); // prudent, mais pas totalement passif
+    }
+    return _roll(_probAttack(d));
   }
 
   bool shouldApplyCard(GameCard card, Player bot, AiDifficulty d) {
@@ -616,7 +749,16 @@ class SoloController extends ChangeNotifier {
     else if (terrain.effect == 'steal') {
       final t = _ai.bestTarget(bot, state!.players, difficulty, context: 'steal');
       if (t != null && t.equipment.isNotEmpty) {
-        final e = t.equipment.removeAt(_rng.nextInt(t.equipment.length));
+        // Choisit le MEILLEUR objet plutôt qu'un tirage aléatoire — sans
+        // ça, un bot pouvait laisser passer un Bazooka pour repartir avec
+        // un objet anecdotique.
+        var bestIdx = 0;
+        var bestVal = -1;
+        for (var i = 0; i < t.equipment.length; i++) {
+          final v = _eg.equipmentValue(t.equipment[i].effect);
+          if (v > bestVal) { bestVal = v; bestIdx = i; }
+        }
+        final e = t.equipment.removeAt(bestIdx);
         bot.equipment.add(e);
         _eg.equipPassivePublic(bot, e);
         _eg.recalcPassives(t); // sinon la victime garde à tort les passifs de l'objet volé (ex: Sniper)
@@ -1072,6 +1214,7 @@ class SoloController extends ChangeNotifier {
         // Mathieu : seules les attaques faites une fois RÉVÉLÉ comptent pour
         // le seuil des 3 attaques (une attaque en étant caché ne compte pas).
         if (bot.revealed) bot.attackCount++;
+        _ai.recordAttack(bot, tgt);
         final attackRes = _eg.resolveAttack(bot, tgt, dmg, all: state!.players);
         final log = attackRes['log'] as String;
         _log(log);
@@ -1817,7 +1960,13 @@ class SoloController extends ChangeNotifier {
         if (target == null) { s.pendingTargetAction = 'ability_jazzon'; s.phase = GamePhase.chooseTarget; notifyListeners(); return; }
         _eg.applyDamage(target, 1);
         if (target.equipment.isNotEmpty) {
-          final ej = target.equipment.removeAt(_rng.nextInt(target.equipment.length));
+          // Choisit le MEILLEUR objet plutôt qu'un tirage aléatoire.
+          var bestIdx = 0; var bestVal = -1;
+          for (var i = 0; i < target.equipment.length; i++) {
+            final v = _eg.equipmentValue(target.equipment[i].effect);
+            if (v > bestVal) { bestVal = v; bestIdx = i; }
+          }
+          final ej = target.equipment.removeAt(bestIdx);
           p.equipment.add(ej); _eg.equipPassivePublic(p, ej); _eg.recalcPassives(target);
           _log(logT('🎵 Jazzon inflige 1 à {target} et vole "{item}"', {'target': target.name, 'item': ej.name}), cls: 'player');
         } else {
@@ -2718,6 +2867,7 @@ class SoloController extends ChangeNotifier {
     if (attacker.revealed) attacker.attackCount++;
     final isMathieuThird = (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus'
         && attacker.attackCount >= 3;
+    _ai.recordAttack(attacker, target);
     final res = _eg.resolveAttackFull(attacker, target, actualDmg, state!.players, attackCount: attacker.attackCount - 1);
     _log(res['log'] as String, cls: 'player');
     if (!target.alive) { _log(logT('💀 {name} est éliminé !', {'name': target.name}), cls: 'death'); }
@@ -2958,7 +3108,7 @@ class SoloController extends ChangeNotifier {
     if (justDiedId != null) {
       final deadPlayer = state!.players.firstWhere((p) => p.uid == justDiedId, orElse: () => state!.players.first);
       final totalDeaths = state!.players.where((p) => !p.alive).length;
-      if (deadPlayer.character?.winEffect == 'die_first_or_kill_hunters' && totalDeaths == 1) {
+      if (deadPlayer.character?.winEffect == 'die_first_only' && totalDeaths == 1) {
         // Léo est le PREMIER à mourir → il gagne !
         state!.phase = GamePhase.gameOver;
         state!.winnerIds = [deadPlayer.uid];

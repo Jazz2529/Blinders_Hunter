@@ -341,8 +341,36 @@ class GameProvider extends ChangeNotifier {
     bool gameEndedTurn = false;
     if (!nextPlayer.alive) { gameEndedTurn = await _checkWin(all, justDiedId: nextPlayer.uid); }
     if (gameEndedTurn) return;
+    // IMPORTANT : si nextPlayer vient de mourir de son PROPRE passif de
+    // début de tour (poison de Damien, feu de Luc...), il ne peut évidemment
+    // pas jouer son tour — il faut sauter au joueur vivant suivant, EXACTEMENT
+    // comme la boucle plus haut le fait déjà pour les morts déjà connues au
+    // moment de choisir "next". Sans ça, un joueur mort restait "current",
+    // bloquant la partie.
+    var realNext = next;
+    while (!(all.firstWhere((p) => p.uid == order[realNext]).alive)) {
+      realNext = (realNext + 1) % order.length;
+    }
+    // Le tueur d'un passif de début de tour a droit au même butin qu'après
+    // une attaque directe — manquait ENTIÈREMENT ici, donc mourir de cette
+        // façon ne permettait JAMAIS à son auteur de récupérer un équipement,
+    // même si killedByUid était (lui) correctement renseigné. Le
+    // currentPlayerId du VRAI joueur suivant est fixé dans ce même appel :
+    // une fois le butin résolu (lootChooseItem/lootSkip), la phase revient
+    // à gameState.phase SANS re-préciser currentPlayerId — il doit donc
+    // déjà être correct ici, sans quoi la partie restait bloquée sur le
+    // joueur mort après résolution du butin.
+    if (!nextPlayer.alive && nextPlayer.killedByUid != null) {
+      final killer = all.where((p) => p.uid == nextPlayer.killedByUid).firstOrNull;
+      if (killer != null && killer.alive && nextPlayer.equipment.isNotEmpty) {
+        await _fb.setPhase(roomId!, GamePhase.ability,
+            currentPlayerId: order[realNext], hasAttacked: false, clearPending: true,
+            lootKillerUid: killer.uid, lootDeadQueue: [nextPlayer.uid]);
+        return;
+      }
+    }
     await _fb.setPhase(roomId!, GamePhase.ability,
-        currentPlayerId: order[next], hasAttacked: false, clearPending: true);
+        currentPlayerId: order[realNext], hasAttacked: false, clearPending: true);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -809,6 +837,7 @@ class GameProvider extends ChangeNotifier {
         final roll2 = _eg.rollAttack();
         final dmg = roll2['damage']!;
         if (bot.revealed) bot.attackCount++;
+        _ai.recordAttack(bot, tgt);
         final attackRes = _eg.resolveAttack(bot, tgt, dmg, all: all);
         _eg.applyDeathPassives(all);
         // Gège le Fantôme : attaque automatiquement en plus dès qu'un
@@ -947,7 +976,14 @@ class GameProvider extends ChangeNotifier {
         if (b != null) {
           final t2 = _ai.bestTarget(b, all, _botDifficulty, context: 'steal');
           if (t2 != null && t2.equipment.isNotEmpty) {
-            final e = t2.equipment.removeAt(Random().nextInt(t2.equipment.length));
+            // Choisit le MEILLEUR objet plutôt qu'un tirage aléatoire —
+            // même correctif que côté solo.
+            var bestIdx = 0; var bestVal = -1;
+            for (var i = 0; i < t2.equipment.length; i++) {
+              final v = _eg.equipmentValue(t2.equipment[i].effect);
+              if (v > bestVal) { bestVal = v; bestIdx = i; }
+            }
+            final e = t2.equipment.removeAt(bestIdx);
             b.equipment.add(e);
             _eg.equipPassivePublic(b, e);
             _eg.recalcPassives(t2);
@@ -2196,6 +2232,7 @@ class GameProvider extends ChangeNotifier {
     bool scottCountered = false;
     Map<String, int>? counterDice;
     String log;
+    _ai.recordAttack(attacker, target);
     if (attacker.bazooka) {
       var bazTargets = _eg.attackTargets(attacker, all, gameState!.terrainLayout);
       // Sabre Hanté Masamune (hache) : si aucune cible accessible, l'attaque

@@ -151,9 +151,9 @@ class _PlayerStatusCardState extends State<PlayerStatusCard>
             duration: const Duration(milliseconds: 350),
             tween: IntTween(begin: 0, end: p.wounds),
             builder: (_, val, __) => Text(
-              !p.alive ? '💀' : (widget.drunkVision != null ? '🗡 ❓' : '🗡 $val'),
+              !p.alive ? '💀' : (widget.drunkVision != null ? '🗡 ❓' : '${p.shield ? "🛡️" : ""}🗡 $val'),
               style: TextStyle(fontSize: 11, fontFamily: 'Cinzel',
-                fontWeight: FontWeight.w700, color: woundColor)),
+                fontWeight: FontWeight.w700, color: p.shield && p.alive ? kGold : woundColor)),
           ),
           // IMPORTANT : Row (une seule ligne garantie) plutôt que Wrap —
           // avec plusieurs badges actifs en même temps (feu + cadenas +
@@ -172,6 +172,21 @@ class _PlayerStatusCardState extends State<PlayerStatusCard>
                   child: Text('🔥${p.lucFireTurnsRemaining}',
                     style: const TextStyle(fontSize: 8, fontFamily: 'Cinzel',
                       fontWeight: FontWeight.w900, color: kRed))),
+              // Damien : joueur empoisonné — affiche le nombre de tours
+              // restants (3 blessures/tour) — même logique que le feu de
+              // Luc, info publique visible de tous.
+              if (p.alive && p.poisonTurnsRemaining > 0)
+                Padding(padding: const EdgeInsets.symmetric(horizontal: 1),
+                  child: Text('☠️${p.poisonTurnsRemaining}',
+                    style: const TextStyle(fontSize: 8, fontFamily: 'Cinzel',
+                      fontWeight: FontWeight.w900, color: kGreen))),
+              // Felipe : en sursis après des dégâts létaux (insensible aux
+              // blessures jusqu'à la fin de son prochain tour) — manquait
+              // ENTIÈREMENT ici (aucun mode ne l'affichait), info publique
+              // au même titre que le feu/poison/bouclier ci-dessus.
+              if (p.alive && p.felipeOnBorrowedTime)
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 1),
+                  child: Text('⏳', style: TextStyle(fontSize: 9))),
               // Inès : capacité verrouillée — info PUBLIQUE, visible de tous
               // tant que le verrou est actif (Inès en vie).
               if (p.alive && p.abilityLockedByUid != null)

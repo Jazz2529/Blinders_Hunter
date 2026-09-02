@@ -688,7 +688,10 @@ class _GameScreenState extends State<GameScreen> {
         if (overlay == 'monkey_demon_eyes')   MonkeyDemonEyesOverlay(onDone: clearOverlay),
         if (overlay == 'gege_ghost')          _GegeGhostOverlay(onDone: clearOverlay),
         if (overlay == 'richard2_swap')       _RichardSwapOverlay(onDone: clearOverlay),
-        if (overlay == 'scott_counter')         _ScottCounterOverlay(dice: gs?.scottCounterDice, onDone: clearOverlay),
+
+        if (overlay == 'scott_counter')       _ScottCounterOverlay(
+          key: ValueKey('scott_${gs?.scottCounterDice?['d4']}_${gs?.scottCounterDice?['d6']}_${gs?.scottCounterDice?['dmg']}_${gs?.lastDiceTimestamp}'),
+          dice: gs?.scottCounterDice, onDone: clearOverlay),
         if (overlay == 'mathieu_bullet')      _MathieuBulletOverlay(onDone: clearOverlay),
         if (overlay == 'hongyi_dumbbell')     HongYiDumbbellOverlay(onDone: clearOverlay),
         if (overlay == 'vlad_mountain')       VladMountainOverlay(onDone: clearOverlay),
@@ -3704,7 +3707,7 @@ class _MathieuBulletOverlayState extends State<_MathieuBulletOverlay>
 class _ScottCounterOverlay extends StatefulWidget {
   final VoidCallback onDone;
   final Map<String, int>? dice;
-  const _ScottCounterOverlay({required this.onDone, this.dice});
+  const _ScottCounterOverlay({super.key, required this.onDone, this.dice});
   @override State<_ScottCounterOverlay> createState() => _ScottCounterOverlayState();
 }
 class _ScottCounterOverlayState extends State<_ScottCounterOverlay>

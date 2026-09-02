@@ -502,7 +502,9 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
           _RichardSwapOverlay(onDone: () {
             ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
         if (overlay == 'scott_counter')
-          _ScottCounterOverlay(dice: s.scottCounterDice, onDone: () {
+          _ScottCounterOverlay(
+            key: ValueKey('scott_${s.scottCounterDice?['d4']}_${s.scottCounterDice?['d6']}_${s.scottCounterDice?['dmg']}_${s.log.length}'),
+            dice: s.scottCounterDice, onDone: () {
             ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
           _MathieuBulletOverlay(onDone: () {
             ctrl.state!.abilityOverlay = null; ctrl.notifyListeners(); }),
@@ -5113,7 +5115,7 @@ class _MathieuBulletOverlayState extends State<_MathieuBulletOverlay>
 class _ScottCounterOverlay extends StatefulWidget {
   final VoidCallback onDone;
   final Map<String, int>? dice;
-  const _ScottCounterOverlay({required this.onDone, this.dice});
+  const _ScottCounterOverlay({super.key, required this.onDone, this.dice});
   @override State<_ScottCounterOverlay> createState() => _ScottCounterOverlayState();
 }
 class _ScottCounterOverlayState extends State<_ScottCounterOverlay>

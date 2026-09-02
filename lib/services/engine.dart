@@ -80,6 +80,28 @@ class GameEngine with AbilityEngine {
   final Random _rng = Random();
   @override Random get rng => _rng;
 
+  /// Valeur tactique approximative d'un équipement, pour choisir LE
+  /// MEILLEUR plutôt qu'un objet au hasard quand plusieurs sont
+  /// disponibles (vol, don, conservation...). Armes offensives fortes en
+  /// tête, puis défensif/utilitaire, puis équipements plus anecdotiques.
+  /// Centralisé ici (plutôt que dans l'IA) car utilisé aussi bien par les
+  /// bots que par certaines capacités qui volent un objet automatiquement
+  /// SANS étape de choix explicite (ex: Oscar, steal_equip_choice) —
+  /// autant donner le meilleur objet à tout le monde dans ce cas.
+  int equipmentValue(String effect) => switch (effect) {
+    'bazooka' => 100, // touche tout le monde à portée, un seul jet
+    'lance_longinus' => 85, // +2 dégâts (conditionnel Hunter révélé)
+    'epee_ninja' => 80, // +2 dégâts supplémentaires si l'attaque touche
+    'lance' => 80, // +2 dégâts
+    'crucifix_argent' => 70, // récupère tout l'équipement d'une victime
+    'dague_voleur' => 55, // +1 dégât
+    'sainte_tunique' => 50, // -1 infligé/-1 reçu, défensif solide
+    'revolver_tenebres' => 45, // portée étendue mais contrainte
+    'double_dice_choice' => 40, // flexibilité de déplacement
+    'dynamite' => 35, // AoE mais inflige aussi au porteur
+    _ => 20, // objets sans effet de combat direct connu (utilitaires divers)
+  };
+
   // ─── Dés ─────────────────────────────────
   int rollD4() => _rng.nextInt(4) + 1;
   int rollD6() => _rng.nextInt(6) + 1;
@@ -421,10 +443,15 @@ class GameEngine with AbilityEngine {
 
       case 'steal_equip_choice':
         if (target == null || target.equipment.isEmpty) return logTCore('{name} — aucun équipement à voler', {'name': actor.name});
-        final e = target.equipment.removeAt(_rng.nextInt(target.equipment.length));
+        var bestIdx1 = 0; var bestVal1 = -1;
+        for (var i = 0; i < target.equipment.length; i++) {
+          final v = equipmentValue(target.equipment[i].effect);
+          if (v > bestVal1) { bestVal1 = v; bestIdx1 = i; }
+        }
+        final e = target.equipment.removeAt(bestIdx1);
         actor.equipment.add(e); _equipPassive(actor, e);
         recalcPassives(target); // sinon la victime garde le passif de l'objet volé
-        return logTCore('🗡 {name} vole "{item}" à {target}', {'name': actor.name, 'item': trCore(e.name), 'target': target.name});
+        return logTCore('🗡 {name} vole "{item}" à {target}', {'name': actor.name, 'item': e.name, 'target': target.name});
 
       case 'draw_dark':
         actor.abilityUsed = false; // répétable
@@ -593,11 +620,16 @@ class GameEngine with AbilityEngine {
             return logTCore("💧 {name} tente de voler un équipement à {target}, mais il n'en a aucun !", {'name': actor.name, 'target': target.name});
           }
           actor.oscarXp -= 3;
-          final stolen = target.equipment.removeAt(_rng.nextInt(target.equipment.length));
+          var bestIdx2 = 0; var bestVal2 = -1;
+          for (var i = 0; i < target.equipment.length; i++) {
+            final v = equipmentValue(target.equipment[i].effect);
+            if (v > bestVal2) { bestVal2 = v; bestIdx2 = i; }
+          }
+          final stolen = target.equipment.removeAt(bestIdx2);
           actor.equipment.add(stolen);
           equipPassivePublic(actor, stolen);
           recalcPassives(target);
-          return logTCore('💧 {name} dépense 3 XP — vole "{item}" à {target} !', {'name': actor.name, 'item': trCore(stolen.name), 'target': target.name});
+          return logTCore('💧 {name} dépense 3 XP — vole "{item}" à {target} !', {'name': actor.name, 'item': stolen.name, 'target': target.name});
         }
         if (extra == 'plant') {
           if (actor.oscarXp < 2) return 'oscar_not_enough';
@@ -712,7 +744,7 @@ class GameEngine with AbilityEngine {
         target.equipment.add(myCard);
         recalcPassives(actor); recalcPassives(target);
         actor.abilityUsed = false; // répétable
-        return logTCore('🔄 {name} échange "{item1}" contre "{item2}" avec {target}', {'name': actor.name, 'item1': trCore(myCard.name), 'item2': trCore(theirCard.name), 'target': target.name});
+        return logTCore('🔄 {name} échange "{item1}" contre "{item2}" avec {target}', {'name': actor.name, 'item1': myCard.name, 'item2': theirCard.name, 'target': target.name});
 
       // ── Fanny : aucun pouvoir tant qu'elle n'a pas volé une carte ──
       case 'fanny_none':
@@ -729,7 +761,7 @@ class GameEngine with AbilityEngine {
       List<Terrain> layout, {Player? target}) {
     if (card.type == CardType.equipement) {
       actor.equipment.add(card); _equipPassive(actor, card);
-      return {'log': logTCore('⚔️ {name} équipe : {card}', {'name': actor.name, 'card': trCore(card.name)}), 'needsTarget': false};
+      return {'log': logTCore('⚔️ {name} équipe : {card}', {'name': actor.name, 'card': card.name}), 'needsTarget': false};
     }
     final eff = card.effect;
     switch (eff) {
@@ -1182,7 +1214,7 @@ class GameEngine with AbilityEngine {
         attacker.equipment.add(stolen);
         equipPassivePublic(attacker, stolen);
         recalcPassives(target);
-        log += ' | ' + logTCore('🦹 {name} vole "{item}"', {'name': attacker.name, 'item': trCore(stolen.name)});
+        log += ' | ' + logTCore('🦹 {name} vole "{item}"', {'name': attacker.name, 'item': stolen.name});
       }
       if (remiChoicesA.contains('remi_forceattack') && target.alive) {
         target.forcedToAttackNextTurn = true;
@@ -1382,7 +1414,7 @@ class GameEngine with AbilityEngine {
         attacker.equipment.add(stolen);
         equipPassivePublic(attacker, stolen);
         recalcPassives(target);
-        log += ' | ' + logTCore('🦹 {name} vole "{item}"', {'name': attacker.name, 'item': trCore(stolen.name)});
+        log += ' | ' + logTCore('🦹 {name} vole "{item}"', {'name': attacker.name, 'item': stolen.name});
       }
       if (remiChoicesA2.contains('remi_forceattack') && target.alive) {
         target.forcedToAttackNextTurn = true;
@@ -1467,12 +1499,12 @@ class GameEngine with AbilityEngine {
       final deadP = players.firstWhere((p) => p.uid == justDiedId);
 
       // Léo — premier mort (seulement si personne d'autre ne meurt en même temps)
-      if (deadP.character!.winEffect == 'die_first_or_kill_hunters' &&
+      if (deadP.character!.winEffect == 'die_first_only' &&
           dead.length == 1) {
         return {'winnerIds': [deadP.uid], 'reason': '💀 Léo est éliminé en premier — Victoire !'};
       }
       // Si Léo meurt en même temps que quelqu'un d'autre → il perd
-      if (deadP.character!.winEffect == 'die_first_or_kill_hunters' &&
+      if (deadP.character!.winEffect == 'die_first_only' &&
           dead.length > 1) {
         // Léo perd — ne pas retourner de victoire pour lui, continuer la vérification normale
       }
@@ -1711,7 +1743,7 @@ class GameEngine with AbilityEngine {
     final e = target.equipment.removeAt(idx);
     actor.equipment.add(e); _equipPassive(actor, e);
     recalcPassives(target); // sinon la cible garde le passif de l'objet donné
-    return logTCore('🔮 {target} donne "{item}" à {name}', {'target': target.name, 'item': trCore(e.name), 'name': actor.name});
+    return logTCore('🔮 {target} donne "{item}" à {name}', {'target': target.name, 'item': e.name, 'name': actor.name});
   }
 
   /// Heuristique simple pour le mode solo : le bot cible choisit de donner
@@ -2045,7 +2077,7 @@ class GameEngine with AbilityEngine {
           final eq = target.equipment.removeAt(0);
           actor.equipment.add(eq); _equipPassive(actor, eq);
           recalcPassives(target); // sinon la victime garde le passif de l'objet volé
-          return logTCore('🗡️ Clémence vole "{item}" à {target}', {'item': trCore(eq.name), 'target': target.name});
+          return logTCore('🗡️ Clémence vole "{item}" à {target}', {'item': eq.name, 'target': target.name});
         }
         return logTCore("🗡️ Clémence : {target} n'a aucun équipement", {'target': target.name});
       case 'force_reveal':
@@ -2160,12 +2192,12 @@ class GameEngine with AbilityEngine {
       if (idx >= target.equipment.length) idx = 0;
       final e = target.equipment.removeAt(idx);
       actor.equipment.add(e); _equipPassive(actor, e); recalcPassives(target);
-      return logTCore('🗡 {name} vole "{item}" à {target}', {'name': actor.name, 'item': trCore(e.name), 'target': target.name});
+      return logTCore('🗡 {name} vole "{item}" à {target}', {'name': actor.name, 'item': e.name, 'target': target.name});
     } else {
       if (idx >= actor.equipment.length) idx = 0;
       final e = actor.equipment.removeAt(idx);
       target.equipment.add(e); _equipPassive(target, e); recalcPassives(actor);
-      return logTCore('🍌 {name} donne "{item}" à {target}', {'name': actor.name, 'item': trCore(e.name), 'target': target.name});
+      return logTCore('🍌 {name} donne "{item}" à {target}', {'name': actor.name, 'item': e.name, 'target': target.name});
     }
   }
 
@@ -2194,7 +2226,7 @@ class GameEngine with AbilityEngine {
     // pour éliminer tout risque de valeur périmée en cas de réutilisation
     // répétée de cette capacité répétable.
     final richardActivatesZone = zone2;
-    return (logTCore('👑 Richard II échange {zone1} ↔ {zone2} !', {'zone1': trCore(t2.name), 'zone2': trCore(t1.name)}), richardActivatesZone);
+    return (logTCore('👑 Richard II échange {zone1} ↔ {zone2} !', {'zone1': t2.name, 'zone2': t1.name}), richardActivatesZone);
   }
 
   void recalcPassives(Player p) {
