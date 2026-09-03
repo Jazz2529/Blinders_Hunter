@@ -195,6 +195,7 @@ class Player {
   int deathBombDmg;           // Enceinte: dégâts de la bombe
   bool fifiAutomneShield;
   String? killedByUid;  // uid du joueur qui a tué ce personnage     // Fifi Automne: annule prochaine attaque
+  String? revivedByUid; // uid du joueur qui a ressuscité ce personnage (Baptiste) — permet à l'IA de déduire le camp du ressuscité une fois celui du ressuscitant connu, puisque Baptiste ne ressuscite que ses alliés
   String? copiedEffect; // Baptiste/Oscar: effet copié
   String? poisonSourceUid; // qui a empoisonné
   int poisonTurnsRemaining; // Damien : tours restants de poison (3 dégâts/tour)
@@ -278,6 +279,7 @@ class Player {
     this.deathBombDmg = 0,
     this.fifiAutomneShield = false,
     this.killedByUid,
+    this.revivedByUid,
     this.copiedEffect,
     this.poisonSourceUid,
     this.poisonTurnsRemaining = 0,
@@ -341,7 +343,7 @@ class Player {
     'infiniteRange': infiniteRange, 'autoCounter': autoCounter,
     'mirrorDamage': mirrorDamage, 'deathBombTargetUid': deathBombTargetUid,
     'deathBombDmg': deathBombDmg, 'fifiAutomneShield': fifiAutomneShield,
-    'killedByUid': killedByUid, 'copiedEffect': copiedEffect,
+    'killedByUid': killedByUid, 'revivedByUid': revivedByUid, 'copiedEffect': copiedEffect,
     'poisonSourceUid': poisonSourceUid,
     'poisonTurnsRemaining': poisonTurnsRemaining,
     'lucFireSourceUid': lucFireSourceUid,
@@ -428,6 +430,7 @@ class Player {
     deathBombDmg: (j['deathBombDmg'] as int?) ?? 0,
     fifiAutomneShield: (j['fifiAutomneShield'] as bool?) ?? false,
     killedByUid: j['killedByUid'] as String?,
+    revivedByUid: j['revivedByUid'] as String?,
     copiedEffect: j['copiedEffect'] as String?,
     poisonSourceUid: j['poisonSourceUid'] as String?,
     poisonTurnsRemaining: (j['poisonTurnsRemaining'] as int?) ?? 0,

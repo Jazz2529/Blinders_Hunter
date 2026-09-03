@@ -599,6 +599,7 @@ class GameEngine with AbilityEngine {
         final tMax = effectiveMaxHp(target);
         target.wounds = (tMax - selfDmg).clamp(0, tMax);
         target.alive = true;
+        target.revivedByUid = actor.uid;
         target.deathPassiveProcessed = false; // pourra redéclencher ses propres passifs de mort à l'avenir
         return logTCore("✝️ {name} s'inflige {dmg} blessures pour ramener {target} à la vie ({w}/{max} blessures) !", {'name': actor.name, 'dmg': '$selfDmg', 'target': target.name, 'w': '${target.wounds}', 'max': '$tMax'});
 

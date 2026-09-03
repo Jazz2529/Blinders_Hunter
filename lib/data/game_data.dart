@@ -379,7 +379,7 @@ const List<GameCard> kLumiereCards = [
   GameCard(id:'L08',name:'Toge Sainte',deck:DeckType.lumiere,type:CardType.equipement,
     effect:'sainte_tunique',text:'Vos attaques infligent 1 blessure de moins et les blessures reçues sont réduites de 1'),
   GameCard(id:'L09',name:'Broche de Chance',deck:DeckType.lumiere,type:CardType.equipement,
-    effect:'terrain9_dmg_immune',text:'La Cuisine (terrain 9) ne peut pas vous infliger de blessures'),
+    effect:'terrain9_dmg_immune',text:'Le Salon (terrain 9) ne peut pas vous infliger de blessures'),
   GameCard(id:'L10',name:'Bénédiction',deck:DeckType.lumiere,type:CardType.utilisation,
     effect:'heal_other_d6',text:'Choisissez un joueur autre que vous — D6 — il se soigne d\'autant'),
   GameCard(id:'L11',name:'Boussole Mystique',deck:DeckType.lumiere,type:CardType.equipement,

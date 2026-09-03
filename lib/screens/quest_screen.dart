@@ -17,13 +17,23 @@ class QuestScreen extends StatefulWidget {
   @override State<QuestScreen> createState() => _QuestScreenState();
 }
 
-class _QuestScreenState extends State<QuestScreen> {
+class _QuestScreenState extends State<QuestScreen> with SingleTickerProviderStateMixin {
   int gold = 0;
+  late final AnimationController _glowCtrl;
 
   @override
   void initState() {
     super.initState();
     gold = Prefs.gold();
+    // Pulsation douce et continue — attire l'œil sur les quêtes
+    // journalières pas encore accomplies, sans être trop agressif visuellement.
+    _glowCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _glowCtrl.dispose();
+    super.dispose();
   }
 
   void _claim(String questId, int reward) {
@@ -109,6 +119,7 @@ class _QuestScreenState extends State<QuestScreen> {
       claimable: done && !claimed,
       progressLabel: done ? null : (en ? 'Not played today' : 'Pas encore joué aujourd\'hui'),
       onClaim: () => _claim(qid, reward),
+      shine: !done,
     );
   }
 
@@ -130,15 +141,31 @@ class _QuestScreenState extends State<QuestScreen> {
   Widget _questContainer({
     required String title, required int reward, required bool claimed,
     required bool claimable, String? progressLabel, required VoidCallback onClaim,
+    bool shine = false,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: claimable ? kGold.withValues(alpha: 0.08) : kBg2,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: claimable ? kGold.withValues(alpha: 0.6) : kBord2),
-      ),
+    final container = AnimatedBuilder(
+      animation: _glowCtrl,
+      builder: (_, child) {
+        // Pulsation UNIQUEMENT si shine est demandé — les autres quêtes
+        // gardent leur apparence statique habituelle (claimable ou non).
+        final glow = shine ? (0.35 + _glowCtrl.value * 0.55) : 0.0;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: claimable ? kGold.withValues(alpha: 0.08) : kBg2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: shine ? kGold.withValues(alpha: glow) : (claimable ? kGold.withValues(alpha: 0.6) : kBord2),
+              width: shine ? 1.8 : 1,
+            ),
+            boxShadow: shine ? [
+              BoxShadow(color: kGold.withValues(alpha: glow * 0.5), blurRadius: 10, spreadRadius: 1),
+            ] : null,
+          ),
+          child: child,
+        );
+      },
       child: Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(title, style: body(12, c: kText)),
@@ -161,6 +188,7 @@ class _QuestScreenState extends State<QuestScreen> {
           Text('+$reward 🪙', style: cinzel(11, c: kTextDim)),
       ]),
     );
+    return container;
   }
 }
 

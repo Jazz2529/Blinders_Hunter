@@ -198,6 +198,22 @@ class AiBrain {
     for (final p in players) {
       if (p.revealed && p.character != null) _memory[p.uid] = p.character!.faction;
     }
+    // Déduction indirecte : si quelqu'un a ressuscité un joueur ET que SON
+    // propre camp est connu (public ou déjà déduit), le ressuscité est
+    // FORCÉMENT du même camp — Baptiste (et assimilés) ne ressuscitent
+    // jamais un ennemi connu (voir bestTarget ci-dessous), sauf s'ils sont
+    // Neutres (aucune notion d'ennemi, le choix ne prouve alors rien).
+    // Une déduction FIABLE à 100%, pas une simple supposition.
+    for (final p in players) {
+      if (p.revivedByUid == null || _memory.containsKey(p.uid)) continue;
+      final reviver = players.where((x) => x.uid == p.revivedByUid).firstOrNull;
+      if (reviver == null || reviver.character == null) continue;
+      final reviverFaction = _memory[reviver.uid] ??
+          (reviver.revealed ? reviver.character!.faction : null);
+      if (reviverFaction != null && reviverFaction != Faction.neutral) {
+        _memory[p.uid] = reviverFaction;
+      }
+    }
   }
 
   /// À appeler juste après qu'un bot a réellement attaqué quelqu'un — permet
@@ -272,7 +288,12 @@ class AiBrain {
         // portée, sinon le bot gâcherait sa capacité pour rien.
         return all.any((p) => p.alive && p.uid != bot.uid &&
             kAdjacences[bot.zoneIndex].contains(p.zoneIndex));
-      case 'damage2_then_heal3':   return othersAlive;
+      case 'damage2_then_heal3':
+        // Raph du Soleil Levant : 2 dégâts GARANTIS à chaque utilisation, et
+        // répétable — sans garde-fou, un bot pouvait se tuer PROGRESSIVEMENT
+        // sur plusieurs tours en l'utilisant sans arrêt (contrairement à
+        // Hong Yi/Peio/Baptiste, qui avaient déjà cette vérification).
+        return othersAlive && bot.wounds + 2 < bot.character!.hp;
       case 'd6_lifesteal':         return othersAlive;
       case 'damage3_give_dague':   return othersAlive;
       case 'damage2_or_heal1':     return true; // attaque OU soin, toujours utile
@@ -334,7 +355,13 @@ class AiBrain {
         // sur un "rien à déverser" silencieux).
         return bot.storedDamage > 0;
       case 'choose_all_dice':      return true; // Fifi : dés au max, jamais nocif
-      case 'casino_bet':           return true;
+      case 'casino_bet':
+        // Mr Casino : pari 50/50, perdre inflige 2 blessures — pas de
+        // dégât garanti comme Raph, mais rien n'empêchait un bot déjà
+        // critique de tenter le pari et potentiellement en mourir, pour une
+        // capacité répétable qu'il pourrait de toute façon retenter plus
+        // tard une fois soigné.
+        return bot.wounds + 2 < bot.character!.hp;
       case 'swap_zones':           return true;
       case 'draw_dark':  return true;
       case 'draw_light': return true;
@@ -365,12 +392,55 @@ class AiBrain {
   }
 
   // Choisit la meilleure zone
+  /// Un joueur est-il sur le point de gagner via SA PROPRE condition de
+  /// victoire ? Détectable seulement pour les conditions dont la
+  /// progression est visible/trackée (Oscar, Victor) — un joueur normal
+  /// remarquerait ce genre de menace et chercherait à l'éliminer en
+  /// priorité, exactement comme cette fonction le permet ici.
+  bool isNearWinThreat(Player p, List<Player> all) {
+    if (!p.alive) return false;
+    final eff = p.copiedEffect ?? p.character?.abilityEffect;
+    // Oscar : 13 XP requis pour gagner — "proche" dès 10 (à 3 attaques près).
+    if (eff == 'oscar_xp_spend' && p.oscarXp >= 10) return true;
+    // Victor : doit charmer 2 joueurs à 100% — proche dès qu'AU MOINS 2
+    // cibles sont déjà à 80%+ (une poignée d'attaques du compte final).
+    if (eff == 'victor_charm' && p.charmLevels.values.where((v) => v >= 80).length >= 2) return true;
+    // Maxime : gagne en achevant SPÉCIFIQUEMENT le premier joueur à l'avoir
+    // blessé — dès qu'il a identifié cette cible ET qu'elle est encore en
+    // vie, il peut gagner à tout moment sur un simple coup réussi contre
+    // elle, peu importe ses PV actuels (contrairement à Oscar/Victor, ce
+    // n'est pas progressif : c'est un "tout ou rien" qui reste actif tant
+    // que la cible est vivante).
+    if (p.character?.winEffect == 'maxime_kill_first_attacker' && p.maximeFirstAttackerUid != null) {
+      final target = all.where((x) => x.uid == p.maximeFirstAttackerUid).firstOrNull;
+      if (target != null && target.alive) return true;
+    }
+    // Mango Loco : gagne en éliminant un joueur à 13 PV ou plus — menace
+    // dès qu'UNE TELLE cible est déjà proche de la mort (il peut l'achever
+    // au tour suivant et gagner immédiatement).
+    if (p.character?.winEffect == 'kill_hp13plus') {
+      final hasNearDeadTanky = all.any((x) =>
+          x.alive && x.uid != p.uid && (x.character?.hp ?? 0) >= 13 &&
+          (x.character!.hp - x.wounds) <= 3);
+      if (hasNearDeadTanky) return true;
+    }
+    return false;
+  }
+
   int bestZone(Player bot, List<Player> all, List<Terrain> layout, AiDifficulty d) {
     if (d == AiDifficulty.easy) {
       final opts = List.generate(6, (i)=>i).where((i)=>i!=bot.zoneIndex).toList();
       return opts[_rng.nextInt(opts.length)];
     }
     final isLow = bot.wounds >= (bot.character!.hp * 0.55).floor();
+    // Cible SPÉCIFIQUE liée à sa propre condition de victoire (même logique
+    // que dans bestTarget) — se rapprocher d'elle en priorité si connue.
+    final winEff = bot.character?.winEffect;
+    String? specificTargetUid;
+    if (winEff == 'maxime_kill_first_attacker') specificTargetUid = bot.maximeFirstAttackerUid;
+    if (winEff == 'kill_copied' && bot.copiedEffect != null) {
+      specificTargetUid = all.where((p) => p.character?.abilityEffect == bot.copiedEffect).firstOrNull?.uid;
+    }
     final scored = List.generate(6, (i) {
       if (i == bot.zoneIndex) return (i: i, s: -100.0);
       final t = layout[i]; double s = 0;
@@ -378,7 +448,32 @@ class AiBrain {
       if (isLow && t.effect == 'choice')  s += 15;
       if (bot.character!.faction == Faction.shadow && t.effect == 'tenebres') s += 20;
       if (bot.character!.faction == Faction.hunter && t.effect == 'vision')   s += 15;
-      if (bot.character!.winEffect == 'die_first') {
+      // IMPORTANT — nouveau : évalue qui serait à PORTÉE D'ATTAQUE (même
+      // zone ou adjacente, comme attackTargets()) si le bot se déplaçait
+      // ici. Se positionner près d'un ennemi CONNU qu'il faut éliminer pour
+      // gagner est la décision la plus rentable qui soit — avant, le choix
+      // de zone ignorait TOTALEMENT qui s'y trouvait.
+      final reachable = <int>{i, ...kAdjacences[i]};
+      for (final p in all) {
+        if (!p.alive || p.uid == bot.uid || !reachable.contains(p.zoneIndex)) continue;
+        final knownFaction = _knownFactionFor(bot, p);
+        if (knownFaction != null && _isEnemy(bot, knownFaction)) s += 25;
+        if (knownFaction != null && bot.character!.faction == knownFaction) s -= 15;
+        if (p.uid == specificTargetUid) s += 40; // sa cible personnelle prioritaire
+        // Menace de victoire imminente (Oscar, Victor...) : l'éliminer
+        // avant qu'il ne gagne est prioritaire, MÊME si son camp est
+        // inconnu — un joueur normal réagirait pareil face à une menace
+        // aussi visible.
+        if (isNearWinThreat(p, all)) s += 35;
+        final hpLeft = (p.character?.hp ?? 0) - p.wounds;
+        if (hpLeft <= 3) s += 10; // finir un adversaire déjà bas, un plus modeste ici (le mouvement seul ne tue pas)
+      }
+      // Léo : veut mourir en premier — se rapprocher des autres augmente
+      // ses chances de se faire attaquer. Corrigé au passage : comparait
+      // auparavant à 'die_first', un nom qui n'existe plus nulle part
+      // depuis le renommage en 'die_first_only' — ce bonus ne s'appliquait
+      // donc plus jamais.
+      if (winEff == 'die_first_only' && !all.any((p) => !p.alive)) {
         s += all.where((p)=>p.alive&&p.uid!=bot.uid&&p.zoneIndex==i).length * 15.0;
       }
       return (i: i, s: s);
@@ -475,6 +570,25 @@ class AiBrain {
       final hpLeft = t.character!.hp - t.wounds;
       if (hpLeft <= 3) s += 40; else if (hpLeft <= 6) s += 15;
       if (d == AiDifficulty.hard) s += t.equipment.length * 5.0;
+      // Menace de victoire imminente (Oscar proche de 13 XP, Victor proche
+      // de charmer 2 joueurs...) : l'éliminer devient prioritaire, MÊME
+      // s'il est de mon propre camp — leur condition de victoire est
+      // strictement INDIVIDUELLE, jamais partagée avec leurs alliés de
+      // faction (contrairement à "tous les Hunters/Shadows morts"), donc
+      // leur victoire mettrait fin à la partie sans que ça profite à qui
+      // que ce soit d'autre, moi y compris.
+      if (isNearWinThreat(t, all)) s += 45;
+      // Léo : gagne s'il est le PREMIER à mourir — l'achever alors qu'il
+      // est déjà bas en PV lui offrirait sa victoire sur un plateau. Un
+      // joueur normal éviterait soigneusement de porter le coup de grâce
+      // ici. Ne s'applique que tant que sa condition reste ATTEIGNABLE
+      // (personne n'est encore mort) — une fois cette fenêtre passée, il
+      // redevient une cible comme une autre (voir _isAbilityUseful qui
+      // gère déjà ce cas pour sa propre capacité).
+      if (t.character?.winEffect == 'die_first_only' && !all.any((p) => !p.alive)) {
+        final leoHpLeft = t.character!.hp - t.wounds;
+        if (leoHpLeft <= 4) s -= 80;
+      }
       // Coordination : bonus si un ALLIÉ de mon camp vient déjà de
       // s'engager contre cette même cible — mieux vaut l'achever à
       // plusieurs qu'attaquer chacun quelqu'un de différent.
@@ -514,7 +628,11 @@ class AiBrain {
         final knownFaction = _knownFactionFor(bot, t);
         return knownFaction != null && bot.character!.faction == knownFaction;
       });
-      if (allKnownAllies) return false;
+      // Exception : une cible parmi ces "alliés" est en fait une menace de
+      // victoire imminente (Oscar, Victor...) — son objectif est individuel,
+      // pas partagé avec le camp, donc l'attaquer reste pertinent même si
+      // aucune autre cible "ennemie" n'est disponible.
+      if (allKnownAllies && !targets.any((t) => isNearWinThreat(t, all))) return false;
     }
     // "Survivre" (Cambou, Carapatte, Rat d'Rouen...) : leur SEUL objectif
     // est d'être en vie à la fin — inutile de prendre des risques en
