@@ -426,8 +426,8 @@ class SettingsDialogState extends State<SettingsDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         padding: const EdgeInsets.all(24),
-        constraints: const BoxConstraints(maxWidth: 380),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
+        constraints: BoxConstraints(maxWidth: 380, maxHeight: MediaQuery.of(ctx).size.height * 0.85),
+        child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
           // Header
           Row(children: [
             const Icon(Icons.settings, color: kGold, size: 22),
@@ -842,6 +842,6 @@ class SettingsDialogState extends State<SettingsDialog> {
           child: Text(ui('reset_btn'), style: cinzel(12, c: kRed, fw: FontWeight.w900)),
         ),
       ],
-    ));
+    )));
   }
 }
