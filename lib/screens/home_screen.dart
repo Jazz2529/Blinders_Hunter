@@ -716,7 +716,7 @@ class SettingsDialogState extends State<SettingsDialog> {
           // Version
           Text(ui('app_subtitle'),
             style: body(10, c: kTextDim), textAlign: TextAlign.center),
-        ]),
+        ])),
       ),
     );
   }
@@ -842,6 +842,6 @@ class SettingsDialogState extends State<SettingsDialog> {
           child: Text(ui('reset_btn'), style: cinzel(12, c: kRed, fw: FontWeight.w900)),
         ),
       ],
-    )));
+    ));
   }
 }
