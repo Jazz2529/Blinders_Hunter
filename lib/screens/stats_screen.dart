@@ -60,6 +60,8 @@ class StatsScreen extends StatelessWidget {
                 const SizedBox(width: 8),
                 _statCard(en ? 'Multi' : 'Multi', '${multi.length}', kGold2),
               ]),
+              const SizedBox(height: 8),
+              Row(children: [_statCard(en ? 'Play time' : 'Temps de jeu', _formatPlaytime(Prefs.totalPlaytimeSeconds(), en), kGold)]),
               const SizedBox(height: 18),
 
               // ── Par personnage ──
@@ -137,6 +139,13 @@ class StatsScreen extends StatelessWidget {
             ]),
     );
   });
+
+  String _formatPlaytime(int totalSeconds, bool en) {
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    if (hours > 0) return en ? '${hours}h ${minutes}m' : '${hours}h ${minutes}min';
+    return en ? '${minutes}m' : '${minutes}min';
+  }
 
   Widget _statCard(String label, String value, Color c) => Expanded(
     child: Container(

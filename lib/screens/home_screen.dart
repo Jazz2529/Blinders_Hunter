@@ -11,6 +11,7 @@ import 'rules_screen.dart';
 import 'stats_screen.dart';
 import 'gallery_screen.dart';
 import 'shop_screen.dart';
+import 'quest_screen.dart';
 import '../services/audio_service.dart';
 import '../widgets/theme.dart';
 import '../widgets/token_widget.dart';
@@ -64,7 +65,7 @@ class _HomeScreenState extends State<HomeScreen>
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             GestureDetector(
               onTap: () => Navigator.push(ctx,
-                MaterialPageRoute(builder: (_) => const ShopScreen())),
+                MaterialPageRoute(builder: (_) => const QuestScreen())),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(

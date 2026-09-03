@@ -588,6 +588,7 @@ class SoloController extends ChangeNotifier {
 
   // ─── Setup ──────────────────────────────
   void startGame() {
+    Prefs.markGameStart();
     // Skins de terrain aléatoires (si le réglage est activé) — tirés une
     // seule fois ici, pour toute la durée de cette partie.
     Prefs.rollRandomTerrainSkinsForNewGame();

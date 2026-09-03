@@ -106,7 +106,36 @@ class Prefs {
     // partagé par le solo ET le multijoueur, puisque addGame() est déjà
     // appelée de façon fiable des deux côtés.
     addGold(win ? 50 : 10);
+    // Quêtes journalières : enregistre le camp joué AUJOURD'HUI (indépendant
+    // de la victoire — "jouer" suffit, pas besoin de gagner).
+    recordFactionPlayedToday(faction);
+    // Temps de jeu total (secondes) — calculé à partir de l'horodatage de
+    // DÉBUT de cette partie précise (voir markGameStart), enregistré dès le
+    // lancement. Ignore un calcul aberrant (horodatage manquant, ou partie
+    // ayant duré plus de 6h — probablement un appareil resté ouvert en
+    // arrière-plan sans vraiment jouer) plutôt que de fausser durablement
+    // la moyenne/le total affiché.
+    final startedAt = _sp?.getInt('current_game_started_at');
+    if (startedAt != null) {
+      final elapsed = (DateTime.now().millisecondsSinceEpoch - startedAt) ~/ 1000;
+      if (elapsed > 0 && elapsed < 6 * 3600) {
+        final total = (_sp?.getInt('total_playtime_seconds') ?? 0) + elapsed;
+        _sp?.setInt('total_playtime_seconds', total);
+      }
+      _sp?.remove('current_game_started_at');
+    }
   }
+
+  /// À appeler UNE FOIS, juste au lancement effectif d'une partie (début du
+  /// premier tour, pas l'écran de lobby) — sert de point de départ pour
+  /// calculer la durée de CETTE partie dans addGame() ci-dessus.
+  static void markGameStart() {
+    _sp?.setInt('current_game_started_at', DateTime.now().millisecondsSinceEpoch);
+  }
+
+  /// Temps de jeu total cumulé, en secondes — jamais remis à zéro,
+  /// indépendant de l'historique détaillé (limité à 200 parties).
+  static int totalPlaytimeSeconds() => _sp?.getInt('total_playtime_seconds') ?? 0;
 
   /// Nombre de parties jouées avec un personnage donné (toutes confondues,
   /// pas seulement les 200 dernières conservées dans l'historique détaillé —
@@ -289,4 +318,71 @@ class Prefs {
       return {};
     }
   }
+
+  // ── Quêtes ───────────────────────────────────────────────────────────────
+  // Deux familles bien différentes :
+  // - Journalières (3) : jouer une partie avec chaque camp — se réinitialisent
+  //   chaque jour, indépendamment des victoires (jouer suffit).
+  // - Personnage (60 × 4 paliers) : 1/10/50/100 victoires avec CHAQUE
+  //   personnage — jamais réinitialisées, se basent directement sur le
+  //   compteur de victoires déjà existant (gamesWonWith), pas de nouveau
+  //   compteur à maintenir en parallèle. Seul le statut de RÉCLAMATION (a-t-on
+  //   déjà touché l'or de ce palier ?) doit être stocké séparément.
+
+  static String _todayKey() {
+    final n = DateTime.now();
+    return '${n.year}-${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')}';
+  }
+
+  /// À appeler à chaque fin de partie — enregistre que ce camp a été joué
+  /// AUJOURD'HUI (peu importe la victoire). Les jours précédents sont écrasés
+  /// dès que la date change : inutile de garder un historique, seule la
+  /// journée EN COURS compte pour ces quêtes.
+  static void recordFactionPlayedToday(String faction) {
+    final today = _todayKey();
+    if (_sp?.getString('daily_quest_date') != today) {
+      // Nouveau jour : on repart de zéro (nouvelle date + liste vide) —
+      // les anciennes réclamations restent dans claimed_quests (préfixées
+      // par leur date), donc aucun risque de re-réclamer une quête d'hier.
+      _sp?.setString('daily_quest_date', today);
+      _sp?.setStringList('daily_quest_factions', []);
+    }
+    final list = _sp?.getStringList('daily_quest_factions') ?? [];
+    if (!list.contains(faction)) {
+      list.add(faction);
+      _sp?.setStringList('daily_quest_factions', list);
+    }
+  }
+
+  /// A-t-on joué ce camp aujourd'hui ? (indépendant d'une éventuelle
+  /// réclamation déjà effectuée pour cette quête journalière précise).
+  static bool hasPlayedFactionToday(String faction) {
+    if (_sp?.getString('daily_quest_date') != _todayKey()) return false;
+    return (_sp?.getStringList('daily_quest_factions') ?? []).contains(faction);
+  }
+
+  static Set<String> _claimedQuests() =>
+      (_sp?.getStringList('claimed_quests') ?? []).toSet();
+
+  /// Une quête journalière est identifiée par camp + DATE (pour permettre de
+  /// la réclamer à nouveau chaque jour) ; une quête personnage par nom de
+  /// personnage + palier (jamais réinitialisée).
+  static bool isQuestClaimed(String questId) => _claimedQuests().contains(questId);
+
+  /// Marque une quête comme réclamée et verse l'or correspondant. Ne fait
+  /// rien si déjà réclamée (protection contre un double-tap accidentel).
+  static void claimQuest(String questId, int goldReward) {
+    final set = _claimedQuests();
+    if (set.contains(questId)) return;
+    set.add(questId);
+    _sp?.setStringList('claimed_quests', set.toList());
+    addGold(goldReward);
+  }
+
+  /// Identifiant stable d'une quête journalière (inclut la date du jour, ce
+  /// qui la rend automatiquement réclamable à nouveau demain).
+  static String dailyQuestId(String faction) => 'daily_${faction}_${_todayKey()}';
+
+  /// Identifiant stable d'une quête de palier de victoires pour un personnage.
+  static String charQuestId(String characterName, int tier) => 'char_${characterName}_$tier';
 }

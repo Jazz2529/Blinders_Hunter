@@ -1060,7 +1060,7 @@ class GameProvider extends ChangeNotifier {
       // Musique de jeu : se déclenche une seule fois, au moment où la partie
       // démarre réellement (transition lobby → playing) — jusqu'ici rien ne
       // la lançait du tout côté multijoueur.
-      if (!wasPlaying && roomStatus == 'playing') audio.playGameMusic();
+      if (!wasPlaying && roomStatus == 'playing') { audio.playGameMusic(); Prefs.markGameStart(); }
       notifyListeners();
     });
     _rSub  = _fb.watchResult(roomId!).listen((d) { gameResult = d; _recordMultiResult(d); notifyListeners(); });

@@ -114,6 +114,16 @@ class TerrainTile extends StatelessWidget {
     else if (isAdjacentZone) { borderColor = kGold;  borderWidth = 2;   glowColor = null; }
     else                     { borderColor = kBord;  borderWidth = 1;   glowColor = null; }
 
+    return LayoutBuilder(builder: (ctx, tileConstraints) {
+    // IMPORTANT : les tailles de police ci-dessous étaient toutes CODÉES EN
+    // DUR (6.5 à 9px) — pensées pour de petites tuiles mobile. Une fois le
+    // plateau PC agrandi (voir multi_screens.dart), les tuiles devenaient
+    // bien plus grandes mais ce texte restait minuscule et illisible.
+    // `scale` grandit avec la hauteur RÉELLE de la tuile (référence : 95px
+    // ≈ tuile mobile typique), plafonné pour ne pas non plus devenir énorme
+    // sur un très grand plateau.
+    final scale = (tileConstraints.maxHeight / 95.0).clamp(1.0, 2.6);
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -161,10 +171,10 @@ class TerrainTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(tr(terrain.keyword),
-                      style: const TextStyle(
-                        fontFamily: 'Cinzel', fontSize: 6.5,
-                        color: Color(0xFFF0C040), fontWeight: FontWeight.w700,
-                        shadows: [Shadow(color: Colors.black, blurRadius: 3)]),
+                      style: TextStyle(
+                        fontFamily: 'Cinzel', fontSize: 6.5 * scale,
+                        color: const Color(0xFFF0C040), fontWeight: FontWeight.w700,
+                        shadows: const [Shadow(color: Colors.black, blurRadius: 3)]),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                     Row(children: [
                       Container(
@@ -174,12 +184,12 @@ class TerrainTile extends StatelessWidget {
                           borderRadius: BorderRadius.circular(3),
                         ),
                         child: Text(terrain.num, style: TextStyle(
-                          fontFamily: 'Cinzel', fontSize: 7.5,
+                          fontFamily: 'Cinzel', fontSize: 7.5 * scale,
                           color: _ec(terrain.effect), fontWeight: FontWeight.w900)),
                       ),
                       const SizedBox(width: 2),
                       Text(_ei(terrain.effect),
-                        style: const TextStyle(fontSize: 7)),
+                        style: TextStyle(fontSize: 7 * scale)),
                     ]),
                   ],
                 ),
@@ -196,8 +206,8 @@ class TerrainTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(5),
                     boxShadow: [BoxShadow(color: kGold.withValues(alpha: 0.4), blurRadius: 4)],
                   ),
-                  child: const Text('→', style: TextStyle(
-                    fontSize: 9, color: Color(0xFF1A0D00),
+                  child: Text('→', style: TextStyle(
+                    fontSize: 9 * scale, color: const Color(0xFF1A0D00),
                     fontWeight: FontWeight.w900)),
                 )),
 
@@ -211,8 +221,8 @@ class TerrainTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(5),
                     boxShadow: [BoxShadow(color: kGold2.withValues(alpha: 0.5), blurRadius: 5)],
                   ),
-                  child: const Text('★', style: TextStyle(
-                    fontSize: 8, color: Color(0xFF1A0D00),
+                  child: Text('★', style: TextStyle(
+                    fontSize: 8 * scale, color: const Color(0xFF1A0D00),
                     fontWeight: FontWeight.w900)),
                 )),
 
@@ -223,7 +233,7 @@ class TerrainTile extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _TokensOverlay(players: zonePlayers),
+                      _TokensOverlay(players: zonePlayers, scale: scale),
                     ],
                   ),
                 ),
@@ -239,7 +249,7 @@ class TerrainTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: Colors.orange, width: 1.5),
                   ),
-                  child: Text(trapIcon!, style: const TextStyle(fontSize: 16)),
+                  child: Text(trapIcon!, style: TextStyle(fontSize: 16 * scale)),
                 ),
               ),
 
@@ -248,13 +258,14 @@ class TerrainTile extends StatelessWidget {
               Positioned.fill(child: Container(
                 decoration: BoxDecoration(
                   color: kRed.withValues(alpha: 0.15)),
-                child: const Center(child: Text('🎯',
-                  style: TextStyle(fontSize: 16))),
+                child: Center(child: Text('🎯',
+                  style: TextStyle(fontSize: 16 * scale))),
               )),
           ]),
         ),
       ),
     );
+    });
   }
 
   Color _ec(String e) => switch (e) {
@@ -301,13 +312,17 @@ class _TerrainImg extends StatelessWidget {
 // ─── Jetons overlay ──────────────────────────────────────────────────────────
 class _TokensOverlay extends StatelessWidget {
   final List<Map<String, dynamic>> players; // {tokenId, revealed, faction}
-  const _TokensOverlay({required this.players});
+  final double scale;
+  const _TokensOverlay({required this.players, this.scale = 1.0});
 
   @override
   Widget build(BuildContext context) {
     final shown = players.take(5).toList();
-    const tileSize = 26.0;
-    const overlap = 8.0;
+    // IMPORTANT : ces jetons restaient à taille fixe (26px) même quand la
+    // tuile grandissait beaucoup (plateau PC agrandi) — ils paraissaient
+    // alors minuscules et perdus au milieu d'une grande tuile.
+    final tileSize = 26.0 * scale;
+    final overlap = 8.0 * scale;
     final totalW = tileSize + (shown.length - 1) * (tileSize - overlap);
 
     return SizedBox(
@@ -376,7 +391,7 @@ class _TokensOverlay extends StatelessWidget {
 
   Widget _fallback(String emoji) => Container(
     color: const Color(0xFF2A2A2A),
-    child: Center(child: Text(emoji, style: const TextStyle(fontSize: 10))));
+    child: Center(child: Text(emoji, style: TextStyle(fontSize: 10 * scale))));
 }
 
 // ─── Légende adjacence ───────────────────────────────────────────────────────

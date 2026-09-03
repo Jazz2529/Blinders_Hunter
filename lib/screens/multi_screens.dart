@@ -501,7 +501,13 @@ class _GameScreenState extends State<GameScreen> {
           final isMobile = DisplaySettings.instance.isMobileFor(screenW);
           final boardH = isMobile
               ? (screenH * 0.36).clamp(130.0, 280.0)
-              : (screenH * 0.28).clamp(160.0, 260.0);
+              // PC : plafond bien plus généreux qu'avant (260px max, quelle
+              // que soit la taille de l'écran !) — sur un grand moniteur,
+              // le plateau restait ridiculement petit pendant que le
+              // journal (Expanded) absorbait tout l'espace vertical en
+              // trop. Le plateau étant l'élément visuel PRINCIPAL du jeu,
+              // il doit profiter en priorité de l'espace disponible.
+              : (screenH * 0.55).clamp(320.0, 680.0);
 
           // Plateau (commun PC / mobile)
           Widget boardWidget() {
