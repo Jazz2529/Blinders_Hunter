@@ -71,7 +71,7 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
   /// reste moins de 2, en donne autant que possible. Affiche un petit
   /// écran de révélation une fois l'achat effectué.
   void _openChest() {
-    final remaining = kCosmeticsCatalog.where((c) => !owned.contains(c.id)).toList();
+    final remaining = kCosmeticsCatalog.where((c) => !owned.contains(c.id) && !c.exclusive).toList();
     if (remaining.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ui('shop_chest_all_unlocked'))));
@@ -143,7 +143,7 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
   });
 
   Widget _grid(CosmeticCategory cat) {
-    final items = kCosmeticsCatalog.where((c) => c.category == cat).toList();
+    final items = kCosmeticsCatalog.where((c) => c.category == cat && !c.exclusive).toList();
     if (items.isEmpty) {
       return Center(child: Text(ui('shop_no_items_yet'), style: body(13, c: kTextDim)));
     }

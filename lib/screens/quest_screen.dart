@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/theme.dart';
 import '../data/game_data.dart';
+import '../data/cosmetics_data.dart';
 import '../models/models.dart';
 import '../services/persistence.dart';
 import '../services/i18n.dart';
@@ -57,7 +58,20 @@ class _QuestScreenState extends State<QuestScreen> with SingleTickerProviderStat
       final wins = Prefs.gamesWonWith(c.name);
       for (final tier in kCharQuestTiers) {
         final qid = Prefs.charQuestId(c.name, tier);
-        if (Prefs.isQuestClaimed(qid)) continue; // déjà pris, palier suivant
+        if (tier == 50) {
+          // IMPORTANT : pour ce palier, "déjà pris" doit désormais se
+          // baser sur la possession RÉELLE du skin, pas sur le statut de
+          // la quête en or — sinon un joueur ayant déjà réclamé cette
+          // quête AVANT la mise en place du skin (quand elle ne donnait
+          // encore que de l'or) ne pourrait plus JAMAIS récupérer le skin,
+          // la quête étant à tort déjà marquée "réclamée".
+          final skin = kCosmeticsCatalog.where((s) =>
+              s.category == CosmeticCategory.character && s.targetId == c.id && s.exclusive).firstOrNull;
+          if (skin != null && Prefs.ownedCosmetics().contains(skin.id)) continue; // skin déjà possédé, palier suivant
+          if (skin == null && Prefs.isQuestClaimed(qid)) continue; // pas de skin dispo, ancien repli or déjà pris
+        } else if (Prefs.isQuestClaimed(qid)) {
+          continue; // déjà pris, palier suivant
+        }
         charRows.add(_CharQuestRow(
           character: c, tier: tier, wins: wins, questId: qid,
           claimable: wins >= tier,
@@ -114,7 +128,7 @@ class _QuestScreenState extends State<QuestScreen> with SingleTickerProviderStat
     const reward = 30;
     return _questContainer(
       title: _factionLabel(f, en),
-      reward: reward,
+      rewardLabel: '+$reward 🪙',
       claimed: claimed,
       claimable: done && !claimed,
       progressLabel: done ? null : (en ? 'Not played today' : 'Pas encore joué aujourd\'hui'),
@@ -128,18 +142,34 @@ class _QuestScreenState extends State<QuestScreen> with SingleTickerProviderStat
     final label = en
         ? '${r.tier} win${r.tier > 1 ? "s" : ""} with ${tr(r.character.name)}'
         : '${r.tier} victoire${r.tier > 1 ? "s" : ""} avec ${tr(r.character.name)}';
+    // Palier 50 : récompense un skin de CE personnage plutôt que de l'or —
+    // seulement si un skin existe déjà pour lui dans le catalogue (encore
+    // partiel, tous les personnages n'en ont pas). Sinon, repli sur l'or
+    // habituel pour ne pas casser la quête pour les personnages sans skin.
+    final skin = r.tier == 50
+        ? kCosmeticsCatalog.where((c) =>
+            c.category == CosmeticCategory.character && c.targetId == r.character.id && c.exclusive).firstOrNull
+        : null;
     return _questContainer(
       title: label,
-      reward: reward,
+      rewardLabel: skin != null ? '🎨 ${skin.name}' : '+$reward 🪙',
       claimed: false,
       claimable: r.claimable,
       progressLabel: r.claimable ? null : '${r.wins} / ${r.tier}',
-      onClaim: () => _claim(r.questId, reward),
+      onClaim: () {
+        if (skin != null) {
+          Prefs.unlockCosmetic(skin.id);
+          Prefs.claimQuest(r.questId, 0); // marque la quête réclamée, sans or (le skin EST la récompense)
+        } else {
+          _claim(r.questId, reward);
+        }
+        setState(() {});
+      },
     );
   }
 
   Widget _questContainer({
-    required String title, required int reward, required bool claimed,
+    required String title, required String rewardLabel, required bool claimed,
     required bool claimable, String? progressLabel, required VoidCallback onClaim,
     bool shine = false,
   }) {
@@ -181,11 +211,11 @@ class _QuestScreenState extends State<QuestScreen> with SingleTickerProviderStat
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(color: kGold, borderRadius: BorderRadius.circular(20)),
-              child: Text('+$reward 🪙', style: cinzel(11, c: kBg0, fw: FontWeight.w900)),
+              child: Text(rewardLabel, style: cinzel(11, c: kBg0, fw: FontWeight.w900)),
             ),
           )
         else
-          Text('+$reward 🪙', style: cinzel(11, c: kTextDim)),
+          Text(rewardLabel, style: cinzel(11, c: kTextDim)),
       ]),
     );
     return container;

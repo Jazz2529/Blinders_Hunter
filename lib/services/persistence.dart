@@ -225,11 +225,34 @@ class Prefs {
 
   /// Exporte toute la progression (or + cosmétiques) sous forme de données
   /// simples, prêtes à être envoyées vers le compte Firebase.
-  static Map<String, dynamic> exportProgressionForAccount() => {
-    'gold': gold(),
-    'cosmeticsOwned': ownedCosmetics().toList(),
-    'cosmeticsEquipped': equippedCosmetics(),
-  };
+  static Map<String, dynamic> exportProgressionForAccount() {
+    final sp = _sp;
+    // Statistiques par personnage (parties jouées/gagnées) — dynamiquement
+    // à partir des clés existantes, plutôt que de coder en dur les 60
+    // personnages ici (reste synchronisé si la liste évolue).
+    final charStats = <String, int>{};
+    if (sp != null) {
+      for (final k in sp.getKeys()) {
+        if (k.startsWith('games_played_') || k.startsWith('games_won_')) {
+          charStats[k] = sp.getInt(k) ?? 0;
+        }
+      }
+    }
+    return {
+      'gold': gold(),
+      'cosmeticsOwned': ownedCosmetics().toList(),
+      'cosmeticsEquipped': equippedCosmetics(),
+      'charStats': charStats,
+      // Quêtes : progression des paliers personnage (jamais réinitialisée)
+      // ET état des quêtes journalières (date + camps déjà joués + quêtes
+      // déjà réclamées aujourd'hui) — sans ça, changer d'appareil en cours
+      // de journée aurait permis de refaire les quêtes journalières déjà
+      // accomplies sur l'autre appareil.
+      'claimedQuests': (sp?.getStringList('claimed_quests') ?? []),
+      'dailyQuestDate': sp?.getString('daily_quest_date'),
+      'dailyQuestFactions': (sp?.getStringList('daily_quest_factions') ?? []),
+    };
+  }
 
   /// Applique une progression reçue du compte (écrase la progression
   /// locale actuelle) — utilisé en se connectant à un compte existant sur
@@ -244,6 +267,29 @@ class Prefs {
     final equipped = data['cosmeticsEquipped'] as Map? ?? {};
     await sp.setString('cosmetics_equipped',
         jsonEncode(equipped.map((k, v) => MapEntry(k.toString(), v.toString()))));
+    // Stats par personnage : on efface d'abord les anciennes clés locales
+    // (sinon un personnage joué UNIQUEMENT sur cet appareil, absent du
+    // compte importé, garderait à tort son ancien compteur local).
+    for (final k in sp.getKeys().toList()) {
+      if (k.startsWith('games_played_') || k.startsWith('games_won_')) {
+        await sp.remove(k);
+      }
+    }
+    final charStats = data['charStats'] as Map? ?? {};
+    for (final entry in charStats.entries) {
+      await sp.setInt(entry.key.toString(), (entry.value as num).toInt());
+    }
+    // Quêtes
+    final claimedQuests = (data['claimedQuests'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    await sp.setStringList('claimed_quests', claimedQuests);
+    final dailyDate = data['dailyQuestDate'] as String?;
+    if (dailyDate != null) {
+      await sp.setString('daily_quest_date', dailyDate);
+    } else {
+      await sp.remove('daily_quest_date');
+    }
+    final dailyFactions = (data['dailyQuestFactions'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    await sp.setStringList('daily_quest_factions', dailyFactions);
   }
 
   // ── Réinitialisation complète de la progression ────────────────────────
@@ -264,6 +310,13 @@ class Prefs {
     for (final k in statKeys.toList()) {
       await sp.remove(k);
     }
+    // Quêtes : sans ça, les compteurs de victoires repartaient à zéro mais
+    // les récompenses déjà réclamées restaient marquées comme telles,
+    // empêchant de les regagner alors que la progression réelle avait
+    // pourtant été effacée.
+    await sp.remove('claimed_quests');
+    await sp.remove('daily_quest_date');
+    await sp.remove('daily_quest_factions');
   }
 
   // ── Skins de terrain aléatoires ──────────────────────────────────────

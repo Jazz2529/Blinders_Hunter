@@ -184,7 +184,7 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
   CharacterCard(id:'luc', name:'Luc', faction:Faction.shadow, hp:11, icon:'🔥',
-    ability:'Unique: mettez le feu à un joueur de votre choix — il brûle et subit des blessures croissantes au début de chacun de ses tours (1 → 2 → 3 → 4 → 5 etc), tant que VOUS êtes en vie. Le feu s\'éteint dès que vous mourez.',
+    ability:'Répétable: mettez le feu à un joueur de votre choix — il brûle et subit des blessures croissantes au début de chacun de ses tours (1 → 2 → 3 → 4 → 5 etc), tant que VOUS êtes en vie. Le feu s\'éteint dès que vous mourez.',
     abilityEffect:'luc_ignite', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
 
