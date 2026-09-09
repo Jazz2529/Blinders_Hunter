@@ -534,8 +534,8 @@ class GameProvider extends ChangeNotifier {
       // le moteur exige désormais un choix explicite (humain OU bot).
       String? extraParam;
       if (eff == 'move_adjacent_choice') {
-        final adjZones = kAdjacences[bot.zoneIndex].where((z) => z != gameState?.disappearedZoneIndex).toList();
-        extraParam = adjZones.isNotEmpty ? adjZones[Random().nextInt(adjZones.length)].toString() : null;
+        final adjZones = kAdjacences[bot.zoneIndex];
+        extraParam = adjZones[Random().nextInt(adjZones.length)].toString();
       }
       if (eff == 'hailey_copy_hunter') {
         // Hailey (bot) : tire 3 Hunters non joués et en copie un au hasard —
@@ -562,46 +562,55 @@ class GameProvider extends ChangeNotifier {
         // Chameleon (bot) : zone 4-5 — choisit au hasard l'un des 5 autres
         // pouvoirs, puis relance immédiatement (même logique que côté solo).
         if (abLog == 'chameleon_choose_power') {
+          final safeBot = bot;
           final options = ['0', '2', '3', '4', '5'];
           final chosen = options[Random().nextInt(options.length)];
           Player? chosenTarget;
           if (chosen == '0') {
-            chosenTarget = _ai.bestTarget(bot, all, _botDifficulty, context: 'chameleon_terrain_power');
+            chosenTarget = _ai.bestTarget(safeBot, all, _botDifficulty, context: 'chameleon_terrain_power');
           }
-          abLog = _eg.applyAbility(bot, all, layout, target: chosenTarget, extra: 'power_$chosen');
+          abLog = _eg.applyAbility(safeBot, all, layout, target: chosenTarget, extra: 'power_$chosen');
         }
         if (abLog == 'chameleon_draw_light' || abLog == 'chameleon_draw_dark') {
           // Chameleon (bot) : même logique que côté solo — pioche ET
           // résout 2 cartes immédiatement, pas besoin d'interactivité.
+          // `bot` est déclaré en `var` plus haut dans la fonction — Dart
+          // ne peut donc pas garantir sa non-nullité ici même après le
+          // contrôle initial (une réassignation ultérieure reste possible
+          // en théorie) ; on capture une référence `final` pour lever
+          // l'erreur de null-safety.
+          final safeBot = bot;
           final deckC = abLog == 'chameleon_draw_light' ? DeckType.lumiere : DeckType.tenebres;
           final drawnNames = <String>[];
           for (var i = 0; i < 2; i++) {
             final card = _eg.drawCard(deckC, forcedQueue: gameState?.forcedDeckQueue, deckPiles: gameState?.deckPiles);
             Player? autoTarget;
-            final probe = _eg.resolveCard(card, bot, all, layout);
+            final probe = _eg.resolveCard(card, safeBot, all, layout);
             if (probe['needsTarget'] == true) {
-              final others = all.where((p) => p.alive && p.uid != bot.uid).toList();
-              autoTarget = others.isNotEmpty ? others[Random().nextInt(others.length)] : bot;
+              final others = all.where((p) => p.alive && p.uid != safeBot.uid).toList();
+              autoTarget = others.isNotEmpty ? others[Random().nextInt(others.length)] : safeBot;
             }
-            _eg.resolveCard(card, bot, all, layout, target: autoTarget, disappearedZone: gameState?.disappearedZoneIndex);
+            _eg.resolveCard(card, safeBot, all, layout, target: autoTarget, disappearedZone: gameState?.disappearedZoneIndex);
             drawnNames.add(card.name);
           }
           final deckLabelC = abLog == 'chameleon_draw_light' ? 'Lumière' : 'Ténèbres';
-          abLog = logT('🦎 {name} pioche 2 cartes {deck} : {cards}', {'name': bot.name, 'deck': deckLabelC, 'cards': drawnNames.join(', ')});
+          abLog = logT('🦎 {name} pioche 2 cartes {deck} : {cards}', {'name': safeBot.name, 'deck': deckLabelC, 'cards': drawnNames.join(', ')});
         }
         if (abLog == 'alchimiste_choose_potion') {
           // Alchimiste (bot) : même logique que côté solo.
+          final safeBot = bot;
           final offered = _eg.alchimistDraw3();
           final chosen = offered[Random().nextInt(offered.length)];
-          final potionTarget = _ai.bestTarget(bot, all, _botDifficulty, context: 'potion_$chosen');
-          abLog = _eg.applyAbility(bot, all, layout, target: potionTarget, extra: 'potion_$chosen', disappearedZone: gameState?.disappearedZoneIndex);
+          final potionTarget = _ai.bestTarget(safeBot, all, _botDifficulty, context: 'potion_$chosen');
+          abLog = _eg.applyAbility(safeBot, all, layout, target: potionTarget, extra: 'potion_$chosen', disappearedZone: gameState?.disappearedZoneIndex);
         }
         if (abLog == 'nautilus_choose_zone') {
           // Nautilus (bot) : même logique que côté solo.
+          final safeBot = bot;
           final zoneCounts = <int, int>{};
           for (final p in all) {
-            if (!p.alive || p.uid == bot.uid || !p.revealed || p.character == null) continue;
-            final botFaction = bot.character!.faction;
+            if (!p.alive || p.uid == safeBot.uid || !p.revealed || p.character == null) continue;
+            final botFaction = safeBot.character!.faction;
             final isEnemy = (botFaction == Faction.hunter && p.character!.faction == Faction.shadow) ||
                 (botFaction == Faction.shadow && p.character!.faction == Faction.hunter);
             if (isEnemy) {
@@ -612,10 +621,10 @@ class GameProvider extends ChangeNotifier {
           if (zoneCounts.isNotEmpty) {
             chosenZone = zoneCounts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
           } else {
-            final options = List.generate(6, (i) => i)..remove(bot.zoneIndex);
+            final options = List.generate(6, (i) => i)..remove(safeBot.zoneIndex);
             chosenZone = options[Random().nextInt(options.length)];
           }
-          abLog = _eg.applyAbility(bot, all, layout, extra: '$chosenZone');
+          abLog = _eg.applyAbility(safeBot, all, layout, extra: '$chosenZone');
           if (abLog.startsWith('nautilus_vanished:')) {
             final rest = abLog.substring('nautilus_vanished:'.length);
             final sep = rest.indexOf('|');
@@ -738,7 +747,7 @@ class GameProvider extends ChangeNotifier {
           // en suivant EXACTEMENT la même séquence que chooseSwapZone()
           // (joueur humain) pour un comportement identique.
           final richardStartZone = bot.zoneIndex;
-          final z2 = _ai.bestZone(bot, all, layout, _botDifficulty, excludeZone: gameState?.disappearedZoneIndex);
+          final z2 = _ai.bestZone(bot, all, layout, _botDifficulty);
           if (z2 != richardStartZone) {
             for (final p in all) {
               if (p.zoneIndex == richardStartZone) p.zoneIndex = z2;
@@ -838,15 +847,11 @@ class GameProvider extends ChangeNotifier {
         final sum = roll['sum']!;
         int zoneIdx;
         if (sum == 7) {
-          zoneIdx = _ai.bestZone(bot, all, layout, _botDifficulty, excludeZone: gameState?.disappearedZoneIndex);
+          zoneIdx = _ai.bestZone(bot, all, layout, _botDifficulty);
         } else {
           final tid = _eg.sumToTerrainId(sum);
           zoneIdx = tid != null ? _eg.terrainLayoutIdx(layout, tid) : (bot.zoneIndex + 1) % 6;
           if (zoneIdx == -1 || zoneIdx == bot.zoneIndex) zoneIdx = (bot.zoneIndex + 1) % 6;
-          // Nautilus : zone visée disparue — retombe sur bestZone.
-          if (zoneIdx == gameState?.disappearedZoneIndex) {
-            zoneIdx = _ai.bestZone(bot, all, layout, _botDifficulty, excludeZone: gameState?.disappearedZoneIndex);
-          }
         }
         bot.zoneIndex = zoneIdx;
         await _commitAll(all, logT('🚶 {name} → {zone}', {'name': bot.name, 'zone': layout[zoneIdx].name}));
@@ -1026,6 +1031,18 @@ class GameProvider extends ChangeNotifier {
   Future<void> _botApplyTerrainEffect(String botUid) async {
     final bot = players[botUid];
     if (bot == null) return;
+    // Nautilus : même mécanique que côté humain — le terrain englouti
+    // reste accessible mais inflige 3 blessures à l'arrivée.
+    if (bot.zoneIndex == gameState?.disappearedZoneIndex && (gameState?.disappearedTurnsRemaining ?? 0) > 0) {
+      final all = _mutableAll();
+      final b = all.firstWhere((x) => x.uid == botUid);
+      _eg.applyDamage(b, 3);
+      await _commitAll(all, logT('🌊 {name} subit 3 blessures en s\'aventurant sur le terrain englouti !', {'name': b.name}));
+      if (!b.alive) {
+        await _checkWin(all, justDiedId: b.uid);
+        return; // bot mort — ne pas continuer avec sa référence périmée (dead: true) plus bas
+      }
+    }
     final t = gameState!.terrainLayout[bot.zoneIndex];
     switch (t.effect) {
       case 'vision':   await _botDrawAndResolveCard(botUid, DeckType.vision); break;
@@ -2067,7 +2084,21 @@ class GameProvider extends ChangeNotifier {
   }
 
   Future<void> applyTerrainEffect({int? zoneOverride}) async {
-    final t = gameState!.terrainLayout[zoneOverride ?? me!.zoneIndex];
+    final zIdx = zoneOverride ?? me!.zoneIndex;
+    // Nautilus : le terrain englouti reste ACCESSIBLE mais dangereux —
+    // quiconque s'y trouve à l'arrivée subit 3 blessures, pendant les 2
+    // tours où il reste submergé (même logique que côté solo).
+    if (zIdx == gameState?.disappearedZoneIndex && (gameState?.disappearedTurnsRemaining ?? 0) > 0) {
+      final all = _mutableAll();
+      final p = all.firstWhere((x) => x.uid == myUid);
+      _eg.applyDamage(p, 3);
+      await _commitAll(all, logT('🌊 {name} subit 3 blessures en s\'aventurant sur le terrain englouti !', {'name': p.name}));
+      if (!p.alive) {
+        await _checkWin(all, justDiedId: p.uid);
+        return; // mort — ne pas continuer à appliquer l'effet du terrain
+      }
+    }
+    final t = gameState!.terrainLayout[zIdx];
     switch (t.effect) {
       case 'vision':    await drawCard(DeckType.vision); break;
       case 'lumiere':   await drawCard(DeckType.lumiere); break;
