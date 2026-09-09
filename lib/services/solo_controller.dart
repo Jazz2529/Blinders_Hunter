@@ -52,6 +52,12 @@ class SoloState {
   String? linkedUid1;        // Cupidon: uid1 lié
   String? tristanTargetUid;  // Tristan : joueur choisi à l'étape 1
   String? stealTargetUid;  // Terrain 10 : joueur choisi, en attente du choix de l'objet précis à voler
+  List<String> alchimistOffered = []; // Alchimiste : les 3 potions tirées, en attente du choix
+  String? alchimistChosenPotion; // Alchimiste : la potion choisie, en attente du choix de cible
+  int? disappearedZoneIndex; // Nautilus : index du terrain actuellement disparu (null = aucun)
+  int chameleonDrawsRemaining = 0; // Chameleon : nombre de tirages encore à faire (2 cartes à jouer normalement, l'une après l'autre)
+  DeckType? chameleonDeck; // Chameleon : deck en cours de tirage (Lumière ou Ténèbres)
+  int disappearedTurnsRemaining = 0; // Nautilus : tours restants avant réapparition
   int? tristanGiveIdx;       // Tristan : index de SON équipement choisi à l'étape 2
   String? linkedUid2;        // Cupidon: uid2 lié
   int linkedTurnsLeft;       // Cupidon: tours restants
@@ -303,6 +309,14 @@ class AiBrain {
       // ── Effets à condition (ne pas gâcher un tour pour rien) ──
       case 'luc_ignite':
         return all.any((p) => p.alive && p.uid != bot.uid && p.lucFireTurnsRemaining == 0);
+      case 'rudolf_freeze':
+        return all.any((p) => p.alive && p.uid != bot.uid && p.frozenTurnsRemaining == 0);
+      case 'taureador_provoke':
+        return all.any((p) => p.alive && p.uid != bot.uid && p.provokedByUid == null);
+      case 'artisan_copy_equip':
+        // Inutile de gâcher le tour si personne n'a d'équipement à copier.
+        return all.any((p) => p.alive && p.uid != bot.uid && p.equipment.isNotEmpty);
+      case 'pere_noel_gift': return othersAlive; // toujours pertinent, n'importe qui peut recevoir un cadeau
       case 'lock_ability_while_alive':
         return all.any((p) => p.alive && p.uid != bot.uid && p.abilityLockedByUid == null);
       case 'maxence_drunk':
@@ -427,9 +441,9 @@ class AiBrain {
     return false;
   }
 
-  int bestZone(Player bot, List<Player> all, List<Terrain> layout, AiDifficulty d) {
+  int bestZone(Player bot, List<Player> all, List<Terrain> layout, AiDifficulty d, {int? excludeZone}) {
     if (d == AiDifficulty.easy) {
-      final opts = List.generate(6, (i)=>i).where((i)=>i!=bot.zoneIndex).toList();
+      final opts = List.generate(6, (i)=>i).where((i)=>i!=bot.zoneIndex && i!=excludeZone).toList();
       return opts[_rng.nextInt(opts.length)];
     }
     final isLow = bot.wounds >= (bot.character!.hp * 0.55).floor();
@@ -442,7 +456,7 @@ class AiBrain {
       specificTargetUid = all.where((p) => p.character?.abilityEffect == bot.copiedEffect).firstOrNull?.uid;
     }
     final scored = List.generate(6, (i) {
-      if (i == bot.zoneIndex) return (i: i, s: -100.0);
+      if (i == bot.zoneIndex || i == excludeZone) return (i: i, s: -1000.0);
       final t = layout[i]; double s = 0;
       if (isLow && t.effect == 'lumiere') s += 25;
       if (isLow && t.effect == 'choice')  s += 15;
@@ -521,6 +535,40 @@ class AiBrain {
       final allies = cands.where((p) => _isAlly(bot, p)).toList();
       if (allies.isEmpty) return cands.reduce((a,b)=>a.wounds>b.wounds?a:b);
       return allies.reduce((a,b)=>a.wounds>b.wounds?a:b);
+    }
+    // Artisan : copie sans rien retirer à la cible — aucune raison
+    // d'éviter un ennemi, cible simplement qui a le meilleur équipement.
+    if (context == 'artisan_copy_equip') {
+      final withEquip = cands.where((p) => p.equipment.isNotEmpty).toList();
+      if (withEquip.isEmpty) return null;
+      withEquip.sort((a, b) {
+        final bestA = a.equipment.map((e) => _eg.equipmentValue(e.effect)).reduce((x,y)=>x>y?x:y);
+        final bestB = b.equipment.map((e) => _eg.equipmentValue(e.effect)).reduce((x,y)=>x>y?x:y);
+        return bestB.compareTo(bestA);
+      });
+      return withEquip.first;
+    }
+    // Père Noël : le cadeau est à 80% bénéfique pour la cible (équipement
+    // ou soin) — mieux vaut viser un allié qu'un ennemi dans l'immense
+    // majorité des cas, sauf s'il n'y en a aucun de disponible.
+    if (context == 'pere_noel_gift') {
+      final allies = cands.where((p) => _isAlly(bot, p)).toList();
+      if (allies.isNotEmpty) {
+        return allies.reduce((a,b)=>a.wounds>b.wounds?a:b); // l'allié le plus blessé, pour maximiser la chance de soin utile
+      }
+    }
+    // Alchimiste : la potion offerte est soit bénéfique (à donner à un
+    // allié) soit néfaste (à donner à un ennemi) — jamais l'inverse.
+    if (context.startsWith('potion_')) {
+      const beneficial = {'heal3', 'force', 'resist'};
+      final potion = context.substring(7);
+      final wantAllies = beneficial.contains(potion);
+      final preferred = cands.where((p) => wantAllies ? _isAlly(bot, p) : _isEnemy(bot, _knownFactionFor(bot, p) ?? Faction.neutral)).toList();
+      if (preferred.isNotEmpty) {
+        return wantAllies
+            ? preferred.reduce((a,b)=>a.wounds>b.wounds?a:b) // allié le plus blessé pour le soin/buff
+            : preferred.reduce((a,b)=>a.wounds<b.wounds?a:b); // ennemi le moins blessé pour le finir avec le débuff
+      }
     }
     // ── Ciblage adapté à SA PROPRE condition de victoire (attaques
     // normales uniquement — context vide) — avant, un bot avec une
@@ -633,6 +681,20 @@ class AiBrain {
       // pas partagé avec le camp, donc l'attaquer reste pertinent même si
       // aucune autre cible "ennemie" n'est disponible.
       if (allKnownAllies && !targets.any((t) => isNearWinThreat(t, all))) return false;
+    }
+    // IMPORTANT : si une cible CONNUE ennemie est à portée, attaquer est
+    // TOUJOURS la bonne décision — avant, même un ennemi confirmé n'était
+    // attaqué qu'avec une probabilité (70-90% selon la difficulté),
+    // laissant les bots ignorer au hasard des occasions d'attaque
+    // évidentes. Exception : les persos "survivre" gardent leur propre
+    // prudence ci-dessous, attaquer comporte un risque de contre-attaque
+    // qui ne leur profite en rien tactiquement.
+    if (bot.character?.winEffect != 'survive') {
+      final hasKnownEnemy = targets.any((t) {
+        final knownFaction = _knownFactionFor(bot, t);
+        return knownFaction != null && _isEnemy(bot, knownFaction);
+      });
+      if (hasKnownEnemy) return true;
     }
     // "Survivre" (Cambou, Carapatte, Rat d'Rouen...) : leur SEUL objectif
     // est d'être en vie à la fin — inutile de prendre des risques en
@@ -761,6 +823,23 @@ class SoloController extends ChangeNotifier {
     // tour qui se termine — sans ça (l'ancien champ était global et jamais
     // mis à jour), leur passif ne se déclenchait jamais.
     outgoing.attackedLastOwnTurn = state!.hasAttackedThisTurn;
+    // Rudolf : le gel dure 2 tours — on décrémente ici, à la toute fin du
+    // tour du joueur gelé (pas au début, sinon le blocage de déplacement
+    // n'aurait jamais l'occasion de s'appliquer sur SON second tour gelé).
+    if (outgoing.frozenTurnsRemaining > 0) outgoing.frozenTurnsRemaining--;
+    // Alchimiste : les 3 potions à durée (force/faiblesse/résistance)
+    // décomptent de la même façon, à la fin du tour concerné.
+    if (outgoing.forceBuffTurnsRemaining > 0) outgoing.forceBuffTurnsRemaining--;
+    if (outgoing.weaknessDebuffTurnsRemaining > 0) outgoing.weaknessDebuffTurnsRemaining--;
+    if (outgoing.resistanceBuffTurnsRemaining > 0) outgoing.resistanceBuffTurnsRemaining--;
+    // Nautilus : la zone disparue est un effet GLOBAL (pas lié à un joueur
+    // précis) — décompte à chaque fin de tour, peu importe qui joue.
+    if (state!.disappearedTurnsRemaining > 0) {
+      state!.disappearedTurnsRemaining--;
+      if (state!.disappearedTurnsRemaining <= 0) {
+        state!.disappearedZoneIndex = null;
+      }
+    }
     // 🍀 Fifi — le "tour parfait" ne dure qu'UN tour : on le consomme ici,
     // avant de passer au joueur suivant, pour revenir à l'aléatoire ensuite.
     if (state!.fifiGoldenTurn) {
@@ -894,7 +973,7 @@ class SoloController extends ChangeNotifier {
           target = _ai.bestTarget(bot, state!.players, difficulty, context: card.effect);
         }
         if (target != null || !_cardNeedsTarget(card.effect)) {
-          final res = _eg.resolveCard(card, bot, state!.players, state!.terrainLayout, target: target);
+          final res = _eg.resolveCard(card, bot, state!.players, state!.terrainLayout, target: target, disappearedZone: state!.disappearedZoneIndex);
           if (res['needsTarget'] != true) {
             _log(res['log'] as String);
             await _checkWin();
@@ -1009,10 +1088,78 @@ class SoloController extends ChangeNotifier {
       // le moteur exige désormais un choix explicite (humain OU bot).
       String? extraParam;
       if (bot.character!.abilityEffect == 'move_adjacent_choice') {
-        final adjZones = kAdjacences[bot.zoneIndex];
-        extraParam = adjZones[_rng.nextInt(adjZones.length)].toString();
+        final adjZones = kAdjacences[bot.zoneIndex].where((z) => z != state!.disappearedZoneIndex).toList();
+        extraParam = adjZones.isNotEmpty ? adjZones[_rng.nextInt(adjZones.length)].toString() : null;
       }
-      final log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: target, extra: extraParam);
+      var log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: target, extra: extraParam, disappearedZone: state!.disappearedZoneIndex);
+      // Chameleon (bot) : zone 4-5 — choisit au hasard l'un des 5 autres
+      // pouvoirs, puis relance immédiatement avec ce choix encodé (et une
+      // cible fraîchement choisie si le pouvoir "révélation forcée" sort).
+      if (log == 'chameleon_choose_power') {
+        final options = ['0', '2', '3', '4', '5'];
+        final chosen = options[_rng.nextInt(options.length)];
+        Player? chosenTarget;
+        if (chosen == '0') {
+          chosenTarget = _ai.bestTarget(bot, state!.players, difficulty, context: 'chameleon_terrain_power');
+        }
+        log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: chosenTarget, extra: 'power_$chosen');
+      }
+      if (log == 'chameleon_draw_light' || log == 'chameleon_draw_dark') {
+        // Chameleon (bot) : pioche ET résout 2 cartes immédiatement (pas
+        // besoin d'interactivité pour un bot) — cible aléatoire parmi les
+        // autres joueurs si la carte piochée en réclame une.
+        final deckC = log == 'chameleon_draw_light' ? DeckType.lumiere : DeckType.tenebres;
+        final drawnNames = <String>[];
+        for (var i = 0; i < 2; i++) {
+          final card = _eg.drawCard(deckC, forcedQueue: state!.forcedDeckQueue, deckPiles: state!.deckPiles);
+          Player? autoTarget;
+          final probe = _eg.resolveCard(card, bot, state!.players, state!.terrainLayout);
+          if (probe['needsTarget'] == true) {
+            final others = state!.players.where((p) => p.alive && p.uid != bot.uid).toList();
+            autoTarget = others.isNotEmpty ? others[_rng.nextInt(others.length)] : bot;
+          }
+          _eg.resolveCard(card, bot, state!.players, state!.terrainLayout, target: autoTarget, disappearedZone: state!.disappearedZoneIndex);
+          drawnNames.add(card.name);
+        }
+        final deckLabelC = log == 'chameleon_draw_light' ? 'Lumière' : 'Ténèbres';
+        log = logT('🦎 {name} pioche 2 cartes {deck} : {cards}', {'name': bot.name, 'deck': deckLabelC, 'cards': drawnNames.join(', ')});
+      }
+      if (log == 'alchimiste_choose_potion') {
+        // Alchimiste (bot) : tire 3 potions, en choisit une au hasard, puis
+        // vise intelligemment (allié pour une potion bénéfique, ennemi
+        // pour une néfaste — voir bestTarget avec ce contexte précis).
+        final offered = _eg.alchimistDraw3();
+        final chosen = offered[_rng.nextInt(offered.length)];
+        final potionTarget = _ai.bestTarget(bot, state!.players, difficulty, context: 'potion_$chosen');
+        log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: potionTarget, extra: 'potion_$chosen', disappearedZone: state!.disappearedZoneIndex);
+      }
+      if (log == 'nautilus_choose_zone') {
+        // Nautilus (bot) : choisit la zone comptant le plus d'ennemis
+        // RÉVÉLÉS actuellement dessus (maximise les dégâts utiles), sinon
+        // une zone au hasard (jamais la sienne, pour ne pas se blesser).
+        final zoneCounts = <int, int>{};
+        for (final p in state!.players) {
+          if (!p.alive || p.uid == bot.uid || !p.revealed || p.character == null) continue;
+          if (_ai._isEnemy(bot, p.character!.faction)) {
+            zoneCounts[p.zoneIndex] = (zoneCounts[p.zoneIndex] ?? 0) + 1;
+          }
+        }
+        int chosenZone;
+        if (zoneCounts.isNotEmpty) {
+          chosenZone = zoneCounts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+        } else {
+          final options = List.generate(6, (i) => i)..remove(bot.zoneIndex);
+          chosenZone = options[_rng.nextInt(options.length)];
+        }
+        log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, extra: '$chosenZone');
+        if (log.startsWith('nautilus_vanished:')) {
+          final rest = log.substring('nautilus_vanished:'.length);
+          final sep = rest.indexOf('|');
+          state!.disappearedZoneIndex = sep >= 0 ? int.tryParse(rest.substring(0, sep)) : null;
+          state!.disappearedTurnsRemaining = 2;
+          log = sep >= 0 ? rest.substring(sep + 1) : '';
+        }
+      }
       abilityLog = log;
       if (log == 'draw_dark' || log == 'draw_light') {
         // Monkey Raph / Élise : piocher ET résoudre immédiatement pour le bot
@@ -1031,7 +1178,7 @@ class SoloController extends ChangeNotifier {
             cardTarget = _ai.bestTarget(bot, state!.players, difficulty, context: card.effect);
           }
           if (cardTarget != null || !_cardNeedsTarget(card.effect)) {
-            final res = _eg.resolveCard(card, bot, state!.players, state!.terrainLayout, target: cardTarget);
+            final res = _eg.resolveCard(card, bot, state!.players, state!.terrainLayout, target: cardTarget, disappearedZone: state!.disappearedZoneIndex);
             if (res['needsTarget'] != true) {
               _log(res['log'] as String);
               final justDied = state!.players.where((x) => !x.alive).toList();
@@ -1171,7 +1318,7 @@ class SoloController extends ChangeNotifier {
         // Richard II (bot) : mécanisme ENTIÈREMENT absent auparavant — il
         // n'échangeait jamais réellement de zone.
         final richardStartZone = bot.zoneIndex;
-        final z2 = _ai.bestZone(bot, state!.players, state!.terrainLayout, difficulty);
+        final z2 = _ai.bestZone(bot, state!.players, state!.terrainLayout, difficulty, excludeZone: state!.disappearedZoneIndex);
         if (z2 != richardStartZone) {
           for (final p in state!.players) {
             if (p.zoneIndex == richardStartZone) p.zoneIndex = z2;
@@ -1225,17 +1372,27 @@ class SoloController extends ChangeNotifier {
     int zoneIdx = bot.zoneIndex; // déjà à jour si Christine a bougé
 
     // Déplacement
-    if (!skipNormalMove) {
+    if (bot.frozenTurnsRemaining > 0) {
+      // Rudolf : bot gelé — ne peut pas se déplacer ce tour-ci, reste sur
+      // sa zone actuelle (pas de nouvel effet de zone déclenché).
+      await Future.delayed(d);
+      _log(logT('❄️ {name} est gelé — ne peut pas se déplacer ce tour', {'name': bot.name}), cls: 'bot');
+    } else if (!skipNormalMove) {
       await Future.delayed(d);
       if (_stopped) return;
       final roll = _eg.rollMove();
       final sum = roll['sum']!;
       if (sum == 7) {
-        zoneIdx = _ai.bestZone(bot, state!.players, state!.terrainLayout, difficulty);
+        zoneIdx = _ai.bestZone(bot, state!.players, state!.terrainLayout, difficulty, excludeZone: state!.disappearedZoneIndex);
       } else {
         final tid = _eg.sumToTerrainId(sum);
         zoneIdx = tid != null ? _eg.terrainLayoutIdx(state!.terrainLayout, tid) : (bot.zoneIndex + 1) % 6;
         if (zoneIdx == -1 || zoneIdx == bot.zoneIndex) zoneIdx = (bot.zoneIndex + 1) % 6;
+        // Nautilus : zone visée disparue — retombe sur bestZone, comme
+        // pour un 7 (choix libre).
+        if (zoneIdx == state!.disappearedZoneIndex) {
+          zoneIdx = _ai.bestZone(bot, state!.players, state!.terrainLayout, difficulty, excludeZone: state!.disappearedZoneIndex);
+        }
       }
       bot.zoneIndex = zoneIdx;
       final isAugustinBot = bot.character?.abilityEffect == 'heal_on_same_terrain' && bot.revealed;
@@ -1281,7 +1438,7 @@ class SoloController extends ChangeNotifier {
           target = _ai.bestTarget(bot, state!.players, difficulty, context: card.effect);
         }
         if (target != null || !_cardNeedsTarget(card.effect)) {
-          final res = _eg.resolveCard(card, bot, state!.players, state!.terrainLayout, target: target);
+          final res = _eg.resolveCard(card, bot, state!.players, state!.terrainLayout, target: target, disappearedZone: state!.disappearedZoneIndex);
           if (res['needsTarget'] != true) {
             final vlog = res['log'] as String;
             // Pour les cartes vision, ne loguer que le résultat (pas le contenu)
@@ -2325,13 +2482,51 @@ class SoloController extends ChangeNotifier {
 
       // ── Default: délègue au moteur (toutes les capacités non listées ci-dessus) ──
       default:
-        final res = _eg.applyAbilityFull(p, s.players, s.terrainLayout, target: target);
+        final res = _eg.applyAbilityFull(p, s.players, s.terrainLayout, target: target, extra: extra);
         final log = res['log'] as String? ?? '';
         final special = res['special'] as String?;
         // Spéciaux fréquents
         if (special == 'draw_dark')  { s.peioReturnToMove = true; humanDrawCard(DeckType.tenebres); return; }
         if (special == 'draw_light') { s.peioReturnToMove = true; s.abilityOverlay = 'elise_light'; humanDrawCard(DeckType.lumiere); return; }
         if (special == 'trigger_terrain') { s.abilityOverlay = 'peio_terrain'; humanApplyTerrainEffect(); return; }
+        // Chameleon : zone 4-5 — ouvre l'écran de choix des 5 autres
+        // pouvoirs, résolu ensuite via humanChooseChameleonPower().
+        if (special == 'chameleon_choose_power') {
+          s.pendingTargetAction = 'chameleon_choose_power';
+          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+        }
+        // Alchimiste : ouvre l'écran de choix des 3 potions tirées,
+        // résolu ensuite via humanChoosePotion().
+        if (special == 'alchimiste_choose_potion') {
+          s.alchimistOffered = _eg.alchimistDraw3();
+          s.pendingTargetAction = 'alchimiste_choose_potion';
+          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+        }
+        // Nautilus : ouvre l'écran de choix de ZONE (pas de joueur),
+        // résolu ensuite via humanChooseNautilusZone().
+        if (special == 'nautilus_choose_zone') {
+          s.pendingTargetAction = 'nautilus_choose_zone';
+          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+        }
+        if (special == 'nautilus_vanished') {
+          s.disappearedZoneIndex = res['nautilusZone'] as int?;
+          s.disappearedTurnsRemaining = 2;
+          if (log.isNotEmpty) _log(log, cls: 'player');
+          s.pendingTargetAction = null;
+          if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
+          notifyListeners(); return;
+        }
+        // Chameleon (zones 6/8) : 2 cartes à JOUER normalement (pas
+        // résolues automatiquement) — réutilise le tirage interactif
+        // standard, enchaîné deux fois via chameleonDrawsRemaining (voir
+        // humanApplyCard, qui redéclenche un 2e tirage une fois le
+        // premier entièrement résolu).
+        if (special == 'chameleon_draw_light' || special == 'chameleon_draw_dark') {
+          s.chameleonDrawsRemaining = 1; // encore 1 tirage après celui-ci
+          s.chameleonDeck = special == 'chameleon_draw_light' ? DeckType.lumiere : DeckType.tenebres;
+          humanDrawCard(s.chameleonDeck!);
+          return;
+        }
         if (special == 'skip_move')       { s.skipMovement = true; s.phase = GamePhase.zoneEffect; notifyListeners(); return; }
         if (special == 'skip_turn')       { s.phase = GamePhase.attack; notifyListeners(); return; }
         if (res['needsTarget'] == true && target == null) {
@@ -2612,6 +2807,22 @@ class SoloController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Rudolf : le joueur gelé ne peut pas se déplacer ce tour-ci — reste
+  /// sur sa zone actuelle et passe directement à l'attaque, SANS
+  /// redéclencher l'effet de sa zone actuelle (il n'a pas "atterri" dessus
+  /// ce tour, juste refusé de bouger).
+  void humanSkipMoveFrozen() {
+    final p = state!.current;
+    _log(logT('❄️ {name} est gelé — ne peut pas se déplacer ce tour', {'name': p.name}), cls: 'player');
+    // IMPORTANT : passe par zoneEffect (pas directement attack) — même
+    // logique que les bots gelés, qui redéclenchent l'effet de leur zone
+    // ACTUELLE via _botApplyTerrainEffectFor() même sans bouger. Rester
+    // cohérent avec ce comportement déjà existant (Christine aussi
+    // retraverse cette étape après son déplacement spécial direct).
+    state!.phase = GamePhase.zoneEffect;
+    notifyListeners();
+  }
+
   void humanMove(int zoneIdx, {int diceSum = 0}) {
     final p = state!.current; p.zoneIndex = zoneIdx;
     final isAugustin = p.character?.abilityEffect == 'heal_on_same_terrain' && p.revealed;
@@ -2641,6 +2852,11 @@ class SoloController extends ChangeNotifier {
     final adj = kAdjacences[p.zoneIndex];
     if (!adj.contains(zoneIdx)) {
       _log(logT("🗺️ Cette zone n'est pas adjacente !", {}), cls: 'player');
+      notifyListeners(); return;
+    }
+    // Nautilus : zone disparue, inaccessible même si adjacente.
+    if (zoneIdx == s.disappearedZoneIndex) {
+      _log(ui('nautilus_zone_gone'), cls: 'player');
       notifyListeners(); return;
     }
     p.zoneIndex = zoneIdx;
@@ -2746,7 +2962,7 @@ class SoloController extends ChangeNotifier {
     // interceptait N'IMPORTE QUELLE carte du deck Ténèbres (y compris les
     // équipements et les cartes sans dégâts comme Succube), l'empêchant de
     // se résoudre normalement. Supprimé.
-    final res = _eg.resolveCard(card, p, state!.players, state!.terrainLayout, target: target);
+    final res = _eg.resolveCard(card, p, state!.players, state!.terrainLayout, target: target, disappearedZone: state!.disappearedZoneIndex);
     if (res['needsTarget'] == true) {
       state!.phase = GamePhase.chooseTarget;
       state!.pendingTargetAction = res['action'] as String;
@@ -2759,7 +2975,7 @@ class SoloController extends ChangeNotifier {
       final giveEquip = _eg.botPunishChoice(punishTarget);
       final punishLog = _eg.resolvePunishChoice(punishActor, punishTarget, giveEquip);
       _log(punishLog, cls: 'player');
-      state!.pendingCard = null; state!.phase = _postCardPhase();
+      _finishCardResolution();
       await _checkWin(justDiedId: punishTarget.alive ? null : punishTarget.uid); notifyListeners(); return;
     }
     if (res['needsEquipChoice'] == true) {
@@ -2780,7 +2996,7 @@ class SoloController extends ChangeNotifier {
     }
     if (res['privateRevealUid'] != null) {
       // Vision Suprême : affiche la carte de la cible uniquement au joueur actif.
-      state!.pendingCard = null; state!.phase = _postCardPhase();
+      _finishCardResolution();
       state!.privateRevealTargetUid = res['privateRevealUid'] as String;
       _log(res['log'] as String, cls: 'player');
       notifyListeners(); return;
@@ -2815,7 +3031,7 @@ class SoloController extends ChangeNotifier {
         state!.abilityDiceResult = {'d': 6, 'result': d6v, 'dmg': d6v};
       }
     }
-    state!.pendingCard = null; state!.phase = _postCardPhase();
+    _finishCardResolution();
     // Une carte peut tuer un ou plusieurs joueurs (AoE) — vérifier la victoire
     // pour CHAQUE joueur mort suite à cette carte (sinon Tommy/Mango Loco ne
     // sont jamais reconnus vainqueurs quand le kill vient d'une carte).
@@ -2847,8 +3063,24 @@ class SoloController extends ChangeNotifier {
     return GamePhase.attack;
   }
 
+  /// Termine la résolution d'une carte — soit reprend normalement (phase
+  /// post-carte), soit enchaîne le tirage suivant si Chameleon est en
+  /// cours de résolution de ses 2 cartes (zones 6/8). Remplace le
+  /// classique `state!.pendingCard = null; state!.phase = _postCardPhase();`
+  /// à tous les points où une carte finit de se résoudre.
+  void _finishCardResolution() {
+    state!.pendingCard = null;
+    if (state!.chameleonDrawsRemaining > 0) {
+      state!.chameleonDrawsRemaining--;
+      humanDrawCard(state!.chameleonDeck!); // appelle déjà notifyListeners()
+      return;
+    }
+    state!.chameleonDeck = null;
+    state!.phase = _postCardPhase();
+  }
+
   void humanSkipCard() {
-    state!.pendingCard = null; state!.phase = _postCardPhase(); notifyListeners();
+    _finishCardResolution(); notifyListeners();
   }
 
   void humanApplyTerrainTarget(String targetId) async {
@@ -2888,6 +3120,48 @@ class SoloController extends ChangeNotifier {
   }
 
   /// Terrain 10 — étape 2 : l'objet précis à voler a été choisi.
+  /// Chameleon (zone 4-5) : résout le choix de l'un des 5 autres pouvoirs.
+  /// Le pouvoir '0' (révélation forcée) nécessite ENCORE un choix de
+  /// cible ensuite — les autres se résolvent immédiatement.
+  /// Alchimiste : résout le choix de l'une des 3 potions tirées — TOUTES
+  /// nécessitent ensuite une cible (contrairement à Chameleon).
+  void humanChoosePotion(String potion) {
+    final s = state!;
+    s.alchimistChosenPotion = potion;
+    s.pendingTargetAction = 'alchimiste_potion_target';
+    s.phase = GamePhase.chooseTarget; notifyListeners();
+  }
+
+  /// Nautilus : résout le choix de la zone à faire disparaître — se
+  /// résout directement, aucune étape supplémentaire nécessaire.
+  void humanChooseNautilusZone(int zoneIdx) {
+    final s = state!;
+    final res = _eg.applyAbilityFull(s.current, s.players, s.terrainLayout, extra: '$zoneIdx');
+    final log = res['log'] as String? ?? '';
+    if (res['special'] == 'nautilus_vanished') {
+      s.disappearedZoneIndex = res['nautilusZone'] as int?;
+      s.disappearedTurnsRemaining = 2;
+    }
+    if (log.isNotEmpty) _log(log, cls: 'player');
+    s.pendingTargetAction = null;
+    if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
+    notifyListeners();
+  }
+
+  void humanChooseChameleonPower(String power) {
+    final s = state!;
+    if (power == '0') {
+      s.pendingTargetAction = 'chameleon_reveal_target';
+      s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+    }
+    final res = _eg.applyAbilityFull(s.current, s.players, s.terrainLayout, extra: 'power_$power');
+    final log = res['log'] as String? ?? '';
+    if (log.isNotEmpty) _log(log, cls: 'player');
+    s.pendingTargetAction = null;
+    if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
+    notifyListeners();
+  }
+
   void humanChooseStealItem(int equipIdx) {
     final targetUid = state!.stealTargetUid;
     final target = targetUid != null
@@ -2914,6 +3188,32 @@ class SoloController extends ChangeNotifier {
     }
     if (state!.pendingTargetAction == 'clemence_target') {
       clemenceApplyToTarget(target);
+      return;
+    }
+    if (state!.pendingTargetAction == 'chameleon_reveal_target') {
+      // Chameleon : pouvoir "révélation forcée" choisi à l'étape
+      // précédente (zone 4-5) — se résout maintenant avec la cible.
+      final res = _eg.applyAbilityFull(state!.current, state!.players, state!.terrainLayout,
+          target: target, extra: 'power_0');
+      final log = res['log'] as String? ?? '';
+      if (log.isNotEmpty) _log(log, cls: 'player');
+      state!.pendingTargetAction = null;
+      if (!state!.isOver && !state!.turnEndedByDeath) { state!.phase = GamePhase.move; }
+      notifyListeners();
+      return;
+    }
+    if (state!.pendingTargetAction == 'alchimiste_potion_target') {
+      // Alchimiste : potion choisie à l'étape précédente — se résout
+      // maintenant avec la cible.
+      final potion = state!.alchimistChosenPotion;
+      final res = _eg.applyAbilityFull(state!.current, state!.players, state!.terrainLayout,
+          target: target, extra: 'potion_$potion', disappearedZone: state!.disappearedZoneIndex);
+      final log = res['log'] as String? ?? '';
+      if (log.isNotEmpty) _log(log, cls: 'player');
+      state!.pendingTargetAction = null;
+      state!.alchimistChosenPotion = null;
+      if (!state!.isOver && !state!.turnEndedByDeath) { state!.phase = GamePhase.move; }
+      notifyListeners();
       return;
     }
     if (state!.pendingTargetAction == 'equip_choice') {
@@ -3242,6 +3542,16 @@ class SoloController extends ChangeNotifier {
       state!.winnerIds = List<String>.from(res['winnerIds'] as List);
       state!.winnerMessage = res['reason'] as String;
       _log(logT('🏆 {msg}', {'msg': state!.winnerMessage ?? ''}), cls: 'important');
+      // IMPORTANT : notifyListeners() manquait ICI — pour un kill par
+      // attaque normale, la fonction appelante (humanAttack, bot...)
+      // rafraîchissait déjà l'UI de son côté après coup, masquant le
+      // problème. Mais pour une mort par passif de début de tour (poison
+      // de Damien, feu de Luc), endTurn() fait juste `await _checkWin();
+      // return;` — sans ce notifyListeners() ICI, RIEN ne prévenait
+      // jamais l'interface que la partie venait de se terminer : l'écran
+      // de victoire ne s'affichait jamais, donnant l'impression d'un gel
+      // total alors que l'état interne était pourtant correct.
+      notifyListeners();
       return;
     }
     // Butin : le tueur peut choisir de récupérer un équipement de sa victime
@@ -3332,7 +3642,7 @@ class SoloController extends ChangeNotifier {
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors',
     'lock_ability_while_alive','steal_max_hp','luc_ignite','baptiste_revive','maxence_drunk',
-    'store_damage_nils','d4_bonus_attack',
+    'store_damage_nils','d4_bonus_attack','rudolf_freeze','taureador_provoke','artisan_copy_equip','pere_noel_gift','sorciere_pigeon','chameleon_terrain_power','alchimiste_potion','pigeon_peck',
   ].contains(eff);
 
   // Liste synchronisée avec le switch needsTarget de resolveCard() —

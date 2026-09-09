@@ -257,7 +257,7 @@ class GameProvider extends ChangeNotifier {
     'damage3_give_dague','d6_global_attack','terrain_max_aoe','d6_lifesteal',
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors','luc_ignite','baptiste_revive',
     'lock_ability_while_alive','steal_max_hp','maxence_drunk',
-    'store_damage_nils','d4_bonus_attack',
+    'store_damage_nils','d4_bonus_attack','rudolf_freeze','taureador_provoke','artisan_copy_equip','pere_noel_gift','sorciere_pigeon','chameleon_terrain_power','alchimiste_potion','pigeon_peck',
   ].contains(eff);
 
   bool _cardNeedsTarget(String eff) => [
@@ -534,8 +534,8 @@ class GameProvider extends ChangeNotifier {
       // le moteur exige désormais un choix explicite (humain OU bot).
       String? extraParam;
       if (eff == 'move_adjacent_choice') {
-        final adjZones = kAdjacences[bot.zoneIndex];
-        extraParam = adjZones[Random().nextInt(adjZones.length)].toString();
+        final adjZones = kAdjacences[bot.zoneIndex].where((z) => z != gameState?.disappearedZoneIndex).toList();
+        extraParam = adjZones.isNotEmpty ? adjZones[Random().nextInt(adjZones.length)].toString() : null;
       }
       if (eff == 'hailey_copy_hunter') {
         // Hailey (bot) : tire 3 Hunters non joués et en copie un au hasard —
@@ -558,7 +558,75 @@ class GameProvider extends ChangeNotifier {
           await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack, abilityOverlay: 'hailey_copy');
         }
       } else if (target != null || !needsTarget) {
-        final abLog = _eg.applyAbility(bot, all, layout, target: target, extra: extraParam);
+        var abLog = _eg.applyAbility(bot, all, layout, target: target, extra: extraParam, disappearedZone: gameState?.disappearedZoneIndex);
+        // Chameleon (bot) : zone 4-5 — choisit au hasard l'un des 5 autres
+        // pouvoirs, puis relance immédiatement (même logique que côté solo).
+        if (abLog == 'chameleon_choose_power') {
+          final options = ['0', '2', '3', '4', '5'];
+          final chosen = options[Random().nextInt(options.length)];
+          Player? chosenTarget;
+          if (chosen == '0') {
+            chosenTarget = _ai.bestTarget(bot, all, _botDifficulty, context: 'chameleon_terrain_power');
+          }
+          abLog = _eg.applyAbility(bot, all, layout, target: chosenTarget, extra: 'power_$chosen');
+        }
+        if (abLog == 'chameleon_draw_light' || abLog == 'chameleon_draw_dark') {
+          // Chameleon (bot) : même logique que côté solo — pioche ET
+          // résout 2 cartes immédiatement, pas besoin d'interactivité.
+          final deckC = abLog == 'chameleon_draw_light' ? DeckType.lumiere : DeckType.tenebres;
+          final drawnNames = <String>[];
+          for (var i = 0; i < 2; i++) {
+            final card = _eg.drawCard(deckC, forcedQueue: gameState?.forcedDeckQueue, deckPiles: gameState?.deckPiles);
+            Player? autoTarget;
+            final probe = _eg.resolveCard(card, bot, all, layout);
+            if (probe['needsTarget'] == true) {
+              final others = all.where((p) => p.alive && p.uid != bot.uid).toList();
+              autoTarget = others.isNotEmpty ? others[Random().nextInt(others.length)] : bot;
+            }
+            _eg.resolveCard(card, bot, all, layout, target: autoTarget, disappearedZone: gameState?.disappearedZoneIndex);
+            drawnNames.add(card.name);
+          }
+          final deckLabelC = abLog == 'chameleon_draw_light' ? 'Lumière' : 'Ténèbres';
+          abLog = logT('🦎 {name} pioche 2 cartes {deck} : {cards}', {'name': bot.name, 'deck': deckLabelC, 'cards': drawnNames.join(', ')});
+        }
+        if (abLog == 'alchimiste_choose_potion') {
+          // Alchimiste (bot) : même logique que côté solo.
+          final offered = _eg.alchimistDraw3();
+          final chosen = offered[Random().nextInt(offered.length)];
+          final potionTarget = _ai.bestTarget(bot, all, _botDifficulty, context: 'potion_$chosen');
+          abLog = _eg.applyAbility(bot, all, layout, target: potionTarget, extra: 'potion_$chosen', disappearedZone: gameState?.disappearedZoneIndex);
+        }
+        if (abLog == 'nautilus_choose_zone') {
+          // Nautilus (bot) : même logique que côté solo.
+          final zoneCounts = <int, int>{};
+          for (final p in all) {
+            if (!p.alive || p.uid == bot.uid || !p.revealed || p.character == null) continue;
+            final botFaction = bot.character!.faction;
+            final isEnemy = (botFaction == Faction.hunter && p.character!.faction == Faction.shadow) ||
+                (botFaction == Faction.shadow && p.character!.faction == Faction.hunter);
+            if (isEnemy) {
+              zoneCounts[p.zoneIndex] = (zoneCounts[p.zoneIndex] ?? 0) + 1;
+            }
+          }
+          int chosenZone;
+          if (zoneCounts.isNotEmpty) {
+            chosenZone = zoneCounts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+          } else {
+            final options = List.generate(6, (i) => i)..remove(bot.zoneIndex);
+            chosenZone = options[Random().nextInt(options.length)];
+          }
+          abLog = _eg.applyAbility(bot, all, layout, extra: '$chosenZone');
+          if (abLog.startsWith('nautilus_vanished:')) {
+            final rest = abLog.substring('nautilus_vanished:'.length);
+            final sep = rest.indexOf('|');
+            final zoneIdx = sep >= 0 ? int.tryParse(rest.substring(0, sep)) : null;
+            abLog = sep >= 0 ? rest.substring(sep + 1) : '';
+            await _commitAll(all, abLog);
+            await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+                disappearedZoneIndex: zoneIdx ?? -1, disappearedTurnsRemaining: 2);
+            abLog = ''; // déjà commité ci-dessus, évite un double log plus bas
+          }
+        }
         if (abLog == 'draw_dark' || abLog == 'draw_light') {
           _eg.applyDeathPassives(all);
           await _commitAll(all, '');
@@ -670,7 +738,7 @@ class GameProvider extends ChangeNotifier {
           // en suivant EXACTEMENT la même séquence que chooseSwapZone()
           // (joueur humain) pour un comportement identique.
           final richardStartZone = bot.zoneIndex;
-          final z2 = _ai.bestZone(bot, all, layout, _botDifficulty);
+          final z2 = _ai.bestZone(bot, all, layout, _botDifficulty, excludeZone: gameState?.disappearedZoneIndex);
           if (z2 != richardStartZone) {
             for (final p in all) {
               if (p.zoneIndex == richardStartZone) p.zoneIndex = z2;
@@ -759,19 +827,31 @@ class GameProvider extends ChangeNotifier {
     final skipMove = gameState?.phase == GamePhase.zoneEffect ||
         gameState?.phase == GamePhase.attack;
     if (!skipMove) {
-      final roll = _eg.rollMove();
-      final sum = roll['sum']!;
-      int zoneIdx;
-      if (sum == 7) {
-        zoneIdx = _ai.bestZone(bot, all, layout, _botDifficulty);
+      if (bot.frozenTurnsRemaining > 0) {
+        // Rudolf : bot gelé — ne peut pas se déplacer ce tour-ci, reste
+        // sur sa zone actuelle (l'effet de terrain se redéclenche quand
+        // même juste après, comme pour un déplacement normal).
+        await _commitAll(all, logT('❄️ {name} est gelé — ne peut pas se déplacer ce tour', {'name': bot.name}));
+        await Future.delayed(const Duration(milliseconds: 700));
       } else {
-        final tid = _eg.sumToTerrainId(sum);
-        zoneIdx = tid != null ? _eg.terrainLayoutIdx(layout, tid) : (bot.zoneIndex + 1) % 6;
-        if (zoneIdx == -1 || zoneIdx == bot.zoneIndex) zoneIdx = (bot.zoneIndex + 1) % 6;
+        final roll = _eg.rollMove();
+        final sum = roll['sum']!;
+        int zoneIdx;
+        if (sum == 7) {
+          zoneIdx = _ai.bestZone(bot, all, layout, _botDifficulty, excludeZone: gameState?.disappearedZoneIndex);
+        } else {
+          final tid = _eg.sumToTerrainId(sum);
+          zoneIdx = tid != null ? _eg.terrainLayoutIdx(layout, tid) : (bot.zoneIndex + 1) % 6;
+          if (zoneIdx == -1 || zoneIdx == bot.zoneIndex) zoneIdx = (bot.zoneIndex + 1) % 6;
+          // Nautilus : zone visée disparue — retombe sur bestZone.
+          if (zoneIdx == gameState?.disappearedZoneIndex) {
+            zoneIdx = _ai.bestZone(bot, all, layout, _botDifficulty, excludeZone: gameState?.disappearedZoneIndex);
+          }
+        }
+        bot.zoneIndex = zoneIdx;
+        await _commitAll(all, logT('🚶 {name} → {zone}', {'name': bot.name, 'zone': layout[zoneIdx].name}));
+        await Future.delayed(const Duration(milliseconds: 700));
       }
-      bot.zoneIndex = zoneIdx;
-      await _commitAll(all, logT('🚶 {name} → {zone}', {'name': bot.name, 'zone': layout[zoneIdx].name}));
-      await Future.delayed(const Duration(milliseconds: 700));
 
       // ── Effet de terrain ──
       await _botApplyTerrainEffect(botUid);
@@ -790,7 +870,7 @@ class GameProvider extends ChangeNotifier {
             cardTarget = _ai.bestTarget(bot, all, _botDifficulty, context: card.effect);
           }
           if (cardTarget != null || !_cardNeedsTarget(card.effect)) {
-            final res = _eg.resolveCard(card, bot, all, layout, target: cardTarget);
+            final res = _eg.resolveCard(card, bot, all, layout, target: cardTarget, disappearedZone: gameState?.disappearedZoneIndex);
             if (res['needsTargetChoice'] == true) {
               // Divination X ou Y jouée par un BOT (via une carte "choix"
               // piochée par effet de terrain) : même correctif que dans
@@ -902,7 +982,7 @@ class GameProvider extends ChangeNotifier {
       cardTarget = _ai.bestTarget(bot, all, _botDifficulty, context: card.effect);
     }
     if (cardTarget != null || !_cardNeedsTarget(card.effect)) {
-      final res = _eg.resolveCard(card, bot, all, gameState!.terrainLayout, target: cardTarget);
+      final res = _eg.resolveCard(card, bot, all, gameState!.terrainLayout, target: cardTarget, disappearedZone: gameState?.disappearedZoneIndex);
       if (res['needsTargetChoice'] == true) {
         // Divination X ou Y jouée par un BOT : la punition ne se résolvait
         // JAMAIS auparavant — le code l'ignorait purement et simplement,
@@ -1361,7 +1441,7 @@ class GameProvider extends ChangeNotifier {
     await _commitAll(all, log);
     final endedEquip = await _checkWin(all);
     if (endedEquip) return;
-    await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true, peioReturnToMove: false);
+    await _finishCardOrChameleon();
   }
 
 
@@ -1431,6 +1511,13 @@ class GameProvider extends ChangeNotifier {
     'lock_ability_while_alive': 'ines_lock',
     'steal_max_hp': 'agathe_drain',
     'luc_ignite': 'luc_ignite',
+    'rudolf_freeze': 'rudolf_freeze',
+    'taureador_provoke': 'taureador_provoke',
+    'artisan_copy_equip': 'artisan_copy_equip',
+    'alchimiste_potion': 'alchimiste_potion',
+    'pigeon_peck': 'pigeon_peck',
+    'nautilus_vanish': 'nautilus_vanish',
+    'pere_noel_gift': 'pere_noel_gift',
     'maxence_drunk': 'maxence_drunk',
     'damage3_give_dague': 'marin_dagger',
     'store_damage_nils': 'nils_release',
@@ -1518,7 +1605,7 @@ class GameProvider extends ChangeNotifier {
   Future<void> christineChooseZone(int zoneIdx) async {
     final all = _mutableAll();
     final actor = all.firstWhere((p) => p.uid == myUid);
-    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout, extra: zoneIdx.toString());
+    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout, extra: zoneIdx.toString(), disappearedZone: gameState?.disappearedZoneIndex);
     if (log == 'christine_zone_choice') return; // zone invalide, sécurité
     actor.abilityUsed = true;
     _eg.applyDeathPassives(all);
@@ -1655,7 +1742,7 @@ class GameProvider extends ChangeNotifier {
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, abilityOverlay: 'remi_craft');
   }
 
-  Future<void> useAbility({Player? target}) async {
+  Future<void> useAbility({Player? target, String? extra}) async {
     final all   = _mutableAll();
     final actor = all.firstWhere((p) => p.uid == myUid);
     final tgt = target != null
@@ -1668,7 +1755,50 @@ class GameProvider extends ChangeNotifier {
     final preMaxHpModifier = actor.maxHpModifier;
     final preActorEquipEmpty = actor.equipment.isEmpty;
     final preTgtEquipEmpty = tgt?.equipment.isEmpty ?? true;
-    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout, target: tgt);
+    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout, target: tgt, extra: extra, disappearedZone: gameState?.disappearedZoneIndex);
+    // Chameleon : zone 4-5 — ouvre l'écran de choix des 5 autres pouvoirs.
+    if (log == 'chameleon_choose_power') {
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+          pendingTargetAction: 'chameleon_choose_power');
+      return;
+    }
+    if (log == 'alchimiste_choose_potion') {
+      // Réutilise builderOffered (même forme List<String>, Clémence et
+      // Alchimiste ne sont jamais actifs simultanément pour un même joueur).
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+          pendingTargetAction: 'alchimiste_choose_potion', builderOffered: _eg.alchimistDraw3());
+      return;
+    }
+    if (log == 'nautilus_choose_zone') {
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+          pendingTargetAction: 'nautilus_choose_zone');
+      return;
+    }
+    if (log.startsWith('nautilus_vanished:')) {
+      // La zone choisie a été résolue (via un second appel à useAbility
+      // avec extra='<zoneIdx>') — extrait la zone et l'active pour 2 tours.
+      final rest = log.substring('nautilus_vanished:'.length);
+      final sep = rest.indexOf('|');
+      final zoneIdx = sep >= 0 ? int.tryParse(rest.substring(0, sep)) : null;
+      final realLog = sep >= 0 ? rest.substring(sep + 1) : '';
+      await _commitAll(all, realLog);
+      await _fb.setPhase(roomId!, GamePhase.move,
+          disappearedZoneIndex: zoneIdx ?? -1, disappearedTurnsRemaining: 2, clearPending: true);
+      return;
+    }
+    if (log == 'chameleon_draw_light' || log == 'chameleon_draw_dark') {
+      // Chameleon (zones 6/8) : 2 cartes à JOUER normalement — même
+      // logique que côté solo, réutilise le tirage interactif standard,
+      // enchaîné deux fois via chameleonDrawsRemaining (voir le point où
+      // une carte finit de se résoudre, plus bas dans ce fichier).
+      await _fb.updatePlayer(roomId!, actor); // persiste abilityUsed=true (capacité unique)
+      players = Map<String, Player>.from(players)..[actor.uid] = actor;
+      await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.ability,
+          chameleonDrawsRemaining: 1,
+          chameleonDeck: log == 'chameleon_draw_light' ? 'lumiere' : 'tenebres');
+      await drawCard(log == 'chameleon_draw_light' ? DeckType.lumiere : DeckType.tenebres);
+      return;
+    }
     if ((actor.copiedEffect ?? actor.character?.abilityEffect) == 'full_heal_shield_turn') {
       // Cambou : "passez votre tour" fait partie intégrante du texte de la
       // capacité — ce cas particulier manquait ENTIÈREMENT ici (contrairement
@@ -1798,8 +1928,14 @@ class GameProvider extends ChangeNotifier {
       // pourtant UNIQUE (ex: Luc) de nouveau cliquable après utilisation.
       await _fb.updatePlayer(roomId!, actor);
       players = Map<String, Player>.from(players)..[actor.uid] = actor;
-      await _fb.setPhase(roomId!, GamePhase.chooseTarget,
-          pendingTargetAction: actor.copiedEffect ?? actor.character!.abilityEffect);
+      // Alchimiste : la potion déjà choisie (via `extra`, ex: 'potion_heal3')
+      // doit survivre jusqu'au choix de cible — embarquée directement dans
+      // pendingTargetAction (ex: 'alchimiste_potion:potion_heal3'), lu et
+      // ré-extrait au moment de résoudre la cible.
+      final pta = (actor.character!.abilityEffect == 'alchimiste_potion' && extra != null)
+          ? 'alchimiste_potion:$extra'
+          : (actor.copiedEffect ?? actor.character!.abilityEffect);
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: pta);
       return;
     }
     if (log == 'cible_vlad') {
@@ -1908,6 +2044,17 @@ class GameProvider extends ChangeNotifier {
         lastDiceTimestamp: d4 > 0 ? DateTime.now().millisecondsSinceEpoch : null);
   }
 
+  /// Rudolf : le joueur gelé ne peut pas se déplacer ce tour-ci — reste
+  /// sur sa zone actuelle et passe à zoneEffect (même transition que pour
+  /// un déplacement normal — richardActivateZone: -1 = utiliser la zone
+  /// ACTUELLE, pas d'override).
+  Future<void> skipMoveFrozen() async {
+    final all = _mutableAll();
+    final p = all.firstWhere((x) => x.uid == myUid);
+    await _commitAll(all, logT('❄️ {name} est gelé — ne peut pas se déplacer ce tour', {'name': p.name}));
+    await _fb.setPhase(roomId!, GamePhase.zoneEffect, richardActivateZone: -1);
+  }
+
   /// Voiture de Clem (capacité) ou Portail du Nether (équipement) : échange
   /// de position avec un autre joueur au lieu de se déplacer normalement.
   Future<void> swapPosition(Player target) async {
@@ -1941,6 +2088,24 @@ class GameProvider extends ChangeNotifier {
   /// séquentielles : le jeu peut rester bloqué en phase cardDrawn).
   GamePhase _postCardPhase() {
     return gameState?.peioReturnToMove == true ? GamePhase.move : GamePhase.attack;
+  }
+
+  /// Termine la résolution d'une carte — soit reprend normalement (phase
+  /// post-carte), soit enchaîne le tirage suivant si Chameleon est en
+  /// cours de résolution de ses 2 cartes (zones 6/8). Remplace le
+  /// classique `_fb.setPhase(roomId!, _postCardPhase(), clearPending: true,
+  /// peioReturnToMove: false)` à tous les points où une carte finit de se
+  /// résoudre, dans le cas le plus courant (sans paramètre additionnel).
+  Future<void> _finishCardOrChameleon() async {
+    if ((gameState?.chameleonDrawsRemaining ?? 0) > 0) {
+      final deckName = gameState?.chameleonDeck;
+      await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.cardDrawn,
+          chameleonDrawsRemaining: 0, clearPending: true);
+      await drawCard(deckName == 'lumiere' ? DeckType.lumiere : DeckType.tenebres);
+      return;
+    }
+    await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true,
+        peioReturnToMove: false, chameleonDeck: '__clear__');
   }
 
   Future<void> skipTerrainEffect() async =>
@@ -1979,7 +2144,7 @@ class GameProvider extends ChangeNotifier {
     }
     final endedSteal = await _checkWin(all, justDiedId: t.alive ? null : t.uid);
     if (endedSteal) return;
-    await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true, peioReturnToMove: false);
+    await _finishCardOrChameleon();
   }
 
   /// Terrain 10 — étape 2 : l'objet précis à voler a été choisi.
@@ -1998,7 +2163,7 @@ class GameProvider extends ChangeNotifier {
     }
     final endedSteal2 = await _checkWin(all, justDiedId: t.alive ? null : t.uid);
     if (endedSteal2) return;
-    await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true, peioReturnToMove: false);
+    await _finishCardOrChameleon();
   }
 
   Future<void> drawCard(DeckType deck) async {
@@ -2056,7 +2221,7 @@ class GameProvider extends ChangeNotifier {
     final tgt = target != null
         ? all.firstWhere((p) => p.uid == target.uid, orElse: () => actor)
         : null;
-    final res = _eg.resolveCard(card, actor, all, gameState!.terrainLayout, target: tgt);
+    final res = _eg.resolveCard(card, actor, all, gameState!.terrainLayout, target: tgt, disappearedZone: gameState?.disappearedZoneIndex);
     if (res['needsTarget'] == true) {
       await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: res['action'] as String);
       return;
@@ -2142,6 +2307,17 @@ class GameProvider extends ChangeNotifier {
     final d6c = cardDice?['d6'] as int? ?? 0;
     final sumc = cardDice?['sum'] as int? ?? 0;
     final labelc = cardDice?['label'] as String? ?? '🎲';
+    // Chameleon : si un tirage supplémentaire est en attente, l'affichage
+    // du dé se fait d'abord (écriture séparée), puis on enchaîne le
+    // tirage suivant plutôt que de reprendre la phase normale.
+    if ((gameState?.chameleonDrawsRemaining ?? 0) > 0) {
+      await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.cardDrawn,
+          lastDiceResult: cardDice != null ? {'d4': d4c, 'd6': d6c, 'sum': sumc} : null,
+          lastDiceLabel: cardDice != null ? labelc : null,
+          lastDiceTimestamp: cardDice != null ? DateTime.now().millisecondsSinceEpoch : null);
+      await _finishCardOrChameleon();
+      return;
+    }
     await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true,
         peioReturnToMove: false,
         lastDiceResult: cardDice != null ? {'d4': d4c, 'd6': d6c, 'sum': sumc} : null,
@@ -2190,7 +2366,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   Future<void> skipCard() async =>
-      await _fb.setPhase(roomId!, _postCardPhase(), clearPending: true, peioReturnToMove: false);
+      await _finishCardOrChameleon();
 
   /// Retire le premier équipement avec l'effet donné de l'inventaire du joueur courant.
   Future<void> consumeEquipment(String effect) async {
@@ -2423,8 +2599,27 @@ class GameProvider extends ChangeNotifier {
     // tour qui se termine — ce passif n'existait même pas en multijoueur
     // auparavant.
     p.attackedLastOwnTurn = gameState?.hasAttacked ?? false;
+    // Rudolf : le gel dure 2 tours — on décrémente ici, à la toute fin du
+    // tour du joueur gelé (même logique que côté solo).
+    if (p.frozenTurnsRemaining > 0) p.frozenTurnsRemaining--;
+    // Alchimiste : les 3 potions à durée (force/faiblesse/résistance)
+    // décomptent de la même façon (même logique que côté solo).
+    if (p.forceBuffTurnsRemaining > 0) p.forceBuffTurnsRemaining--;
+    if (p.weaknessDebuffTurnsRemaining > 0) p.weaknessDebuffTurnsRemaining--;
+    if (p.resistanceBuffTurnsRemaining > 0) p.resistanceBuffTurnsRemaining--;
     await _fb.updatePlayer(roomId!, p);
     players = Map<String, Player>.from(players)..[p.uid] = p;
+    // Nautilus : la zone disparue est un effet GLOBAL (pas lié à un joueur
+    // précis) — décompte à chaque fin de tour, peu importe qui joue. Écrit
+    // séparément (plutôt que de tenter de le glisser dans l'appel setPhase
+    // final, qui a plusieurs points de sortie anticipés selon les cas de
+    // mort en cascade plus bas).
+    if ((gameState?.disappearedTurnsRemaining ?? 0) > 0) {
+      final newRemaining = gameState!.disappearedTurnsRemaining - 1;
+      await _fb.setPhase(roomId!, gameState!.phase,
+          disappearedTurnsRemaining: newRemaining,
+          disappearedZoneIndex: newRemaining <= 0 ? -1 : gameState!.disappearedZoneIndex);
+    }
     await _fb.addLog(roomId!, logT('⏩ {name} termine son tour', {'name': p.name}));
     // Effacer fifiGoldenTurn
     if (gameState?.fifiGoldenTurn == true) {

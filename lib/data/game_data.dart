@@ -13,6 +13,11 @@ const List<CharacterCard> kAllCharacters = [
     ability:'Passif révélé: lance 2 fois les dés de déplacement et choisit le résultat',
     abilityEffect:'double_move_dice', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+  
+  CharacterCard(id:'alchimiste', name:'Alchimiste', faction:Faction.hunter, hp:11, icon:'⚗️',
+    ability:'Répétable: préparez une potion parmi 3 tirées au hasard et offrez-la à un joueur de votre choix — soin 3, blessure 3, force (+1 dégât infligé pendant 2 tours), faiblesse (-1 dégât infligé pendant 2 tours), intellect (téléportation sur le terrain de votre choix), résistance (-1 dégât subi pendant 2 tours), poison (2 dégâts par tour pendant 2 tours), gel (pendant 2 tours), flou (ivresse pendant 1 tour), feu (brûlure croissante), ou provocation',
+    abilityEffect:'alchimiste_potion', abilityRepeatable:true,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
   CharacterCard(id:'amelia', name:'Amélia', faction:Faction.hunter, hp:11, icon:'🌸',
     ability:'Unique: inflige 2 blessures à tous les Shadows révélés ET soigne de 2 tous les Hunters révélés.',
@@ -22,6 +27,11 @@ const List<CharacterCard> kAllCharacters = [
   CharacterCard(id:'artcade', name:"Art'Cade", faction:Faction.hunter, hp:12, icon:'🐉',
     ability:'Répétable: inflige 2 blessures à tous les joueurs sur la zone 6 (Chapelle Sacrée)',
     abilityEffect:'aoe_zone6', abilityRepeatable:true,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
+  CharacterCard(id:'artisan', name:'Arachné', faction:Faction.hunter, hp:11, icon:'🔨',
+    ability:'Répétable: copiez un équipement d\'un joueur de votre choix — vous obtenez une copie identique, sans le lui retirer',
+    abilityEffect:'artisan_copy_equip', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
   CharacterCard(id:'augustin', name:'Augustin', faction:Faction.hunter, hp:13, icon:'🌾',
@@ -43,6 +53,11 @@ const List<CharacterCard> kAllCharacters = [
     ability:'Passif révélé: si vous attaquez un Hunter révélé, il est soigné du même montant au lieu d\'être blessé',
     abilityEffect:'heal_hunter_on_attack', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
+  CharacterCard(id:'chameleon', name:'Chameleon', faction:Faction.hunter, hp:10, icon:'🦎',
+    ability:'Unique: pouvoir différent selon la zone où vous vous trouvez — 2-3: obligez un joueur de votre choix à se révéler • 4-5: choisissez l\'un des 5 autres pouvoirs de zone • 6: piochez 2 cartes Lumière • 8: piochez 2 cartes Ténèbres • 9: infligez 2 blessures à tous les autres joueurs • 10: récupérez tous les équipements de tous les autres joueurs',
+    abilityEffect:'chameleon_terrain_power',
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
 
   CharacterCard(id:'christine', name:'Christine', faction:Faction.hunter, hp:13, icon:'🗺️',
     ability:'Répétable: au lieu de vous déplacer normalement, choisissez directement un des 2 terrains adjacents et déplacez-vous-y',
@@ -104,11 +119,21 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'meg_shapeshift', abilityRepeatable:false,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
 
+  CharacterCard(id:'nautilus', name:'Nautilus', faction:Faction.hunter, hp:13, icon:'🐚',
+    ability:'Unique: faites disparaître un terrain de votre choix pendant 2 tours — les joueurs qui s\'y trouvaient subissent 3 blessures et passent sur le terrain adjacent à droite. Un terrain disparu n\'est plus accessible tant qu\'il n\'est pas réapparu',
+    abilityEffect:'nautilus_vanish',
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
+
   CharacterCard(id:'oceane', name:'Océane', faction:Faction.hunter, hp:12, icon:'🌊',
     ability:'Unique: choisissez un joueur à exclure, lancez le D4, tous les autres joueurs se soignent du résultat',
     abilityEffect:'d4_heal_neighbors',
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
+  CharacterCard(id:'pere_noel', name:'Père Noël', faction:Faction.hunter, hp:14, icon:'🎅',
+    ability:'Répétable: choisissez un joueur pour lui offrir un cadeau — 40% de chance d\'obtenir un équipement aléatoire, 40% de chance de soigner 3 blessures, 20% d\'infliger 3 blessures',
+    abilityEffect:'pere_noel_gift', abilityRepeatable:true,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+  
   CharacterCard(id:'raph_soleil', name:'Raph du Soleil Levant', faction:Faction.hunter, hp:12, icon:'🥷',
     ability:'Répétable: subissez 2 blessures pour soigner un joueur de votre choix de 3 blessures',
     abilityEffect:'damage2_then_heal3', abilityRepeatable:true,
@@ -124,12 +149,26 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'swap_zones', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
+  CharacterCard(id:'rudolf', name:'Rudolf', faction:Faction.hunter, hp:13, icon:'❄️',
+    ability:'Unique: gelez un joueur de votre choix pendant 2 tours — il ne peut pas se déplacer lors de son prochain tour et subit 1 blessure supplémentaire sur chaque attaque reçue tant qu\'il est gelé',
+    abilityEffect:'rudolf_freeze',
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
+
   CharacterCard(id:'scott', name:'Scott', faction:Faction.hunter, hp:13, icon:'🛡️',
     ability:'Passif: si un joueur l\'attaque, il contre-attaque automatiquement (lance ses propres dés)',
     abilityEffect:'counter_attack_passive', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
-  
+  CharacterCard(id:'sorciere', name:'Sorcière', faction:Faction.hunter, hp:10, icon:'🧙',
+    ability:'Unique: transformez un joueur de votre choix en pigeon — sa carte personnage passe à 12 PV max et son pouvoir devient répétable : "Inflige 1 blessure au joueur de son choix" (son camp et sa condition de victoire restent inchangés)',
+    abilityEffect:'sorciere_pigeon',
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
+
+  CharacterCard(id:'taureador', name:'Pierre', faction:Faction.hunter, hp:13, icon:'🐂',
+    ability:'Unique: provoquez un joueur de votre choix — s\'il attaque quelqu\'un d\'autre que vous avant de vous attaquer, il subit 3 blessures',
+    abilityEffect:'taureador_provoke',
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
+
 
     // ══════════ SHADOWS (20) ══════════
 

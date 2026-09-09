@@ -66,6 +66,11 @@ const Map<String, String> kRevealQuotes = {
   'ines': "[True mages masters all magic]",
   'baptiste': "[Fine, I'll heal]",
   'christine': "[No one crosses the uncrowned]",
+  'rudolf': "[No one crosses the uncrowned]",
+  'artisan': "[No one crosses the uncrowned]",
+  'pere_noel': "[No one crosses the uncrowned]",
+  'taureador': "[No one crosses the uncrowned]",
+
 };
 
 const Map<String, String> kCharacterImages = {
@@ -183,6 +188,14 @@ const Map<String, String> kCharacterImages = {
   'woods': 'assets/images/characters/woods.png',
   'zazou': 'assets/images/characters/zazou.png',
   'zombie_raph': 'assets/images/characters/zombie_raph.png',
+  'taureador': 'assets/images/characters/taureador.png',
+  'pere_noel': 'assets/images/characters/noel.png',
+  'rudolf': 'assets/images/characters/rudolf.png',
+  'artisan': 'assets/images/characters/artisan.png',
+  'chameleon': 'assets/images/characters/chameleon.png',
+  'sorciere': 'assets/images/characters/sorciere.png',
+  'alchimiste': 'assets/images/characters/alchimiste.png',
+  'nautilus': 'assets/images/characters/nautilus.png',
 };
 
 // Mapping terrain effect → image PNG

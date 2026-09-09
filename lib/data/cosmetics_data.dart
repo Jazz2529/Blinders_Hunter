@@ -210,12 +210,39 @@ const List<CosmeticItem> kCosmeticsCatalog = [
   CosmeticItem(id: 'rat_rouen-legend', name: 'Rat d\'Rouen - Légende',
     category: CosmeticCategory.character, targetId: 'rat_rouen', cost: 0,
     imagePath: 'assets/images/characters/rat_rouen-legend.png', exclusive: true),
+  CosmeticItem(id: 'taureador-legend', name: 'Pierre - Légende',
+    category: CosmeticCategory.character, targetId: 'taureador', cost: 0,
+    imagePath: 'assets/images/characters/taureador-legend.png', exclusive: true),
   CosmeticItem(id: 'tommy-legend', name: 'Tommy - Légende',
     category: CosmeticCategory.character, targetId: 'tommy', cost: 0,
     imagePath: 'assets/images/characters/tommy-legend.png', exclusive: true),
   CosmeticItem(id: 'tristan-legend', name: 'Tristan - Légende',
     category: CosmeticCategory.character, targetId: 'tristan', cost: 0,
     imagePath: 'assets/images/characters/tristan-legend.png', exclusive: true),
+  CosmeticItem(id: 'pere_noel-legend', name: 'Père Noël - Légende',
+    category: CosmeticCategory.character, targetId: 'pere_noel', cost: 0,
+    imagePath: 'assets/images/characters/noel-legend.png', exclusive: true),
+  CosmeticItem(id: 'artisan-legend', name: 'Arachné - Légende',
+    category: CosmeticCategory.character, targetId: 'artisan', cost: 0,
+    imagePath: 'assets/images/characters/artisan-legend.png', exclusive: true),
+  CosmeticItem(id: 'rudolf-legend', name: 'Rudolf - Légende',
+    category: CosmeticCategory.character, targetId: 'rudolf', cost: 0,
+    imagePath: 'assets/images/characters/rudolf-legend.png', exclusive: true),
+  CosmeticItem(id: 'sorciere-legend', name: 'Mathylde - Légende',
+    category: CosmeticCategory.character, targetId: 'sorciere', cost: 0,
+    imagePath: 'assets/images/characters/sorciere-legend.png', exclusive: true),
+  CosmeticItem(id: 'chameleon-legend', name: 'Benjamin - Légende',
+    category: CosmeticCategory.character, targetId: 'chameleon', cost: 0,
+    imagePath: 'assets/images/characters/chameleon-legend.png', exclusive: true),
+  CosmeticItem(id: 'nautilus-legend', name: 'Nautilus - Légende',
+    category: CosmeticCategory.character, targetId: 'nautilus', cost: 0,
+    imagePath: 'assets/images/characters/nautilus-legend.png', exclusive: true),
+  CosmeticItem(id: 'alchimiste-legend', name: 'Flubs - Légende',
+    category: CosmeticCategory.character, targetId: 'alchimiste', cost: 0,
+    imagePath: 'assets/images/characters/alchimiste-legend.png', exclusive: true),
+  CosmeticItem(id: 'taureador-legend', name: 'Pierre - Légende',
+    category: CosmeticCategory.character, targetId: 'taureador', cost: 0,
+    imagePath: 'assets/images/characters/taureador-legend.png', exclusive: true),         
   // ── Personnages ──────────────────────────────────────────────────────
  
   CosmeticItem(id: 'agathe-tarot', name: 'Agathe - Reine Baton',
@@ -230,9 +257,13 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     category: CosmeticCategory.character, targetId: 'amelia', cost: 150,
     imagePath: 'assets/images/characters/amelia-tarot.png'), 
 
+  CosmeticItem(id: 'artisan-tarot', name: 'Arachnée - 6',
+    category: CosmeticCategory.character, targetId: 'artisan', cost: 150,
+    imagePath: 'assets/images/characters/artisan-tarot.png'),  
+
   CosmeticItem(id: 'art_cade-tarot', name: 'Artcade - 9',
     category: CosmeticCategory.character, targetId: 'artcade', cost: 150,
-    imagePath: 'assets/images/characters/art-tarot.png'),
+    imagePath: 'assets/images/characters/art-tarot.png'),  
 
   CosmeticItem(id: 'augustin-tarot', name: 'Augustin - Cavalier Baton',
     category: CosmeticCategory.character, targetId: 'augustin', cost: 150,
@@ -246,6 +277,10 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     category: CosmeticCategory.character, targetId: 'baptiste', cost: 150,
     imagePath: 'assets/images/characters/baptiste-tarot.png'), 
 
+  CosmeticItem(id: 'chameleon-tarot', name: 'Benjamin - 5',
+    category: CosmeticCategory.character, targetId: 'chameleon', cost: 150,
+    imagePath: 'assets/images/characters/chameleon-tarot.png'),
+  
   CosmeticItem(id: 'beeble', name: 'Beeble',
     category: CosmeticCategory.character, targetId: 'bibble', cost: 150,
     imagePath: 'assets/images/characters/beeble.png'),
@@ -310,6 +345,10 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     category: CosmeticCategory.character, targetId: 'fijacked', cost: 150,
     imagePath: 'assets/images/characters/fijacked-tarot.png'), 
 
+  CosmeticItem(id: 'alchimiste-tarot', name: 'Flubs - Roi Coupe',
+    category: CosmeticCategory.character, targetId: 'alchimiste', cost: 150,
+    imagePath: 'assets/images/characters/alchimiste-tarot.png'),  
+
   CosmeticItem(id: 'gege-tarot', name: 'Gege - XVIII.The Moon',
     category: CosmeticCategory.character, targetId: 'gege', cost: 150,
     imagePath: 'assets/images/characters/gege-tarot.png'),   
@@ -354,6 +393,10 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     category: CosmeticCategory.character, targetId: 'luc', cost: 150,
     imagePath: 'assets/images/characters/luc-tarot.png'),  
 
+  CosmeticItem(id: 'sorciere-tarot', name: 'Mathylde - 5',
+    category: CosmeticCategory.character, targetId: 'sorciere', cost: 150,
+    imagePath: 'assets/images/characters/sorciere-tarot.png'),  
+
   CosmeticItem(id: 'mango-tarot', name: 'Mango Loco - XXI.The World',
     category: CosmeticCategory.character, targetId: 'mango', cost: 150,
     imagePath: 'assets/images/characters/mango-tarot.png'),
@@ -388,7 +431,11 @@ const List<CosmeticItem> kCosmeticsCatalog = [
 
   CosmeticItem(id: 'casino-tarot', name: 'Mr. Casino - X.The Wheel',
     category: CosmeticCategory.character, targetId: 'mr_casino', cost: 150,
-    imagePath: 'assets/images/characters/casino-tarot.png'),    
+    imagePath: 'assets/images/characters/casino-tarot.png'),  
+
+  CosmeticItem(id: 'nautilus-tarot', name: 'Nautilus - 5',
+    category: CosmeticCategory.character, targetId: 'nautilus', cost: 150,
+    imagePath: 'assets/images/characters/nautilus-tarot.png'),    
 
   CosmeticItem(id: 'nils-tarot', name: 'Nils - XI.Justice',
     category: CosmeticCategory.character, targetId: 'nils', cost: 150,
@@ -408,7 +455,15 @@ const List<CosmeticItem> kCosmeticsCatalog = [
 
   CosmeticItem(id: 'peio-tarot', name: 'Peio - Roi Baton',
     category: CosmeticCategory.character, targetId: 'peio', cost: 150,
-    imagePath: 'assets/images/characters/peio-tarot.png'),  
+    imagePath: 'assets/images/characters/peio-tarot.png'),
+
+  CosmeticItem(id: 'noel-tarot', name: 'Père Noël - 5',
+    category: CosmeticCategory.character, targetId: 'pere_noel', cost: 150,
+    imagePath: 'assets/images/characters/noel-tarot.png'),     
+
+  CosmeticItem(id: 'taureador-tarot', name: 'Pierre - 6',
+    category: CosmeticCategory.character, targetId: 'taureador', cost: 150,
+    imagePath: 'assets/images/characters/taureador-tarot.png'),  
 
   CosmeticItem(id: 'pirate-tarot', name: 'Pirate - 8',
     category: CosmeticCategory.character, targetId: 'pirate', cost: 150,
@@ -429,6 +484,10 @@ const List<CosmeticItem> kCosmeticsCatalog = [
   CosmeticItem(id: 'richard-tarot', name: 'Richard II - I.The Magician',
     category: CosmeticCategory.character, targetId: 'richard2', cost: 150,
     imagePath: 'assets/images/characters/richard-tarot.png'), 
+
+  CosmeticItem(id: 'rudolf-tarot', name: 'Rudolf - 6',
+    category: CosmeticCategory.character, targetId: 'rudolf', cost: 150,
+    imagePath: 'assets/images/characters/rudolf-tarot.png'),  
 
   CosmeticItem(id: 'scott-tarot', name: 'Scott - Roi Epée',
     category: CosmeticCategory.character, targetId: 'scott', cost: 150,

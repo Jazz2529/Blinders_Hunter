@@ -1650,6 +1650,21 @@ class _ActionPanelState extends State<_ActionPanel> {
           BHButton(label:ui('skip_to_move'),onTap:()=>_act(gp.skipAbility),outlined:true),
         ];
       case GamePhase.move:
+        // Rudolf : joueur gelé — ne peut pas se déplacer ce tour-ci du
+        // tout. Court-circuite TOUTES les options de déplacement (échange
+        // de position, Albane/Boussole, dé simple...).
+        if ((gp.me?.frozenTurnsRemaining ?? 0) > 0) {
+          return [
+            Container(padding: const EdgeInsets.all(14), decoration: surfaceDecor(),
+              child: Column(children: [
+                const Text('❄️', style: TextStyle(fontSize: 32)),
+                const SizedBox(height: 8),
+                Text(ui('frozen_cannot_move'), style: cinzel(13, c: kHunter, fw: FontWeight.w900), textAlign: TextAlign.center),
+              ])),
+            const SizedBox(height: 10),
+            BHButton(label: ui('btn_confirm'), onTap: () => _act(gp.skipMoveFrozen)),
+          ];
+        }
         if (_showingSwapTargets) {
           final others = gp.players.values.where((p) => p.alive && p.uid != gp.myUid).toList();
           return [
@@ -1808,6 +1823,59 @@ class _ActionPanelState extends State<_ActionPanel> {
           return [Text('🎰 ${gp.currentPlayer?.name ?? "Mr Casino"} fait son pari…',
             style: cinzel(13, c: kGold))];
         }
+        // Chameleon (zone 4-5) : affiche les 5 AUTRES pouvoirs à choisir,
+        // pas une liste de joueurs.
+        if (pta == 'chameleon_choose_power') {
+          if (!gp.isMyTurn) {
+            return [Text('🦎 ${gp.currentPlayer?.name ?? "Chameleon"} choisit son pouvoir…',
+              style: cinzel(13, c: kGold))];
+          }
+          final options = <String, String>{
+            '0': '👁️ Forcer une révélation',
+            '2': '⛪ Piocher 2 cartes Lumière',
+            '3': '🌑 Piocher 2 cartes Ténèbres',
+            '4': '💥 2 dégâts à tous les autres',
+            '5': '🎒 Récupérer tout l\'équipement des autres',
+          };
+          return options.entries.map((e) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: BHButton(label: e.value,
+              onTap: () => _act(() => gp.useAbility(extra: 'power_${e.key}'))),
+          )).toList();
+        }
+        // Alchimiste : affiche les 3 potions tirées au hasard (réutilise
+        // builderOffered — même remarque que côté serveur).
+        if (pta == 'alchimiste_choose_potion') {
+          if (!gp.isMyTurn) {
+            return [Text('⚗️ ${gp.currentPlayer?.name ?? "Alchimiste"} prépare une potion…',
+              style: cinzel(13, c: kGold))];
+          }
+          final offered = gp.gameState?.builderOffered ?? [];
+          return offered.map((p) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: BHButton(label: GameEngine.instance.potionLabel(p),
+              onTap: () => _act(() => gp.useAbility(extra: 'potion_$p'))),
+          )).toList();
+        }
+        // Nautilus : affiche les 6 zones du plateau (pas des joueurs).
+        if (pta == 'nautilus_choose_zone') {
+          if (!gp.isMyTurn) {
+            return [Text('🐚 ${gp.currentPlayer?.name ?? "Nautilus"} choisit une zone…',
+              style: cinzel(13, c: kGold))];
+          }
+          final disappeared = gp.gameState?.disappearedZoneIndex;
+          final layout = gp.gameState?.terrainLayout ?? [];
+          return List.generate(6, (i) => i)
+              .where((i) => i != disappeared)
+              .map((i) {
+            final t = layout[i];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: BHButton(label: '${t.icon} ${tr(t.name)}',
+                onTap: () => _act(() => gp.useAbility(extra: '$i'))),
+            );
+          }).toList();
+        }
         // Corne des Woods — étape 2 : filtrer aux joueurs à portée du joueur forcé
         List<Player> all;
         if (pta == 'corne_des_woods_victim') {
@@ -1841,6 +1909,9 @@ class _ActionPanelState extends State<_ActionPanel> {
         } else if (pta == 'baptiste_target') {
           // Baptiste : ne peut cibler QUE des joueurs morts, pour les ramener à la vie
           all = gp.players.values.where((p) => !p.alive).toList();
+        } else if (pta == 'artisan_copy_equip') {
+          // Artisan : ne peut cibler QUE des joueurs ayant au moins un équipement
+          all = gp.players.values.where((p) => p.alive && p.uid != gp.myUid && p.equipment.isNotEmpty).toList();
         } else {
           all = gp.players.values.where((p)=>p.alive&&p.uid!=gp.myUid).toList();
         }
@@ -1889,7 +1960,7 @@ class _ActionPanelState extends State<_ActionPanel> {
           return [
             Text(ui('title_richard2_zone'),
               style: cinzel(12, c: kGold)), const SizedBox(height: 8),
-            ...layout.asMap().entries.where((e) => e.key != myZoneIdx).map((entry) {
+            ...layout.asMap().entries.where((e) => e.key != myZoneIdx && e.key != gp.gameState?.disappearedZoneIndex).map((entry) {
               final idx = entry.key; final terrain = entry.value;
               final dv = DrunkVision.forViewer(gp.me);
               final here = gp.players.values.where((p) => p.alive && p.zoneIndex == idx)
@@ -1984,6 +2055,17 @@ class _ActionPanelState extends State<_ActionPanel> {
                 await gp.clemenceApplyToTarget(t);
               } else if (pta == 'ability_tristan') {
                 await gp.tristanChooseTarget(t);
+              } else if (pta == 'chameleon_terrain_power') {
+                // Chameleon : révélation forcée (zone 2-3 directe OU choisie
+                // depuis le menu de la zone 4-5) — extra='power_0' est
+                // nécessaire même dans le cas direct, sans quoi le second
+                // appel recalculerait la zone et boucierait sur le menu de
+                // choix si jamais on venait de la zone 4-5.
+                await gp.useAbility(target: t, extra: 'power_0');
+              } else if (pta != null && pta.startsWith('alchimiste_potion:')) {
+                // Alchimiste : la potion choisie est embarquée dans pta
+                // (ex: 'alchimiste_potion:potion_heal3') — on l'extrait.
+                await gp.useAbility(target: t, extra: pta.substring('alchimiste_potion:'.length));
               } else if (pta != null && pta.startsWith('vision_') ||
                   pta == 'banane_demonique' || pta == 'vampirisation' ||
                   pta == 'blue_shell' || pta == 'veuve_noire' ||
@@ -2165,7 +2247,7 @@ class _ActionPanelState extends State<_ActionPanel> {
   });
 
   List<Widget> _buildZoneChoices() => List.generate(6, (i) {
-    if (i == gp.me?.zoneIndex) return const SizedBox.shrink();
+    if (i == gp.me?.zoneIndex || i == gp.gameState?.disappearedZoneIndex) return const SizedBox.shrink();
     final t = gp.gameState!.terrainLayout[i];
     return BHButton(
       label: '${t.icon} ${t.num} — ${tr(t.name)}',
@@ -2179,6 +2261,14 @@ class _ActionPanelState extends State<_ActionPanel> {
     final layout = gp.gameState!.terrainLayout;
     int idx = tid != null ? layout.indexWhere((t) => t.id == tid) : -1;
     if (idx == -1 || idx == gp.me?.zoneIndex) idx = ((gp.me?.zoneIndex ?? 0) + 1) % 6;
+    // Nautilus : zone visée disparue — bascule sur le choix libre plutôt
+    // que de proposer un déplacement vers une zone inaccessible.
+    if (idx == gp.gameState?.disappearedZoneIndex) {
+      return BHButton(
+        label: '🚫 ${ui('nautilus_zone_gone')}',
+        onTap: () => setState(() => _sum = 7),
+      );
+    }
     final t = layout[idx];
     return BHButton(
       label: '→ ${t.icon} ${tr(t.name)}  (${tr(t.keyword)})',
@@ -3268,7 +3358,7 @@ class _MultiChristineZoneWidget extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text('🗺️ Christine — Choisissez votre prochain terrain', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
         const SizedBox(height: 12),
-        ...adj.map((idx) {
+        ...adj.where((idx) => idx != gp.gameState?.disappearedZoneIndex).map((idx) {
           final terrain = idx < layout.length ? layout[idx] : null;
           final dv = DrunkVision.forViewer(gp.me);
           final playersHere = (gp.gameState?.playerOrder ?? const [])

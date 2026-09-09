@@ -598,6 +598,10 @@ class FirebaseService {
     String? jeanneRewardBanner,
     int? jeanneRewardBannerTimestamp,
     int? publicRevealTimestamp,
+    int? disappearedZoneIndex,
+    int? disappearedTurnsRemaining,
+    int? chameleonDrawsRemaining,
+    String? chameleonDeck,
     bool clearOverlay = false,
     bool clearPending = false,
     bool clearPunish = false,
@@ -698,6 +702,14 @@ class FirebaseService {
     if (jeanneRewardBanner != null) updates['jeanneRewardBanner'] = jeanneRewardBanner;
     if (jeanneRewardBannerTimestamp != null) updates['jeanneRewardBannerTimestamp'] = jeanneRewardBannerTimestamp;
     if (publicRevealTimestamp != null) updates['publicRevealTimestamp'] = publicRevealTimestamp;
+    // Nautilus : -1 = effacer explicitement (terrain réapparu), même
+    // convention que richardActivateZone ci-dessus.
+    if (disappearedZoneIndex != null) {
+      updates['disappearedZoneIndex'] = disappearedZoneIndex == -1 ? null : disappearedZoneIndex;
+    }
+    if (disappearedTurnsRemaining != null) updates['disappearedTurnsRemaining'] = disappearedTurnsRemaining;
+    if (chameleonDrawsRemaining != null) updates['chameleonDrawsRemaining'] = chameleonDrawsRemaining;
+    if (chameleonDeck != null) updates['chameleonDeck'] = chameleonDeck == '__clear__' ? null : chameleonDeck;
     await _patch('rooms/$roomId/gameState', updates);
   }
 

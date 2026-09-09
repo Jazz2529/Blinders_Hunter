@@ -201,6 +201,12 @@ class Player {
   int poisonTurnsRemaining; // Damien : tours restants de poison (3 dégâts/tour)
   String? lucFireSourceUid; // qui a mis le feu
   int lucFireTurnsRemaining; // Luc : tours restants en feu (2 dégâts/tour, +1 dégât aux attaques)
+  int frozenTurnsRemaining; // Rudolf : tours restants gelé (ne peut pas se déplacer, +1 dégât subi aux attaques)
+  String? provokedByUid; // Taureador : uid du joueur qui a provoqué ce joueur — s'il attaque quelqu'un d'AUTRE que lui, il subit 3 dégâts. Effacé après sa prochaine attaque (déclenchée ou non).
+  int forceBuffTurnsRemaining; // Alchimiste (Potion de force) : tours restants avec +1 dégât infligé sur ses attaques
+  int weaknessDebuffTurnsRemaining; // Alchimiste (Potion de faiblesse) : tours restants avec -1 dégât infligé sur ses attaques
+  int resistanceBuffTurnsRemaining; // Alchimiste (Potion de résistance) : tours restants avec -1 dégât subi sur les attaques reçues
+  int poisonDamagePerTurn; // dégâts infligés par tic de poison — 3 par défaut (Damien), 2 pour la Potion de poison de l'Alchimiste
   int drunkTurnsRemaining = 0; // Maxence : tours restants ivre (vision brouillée, sur SON écran uniquement)
   int drunkSeed = 0;           // Maxence : graine fixe pour que le brouillage reste cohérent pendant les 2 tours
   int tomBonusDmg = 0; // Tom : dégâts bonus PERMANENTS cumulés, +2 à chaque Shadow qu'il élimine
@@ -285,6 +291,12 @@ class Player {
     this.poisonTurnsRemaining = 0,
     this.lucFireSourceUid,
     this.lucFireTurnsRemaining = 0,
+    this.frozenTurnsRemaining = 0,
+    this.provokedByUid,
+    this.forceBuffTurnsRemaining = 0,
+    this.weaknessDebuffTurnsRemaining = 0,
+    this.resistanceBuffTurnsRemaining = 0,
+    this.poisonDamagePerTurn = 3,
     this.drunkTurnsRemaining = 0,
     this.drunkSeed = 0,
     this.tomBonusDmg = 0,
@@ -348,6 +360,12 @@ class Player {
     'poisonTurnsRemaining': poisonTurnsRemaining,
     'lucFireSourceUid': lucFireSourceUid,
     'lucFireTurnsRemaining': lucFireTurnsRemaining,
+    'frozenTurnsRemaining': frozenTurnsRemaining,
+    'provokedByUid': provokedByUid,
+    'forceBuffTurnsRemaining': forceBuffTurnsRemaining,
+    'weaknessDebuffTurnsRemaining': weaknessDebuffTurnsRemaining,
+    'resistanceBuffTurnsRemaining': resistanceBuffTurnsRemaining,
+    'poisonDamagePerTurn': poisonDamagePerTurn,
     'drunkTurnsRemaining': drunkTurnsRemaining,
     'drunkSeed': drunkSeed,
     'tomBonusDmg': tomBonusDmg,
@@ -436,6 +454,12 @@ class Player {
     poisonTurnsRemaining: (j['poisonTurnsRemaining'] as int?) ?? 0,
     lucFireSourceUid: j['lucFireSourceUid'] as String?,
     lucFireTurnsRemaining: (j['lucFireTurnsRemaining'] as int?) ?? 0,
+    frozenTurnsRemaining: (j['frozenTurnsRemaining'] as int?) ?? 0,
+    provokedByUid: j['provokedByUid'] as String?,
+    forceBuffTurnsRemaining: (j['forceBuffTurnsRemaining'] as int?) ?? 0,
+    weaknessDebuffTurnsRemaining: (j['weaknessDebuffTurnsRemaining'] as int?) ?? 0,
+    resistanceBuffTurnsRemaining: (j['resistanceBuffTurnsRemaining'] as int?) ?? 0,
+    poisonDamagePerTurn: (j['poisonDamagePerTurn'] as int?) ?? 3,
     drunkTurnsRemaining: (j['drunkTurnsRemaining'] as int?) ?? 0,
     drunkSeed: (j['drunkSeed'] as int?) ?? 0,
     tomBonusDmg: (j['tomBonusDmg'] as int?) ?? 0,
@@ -517,6 +541,10 @@ class GameState {
   final String? builderEffect1;
   final String? builderEffect2;
   final List<String> builderOffered;     // 3 effets proposés au tour courant
+  final int? disappearedZoneIndex; // Nautilus : index du terrain actuellement disparu (null = aucun)
+  final int chameleonDrawsRemaining; // Chameleon : nombre de tirages encore à faire (0 = aucun en cours)
+  final String? chameleonDeck; // Chameleon : deck en cours ('lumiere' ou 'tenebres'), nom de DeckType
+  final int disappearedTurnsRemaining; // Nautilus : tours restants avant réapparition
   final List<String> haileyOffered;      // Hailey : 3 Hunters non joués proposés au tour courant
   // Jeanne (Prophétesse)
   final String? markedPlayerUid;  // uid du joueur marqué (visible de tous)
@@ -589,6 +617,10 @@ class GameState {
     this.builderEffect1,
     this.builderEffect2,
     this.builderOffered = const [],
+    this.disappearedZoneIndex,
+    this.chameleonDrawsRemaining = 0,
+    this.chameleonDeck,
+    this.disappearedTurnsRemaining = 0,
     this.haileyOffered = const [],
     this.markedPlayerUid,
     this.tristanTargetUid,
@@ -650,6 +682,10 @@ class GameState {
     'builderEffect1': builderEffect1,
     'builderEffect2': builderEffect2,
     'builderOffered': builderOffered,
+    'disappearedZoneIndex': disappearedZoneIndex,
+    'chameleonDrawsRemaining': chameleonDrawsRemaining,
+    'chameleonDeck': chameleonDeck,
+    'disappearedTurnsRemaining': disappearedTurnsRemaining,
     'haileyOffered': haileyOffered,
     'markedPlayerUid': markedPlayerUid,
     'tristanTargetUid': tristanTargetUid,
@@ -724,6 +760,10 @@ class GameState {
     builderEffect1: j['builderEffect1'] as String?,
     builderEffect2: j['builderEffect2'] as String?,
     builderOffered: List<String>.from((j['builderOffered'] as List?) ?? []),
+    disappearedZoneIndex: j['disappearedZoneIndex'] as int?,
+    chameleonDrawsRemaining: (j['chameleonDrawsRemaining'] as int?) ?? 0,
+    chameleonDeck: j['chameleonDeck'] as String?,
+    disappearedTurnsRemaining: (j['disappearedTurnsRemaining'] as int?) ?? 0,
     haileyOffered: List<String>.from((j['haileyOffered'] as List?) ?? []),
     markedPlayerUid: j['markedPlayerUid'] as String?,
     tristanTargetUid: j['tristanTargetUid'] as String?,

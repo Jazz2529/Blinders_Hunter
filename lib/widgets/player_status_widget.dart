@@ -180,6 +180,16 @@ class _PlayerStatusCardState extends State<PlayerStatusCard>
                   child: Text('☠️${p.poisonTurnsRemaining}',
                     style: const TextStyle(fontSize: 8, fontFamily: 'Cinzel',
                       fontWeight: FontWeight.w900, color: kGreen))),
+              // Rudolf : joueur gelé — ne peut pas se déplacer ce tour et
+              // subit +1 dégât sur chaque attaque reçue. Info publique.
+              if (p.alive && p.frozenTurnsRemaining > 0)
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 1),
+                  child: Text('❄️', style: TextStyle(fontSize: 9))),
+              // Taureador : joueur provoqué — subira 3 dégâts s'il attaque
+              // quelqu'un d'autre que son provocateur. Info publique.
+              if (p.alive && p.provokedByUid != null)
+                const Padding(padding: EdgeInsets.symmetric(horizontal: 1),
+                  child: Text('🐂', style: TextStyle(fontSize: 9))),
               // Felipe : en sursis après des dégâts létaux (insensible aux
               // blessures jusqu'à la fin de son prochain tour) — manquait
               // ENTIÈREMENT ici (aucun mode ne l'affichait), info publique

@@ -335,7 +335,7 @@ class GameEngine with AbilityEngine {
     'chameleon_passive', 'copy_ability',
   };
 
-  String applyAbility(Player actor, List<Player> all, List<Terrain> layout, {Player? target, String? extra}) {
+  String applyAbility(Player actor, List<Player> all, List<Terrain> layout, {Player? target, String? extra, int? disappearedZone}) {
     actor.abilityUsed = true;
     final eff = actor.copiedEffect ?? actor.character!.abilityEffect;
     switch (eff) {
@@ -578,7 +578,9 @@ class GameEngine with AbilityEngine {
         final adjZones = kAdjacences[actor.zoneIndex];
         if (extra == null) return 'christine_zone_choice'; // signal : ouvrir le sélecteur de zone
         final chosenZone = int.tryParse(extra);
-        if (chosenZone == null || !adjZones.contains(chosenZone)) return 'christine_zone_choice';
+        if (chosenZone == null || !adjZones.contains(chosenZone) || chosenZone == disappearedZone) {
+          return 'christine_zone_choice';
+        }
         actor.zoneIndex = chosenZone;
         return 'christine_moved:$chosenZone';
 
@@ -610,6 +612,205 @@ class GameEngine with AbilityEngine {
         target.lucFireTurnsRemaining = 1; // réutilisé comme "niveau de brûlure actuel"
         target.lucFireSourceUid = actor.uid;
         return logTCore('🔥 {name} met le feu à {target} — brûlure croissante tant que {name} reste en vie !', {'name': actor.name, 'target': target.name});
+
+      // ── Rudolf : gèle une cible — ne peut pas se déplacer à son prochain
+      // tour, et subit 1 dégât de plus sur chaque attaque tant que gelé ──
+      case 'rudolf_freeze':
+        if (target == null) return 'cible_requise';
+        target.frozenTurnsRemaining = 2;
+        return logTCore('❄️ {name} gèle {target} — il ne pourra pas se déplacer à son prochain tour et subira 1 dégât de plus sur chaque attaque !', {'name': actor.name, 'target': target.name});
+
+      // ── Taureador : provoque une cible — si elle attaque quelqu'un
+      // d'autre que lui avant de l'attaquer LUI, elle subit 3 dégâts ──
+      case 'taureador_provoke':
+        if (target == null) return 'cible_requise';
+        target.provokedByUid = actor.uid;
+        return logTCore('🐂 {name} provoque {target} — s\'il attaque quelqu\'un d\'autre avant lui, il subira 3 dégâts !', {'name': actor.name, 'target': target.name});
+
+      // ── Artisan : copie le MEILLEUR équipement d'une cible — la cible
+      // le garde, l'Artisan en obtient une copie identique. ──
+      case 'artisan_copy_equip':
+        if (target == null) return 'cible_requise';
+        if (target.equipment.isEmpty) return 'artisan_no_equip'; // signal : rien à copier
+        var bestIdx = 0; var bestVal = -1;
+        for (var i = 0; i < target.equipment.length; i++) {
+          final v = equipmentValue(target.equipment[i].effect);
+          if (v > bestVal) { bestVal = v; bestIdx = i; }
+        }
+        final copied = target.equipment[bestIdx];
+        actor.equipment.add(copied);
+        _equipPassive(actor, copied);
+        return logTCore('🔨 {name} copie "{item}" sur {target}', {'name': actor.name, 'item': copied.name, 'target': target.name});
+
+      // ── Père Noël : cadeau aléatoire — 40% équipement, 40% soin 3,
+      // 20% dégâts 3. ──
+      case 'pere_noel_gift':
+        if (target == null) return 'cible_requise';
+        final roll = _rng.nextDouble();
+        if (roll < 0.40) {
+          final pool = [...kLumiereCards, ...kTenebresCards].where((c) => c.type == CardType.equipement).toList();
+          final gift = pool[_rng.nextInt(pool.length)];
+          target.equipment.add(gift);
+          _equipPassive(target, gift);
+          return logTCore('🎅 {name} offre "{item}" à {target} !', {'name': actor.name, 'item': gift.name, 'target': target.name});
+        } else if (roll < 0.80) {
+          applyHeal(target, 3);
+          return logTCore('🎅 {name} offre 3 soins à {target} !', {'name': actor.name, 'target': target.name});
+        } else {
+          final dealt = applyDamage(target, 3);
+          if (!target.alive) target.killedByUid = actor.uid;
+          return logTCore('🎅 {name} offre un cadeau piégé à {target} — {dmg} dégâts !', {'name': actor.name, 'target': target.name, 'dmg': '$dealt'});
+        }
+
+      // ── Sorcière : transforme une cible en pigeon — carte personnage
+      // modifiée (12 PV max, pouvoir répétable "picore 1 dégât"), camp et
+      // condition de victoire PRÉSERVÉS (seule l'apparence/stats changent). ──
+      case 'sorciere_pigeon':
+        if (target == null) return 'cible_requise';
+        final orig = target.character!;
+        target.character = CharacterCard(
+          id: orig.id, name: orig.name, faction: orig.faction, hp: 12, icon: '🕊️',
+          ability: 'Répétable: infligez 1 blessure au joueur de votre choix',
+          abilityEffect: 'pigeon_peck', abilityRepeatable: true,
+          winCondition: orig.winCondition, winEffect: orig.winEffect,
+        );
+        target.abilityUsed = false; // débloque immédiatement son nouveau pouvoir
+        // Sécurité : la transformation ne doit pas tuer accidentellement —
+        // si ses blessures actuelles dépassaient déjà les 12 PV max du
+        // pigeon, on les plafonne juste en dessous plutôt que de le tuer.
+        if (target.wounds >= 12) target.wounds = 11;
+        return logTCore('🧙 {name} transforme {target} en pigeon !', {'name': actor.name, 'target': target.name});
+
+      // ── Alchimiste : prépare une potion parmi 3 tirées au hasard, puis
+      // l'offre à un joueur choisi. `extra` encode le choix : 'potion_<id>'. ──
+      case 'alchimiste_potion':
+        if (extra == null || !extra.startsWith('potion_')) return 'alchimiste_choose_potion'; // signal : afficher les 3 potions
+        if (target == null) return 'cible_requise';
+        final potion = extra.substring(7);
+        switch (potion) {
+          case 'heal3':
+            applyHeal(target, 3);
+            return logTCore('⚗️ {name} offre une Potion de soin à {target} !', {'name': actor.name, 'target': target.name});
+          case 'dmg3':
+            final d = applyDamage(target, 3);
+            if (!target.alive) target.killedByUid = actor.uid;
+            return logTCore('⚗️ {name} offre une Potion de blessure à {target} — {dmg} dégâts !', {'name': actor.name, 'target': target.name, 'dmg': '$d'});
+          case 'force':
+            target.forceBuffTurnsRemaining = 2;
+            return logTCore('⚗️ {name} offre une Potion de force à {target} (+1 dégât infligé, 2 tours) !', {'name': actor.name, 'target': target.name});
+          case 'weak':
+            target.weaknessDebuffTurnsRemaining = 2;
+            return logTCore('⚗️ {name} offre une Potion de faiblesse à {target} (-1 dégât infligé, 2 tours) !', {'name': actor.name, 'target': target.name});
+          case 'intellect':
+            // Simplification : téléportation immédiate vers une zone
+            // aléatoire, plutôt qu'un choix manuel (évite un troisième
+            // niveau de sélection pour cette seule potion). Exclut la
+            // zone actuellement disparue (Nautilus), le cas échéant.
+            final intellectOptions = List.generate(6, (i) => i)..remove(disappearedZone);
+            target.zoneIndex = intellectOptions[_rng.nextInt(intellectOptions.length)];
+            return logTCore('⚗️ {name} offre une Potion d\'intellect à {target} — téléporté !', {'name': actor.name, 'target': target.name});
+          case 'resist':
+            target.resistanceBuffTurnsRemaining = 2;
+            return logTCore('⚗️ {name} offre une Potion de résistance à {target} (-1 dégât subi, 2 tours) !', {'name': actor.name, 'target': target.name});
+          case 'poison':
+            target.poisonSourceUid = actor.uid;
+            target.poisonTurnsRemaining = 2;
+            target.poisonDamagePerTurn = 2;
+            return logTCore('⚗️ {name} offre une Potion de poison à {target} (2 dégâts/tour, 2 tours) !', {'name': actor.name, 'target': target.name});
+          case 'freeze':
+            target.frozenTurnsRemaining = 2;
+            return logTCore('⚗️ {name} offre une Potion de gel à {target} !', {'name': actor.name, 'target': target.name});
+          case 'blur':
+            target.drunkTurnsRemaining = 1;
+            target.drunkSeed = _rng.nextInt(999999) + 1;
+            return logTCore('⚗️ {name} offre une Potion de flou à {target} — ivre pendant 1 tour !', {'name': actor.name, 'target': target.name});
+          case 'fire':
+            target.lucFireTurnsRemaining = 1;
+            target.lucFireSourceUid = actor.uid;
+            return logTCore('⚗️ {name} offre une Potion de feu à {target} — brûlure croissante !', {'name': actor.name, 'target': target.name});
+          case 'provoke':
+            target.provokedByUid = actor.uid;
+            return logTCore('⚗️ {name} offre une Potion de provocation à {target} !', {'name': actor.name, 'target': target.name});
+          default:
+            return 'cible_requise'; // ne devrait jamais arriver, sécurité
+        }
+
+      // ── Nautilus : fait disparaître une zone pendant 2 tours ──
+      case 'nautilus_vanish':
+        if (extra == null) return 'nautilus_choose_zone'; // signal : ouvrir le sélecteur de zone
+        final zoneIdx = int.tryParse(extra);
+        if (zoneIdx == null || zoneIdx < 0 || zoneIdx > 5) return 'nautilus_choose_zone';
+        final rightZone = (zoneIdx + 1) % 6;
+        final affectedNautilus = <String>[];
+        for (final p in all) {
+          if (p.alive && p.zoneIndex == zoneIdx) {
+            final d = applyDamage(p, 3);
+            if (!p.alive) p.killedByUid = actor.uid;
+            p.zoneIndex = rightZone;
+            affectedNautilus.add(p.name);
+          }
+        }
+        // Le premier segment (avant le '|') encode la zone choisie, pour
+        // que l'appelant (solo_controller/game_provider) sache quel
+        // terrain doit disparaître pendant 2 tours — applyAbility() n'a
+        // pas accès à l'état de partie (GameState/SoloState) pour le
+        // faire lui-même.
+        return 'nautilus_vanished:$zoneIdx|' + logTCore('🐚 {name} fait disparaître un terrain pendant 2 tours — {affected} (3 dégâts, déplacés) !', {'name': actor.name, 'affected': affectedNautilus.isEmpty ? "personne dessus" : affectedNautilus.join(', ')});
+
+      // ── Pigeon (transformation de la Sorcière) : picore 1 dégât ──
+      case 'pigeon_peck':
+        if (target == null) return 'cible_requise';
+        final dealtPigeon = applyDamage(target, 1);
+        if (!target.alive) target.killedByUid = actor.uid;
+        return logTCore('🕊️ {name} picore {target} — {dmg} dégât', {'name': actor.name, 'target': target.name, 'dmg': '$dealtPigeon'});
+
+      // ── Chameleon : pouvoir UNIQUE différent selon la zone où il se
+      // trouve au moment de l'activer. La zone 4-5 (id 1) est spéciale :
+      // elle offre un CHOIX parmi les 5 autres pouvoirs plutôt qu'un
+      // effet fixe — encodé via `extra` = 'power_<id>' une fois choisi.
+      case 'chameleon_terrain_power':
+        String chosenPower;
+        if (extra != null && extra.startsWith('power_')) {
+          chosenPower = extra.substring(6);
+        } else {
+          final zid = layout[actor.zoneIndex].id;
+          if (zid == 1) return 'chameleon_choose_power'; // signal : afficher le choix des 5 autres pouvoirs
+          chosenPower = '$zid';
+        }
+        switch (chosenPower) {
+          case '0': // zones 2-3 : force une cible à se révéler
+            if (target == null) return 'cible_requise';
+            target.revealed = true;
+            return logTCore('🦎 {name} oblige {target} à se révéler !', {'name': actor.name, 'target': target.name});
+          case '2': // zone 6 : pioche 2 cartes Lumière — JOUABLES normalement,
+            // pas résolues automatiquement (voir chameleon_draw_light côté
+            // appelant, qui enchaîne 2 tirages interactifs classiques).
+            return 'chameleon_draw_light';
+          case '3': // zone 8 : pioche 2 cartes Ténèbres — idem.
+            return 'chameleon_draw_dark';
+          case '4': // zone 9 : 2 dégâts à tous les autres joueurs
+            for (final p in all) {
+              if (p.uid == actor.uid || !p.alive) continue;
+              final d = applyDamage(p, 2);
+              if (!p.alive) p.killedByUid = actor.uid;
+            }
+            return logTCore('🦎 {name} inflige 2 dégâts à tous les autres joueurs !', {'name': actor.name});
+          case '5': // zone 10 : récupère tous les équipements de tous les autres joueurs
+            final stolenNames = <String>[];
+            for (final p in all) {
+              if (p.uid == actor.uid || p.equipment.isEmpty) continue;
+              for (final e in List<GameCard>.from(p.equipment)) {
+                p.equipment.remove(e);
+                actor.equipment.add(e);
+                _equipPassive(actor, e);
+                recalcPassives(p);
+                stolenNames.add(e.name);
+              }
+            }
+            return logTCore('🦎 {name} récupère tout l\'équipement des autres joueurs : {items}', {'name': actor.name, 'items': stolenNames.isEmpty ? "rien" : stolenNames.join(', ')});
+          default:
+            return 'cible_requise'; // ne devrait jamais arriver, sécurité
+        }
 
       // ── Oscar : dépense son XP au choix parmi 3 options ──
       case 'oscar_xp_spend':
@@ -759,7 +960,7 @@ class GameEngine with AbilityEngine {
   // ─── Effets cartes ────────────────────────
   /// Retourne {log, needsTarget, action}
   Map<String, dynamic> resolveCard(GameCard card, Player actor, List<Player> all,
-      List<Terrain> layout, {Player? target}) {
+      List<Terrain> layout, {Player? target, int? disappearedZone}) {
     if (card.type == CardType.equipement) {
       actor.equipment.add(card); _equipPassive(actor, card);
       return {'log': logTCore('⚔️ {name} équipe : {card}', {'name': actor.name, 'card': card.name}), 'needsTarget': false};
@@ -836,7 +1037,11 @@ class GameEngine with AbilityEngine {
       case 'reroll_move':
         final d4r = rollD4(); final d6r = rollD6(); final sumr = d4r + d6r;
         final tidr = sumToTerrainId(sumr);
-        final idxr = tidr != null ? terrainLayoutIdx(layout, tidr) : -1;
+        var idxr = tidr != null ? terrainLayoutIdx(layout, tidr) : -1;
+        // Bouteille de Ricard : si le tirage retombe sur la zone
+        // actuellement disparue (Nautilus), inaccessible — se rabat sur
+        // la zone suivante, comme pour un tirage invalide classique.
+        if (idxr == disappearedZone) idxr = (actor.zoneIndex + 1) % 6;
         if (idxr >= 0) actor.zoneIndex = idxr;
         // Signal 'reroll_move' pour que le controller déclenche l'effet du terrain
         return {'log': logTCore('🍾 Bouteille de Ricard — {name} se déplace (résultat {n})', {'name': actor.name, 'n': '$sumr'}),
@@ -1164,6 +1369,32 @@ class GameEngine with AbilityEngine {
     if (effectiveAbility(target) == 'ines_minus1_recv' && target.revealed) dmg = max(0, dmg - 1);
     // Meg : forme Défensive active → -1 dégât reçu
     if (effectiveAbility(target) == 'meg_shapeshift' && target.megForm == 'defense') dmg = max(0, dmg - 1);
+    // Alchimiste : Potion de force (+1 infligé) / faiblesse (-1 infligé)
+    // sur l'ATTAQUANT, Potion de résistance (-1 subi) sur la CIBLE.
+    if (attacker.forceBuffTurnsRemaining > 0 && dmg > 0) dmg += 1;
+    if (attacker.weaknessDebuffTurnsRemaining > 0 && dmg > 0) dmg = max(0, dmg - 1);
+    if (target.resistanceBuffTurnsRemaining > 0 && dmg > 0) dmg = max(0, dmg - 1);
+    // Rudolf : cible gelée → +1 dégât supplémentaire sur CHAQUE attaque
+    // reçue tant que le gel est actif.
+    if (target.frozenTurnsRemaining > 0 && dmg > 0) dmg += 1;
+    // Taureador : si l'ATTAQUANT est provoqué et attaque quelqu'un d'AUTRE
+    // que son provocateur, il subit 3 dégâts — en plus de son attaque
+    // normale qui continue son cours. Le statut se consomme après cette
+    // attaque, qu'elle ait déclenché la pénalité ou non (une seule chance).
+    String provokeLog = '';
+    if (attacker.provokedByUid != null && attacker.provokedByUid != target.uid) {
+      final selfDmg = applyDamage(attacker, 3);
+      provokeLog = '\n' + logTCore('🐂 {name} a désobéi à sa provocation — {name} subit {dmg} dégâts', {'name': attacker.name, 'dmg': '$selfDmg'});
+      if (!attacker.alive) {
+        attacker.killedByUid = attacker.uid;
+        // L'attaquant meurt de la pénalité AVANT même de porter son coup —
+        // son attaque contre `target` n'a alors plus lieu d'être.
+        attacker.provokedByUid = null;
+        return {'log': provokeLog.trim(), 'actualDmg': 0, 'scottCountered': false,
+          'counterD4': 0, 'counterD6': 0, 'counterDmg': 0};
+      }
+    }
+    attacker.provokedByUid = null;
     // Shieldtarget (Vlad Princesse)
     // handled in controller
 
@@ -1300,6 +1531,7 @@ class GameEngine with AbilityEngine {
       applyDamage(target, 1);
       if (!target.alive) target.killedByUid = attacker.uid;
     }
+    log += provokeLog;
 
     return {'log': log, 'actualDmg': actual, 'scottCountered': scottCountered,
       'counterD4': counterD4, 'counterD6': counterD6, 'counterDmg': counterDmg};
@@ -1373,6 +1605,29 @@ class GameEngine with AbilityEngine {
     // manquait, rendant sa forme Défensive totalement inopérante dès
     // qu'un joueur humain (pas un bot) était l'attaquant.
     if (effectiveAbility(target) == 'meg_shapeshift' && target.megForm == 'defense') dmg = max(0, dmg - 1);
+    // Alchimiste : Potion de force (+1 infligé) / faiblesse (-1 infligé)
+    // sur l'ATTAQUANT, Potion de résistance (-1 subi) sur la CIBLE
+    // (identique à resolveAttackFull).
+    if (attacker.forceBuffTurnsRemaining > 0 && dmg > 0) dmg += 1;
+    if (attacker.weaknessDebuffTurnsRemaining > 0 && dmg > 0) dmg = max(0, dmg - 1);
+    if (target.resistanceBuffTurnsRemaining > 0 && dmg > 0) dmg = max(0, dmg - 1);
+    // Rudolf : cible gelée → +1 dégât supplémentaire (identique à
+    // resolveAttackFull).
+    if (target.frozenTurnsRemaining > 0 && dmg > 0) dmg += 1;
+    // Taureador : pénalité de provocation désobéie (identique à
+    // resolveAttackFull) — si l'attaquant en meurt, son attaque contre
+    // `target` n'a pas lieu.
+    String provokeLog2 = '';
+    if (attacker.provokedByUid != null && attacker.provokedByUid != target.uid) {
+      final selfDmg2 = applyDamage(attacker, 3);
+      provokeLog2 = '\n' + logTCore('🐂 {name} a désobéi à sa provocation — {name} subit {dmg} dégâts', {'name': attacker.name, 'dmg': '$selfDmg2'});
+      if (!attacker.alive) {
+        attacker.killedByUid = attacker.uid;
+        attacker.provokedByUid = null;
+        return {'log': provokeLog2.trim(), 'scottCountered': false};
+      }
+    }
+    attacker.provokedByUid = null;
     // Fourrure de Chaussette : renvoie l'attaque sur l'attaquant lui-même
     if (target.equipment.any((e) => e.effect == 'mirror_damage') || target.mirrorDamage) {
       final reflected = applyDamage(attacker, dmg);
@@ -1441,6 +1696,7 @@ class GameEngine with AbilityEngine {
       applyHeal(attacker, 1);
       log += ' | 🐀 ${attacker.name} se soigne de 1';
     }
+    log += provokeLog2;
     return {'log': log, 'scottCountered': scottCountered,
       'counterD4': counterD4, 'counterD6': counterD6, 'counterDmg': counterDmg};
   }
@@ -1793,6 +2049,10 @@ class GameEngine with AbilityEngine {
           p.alive = true;
           p.killedByUid = null; // il n'est plus "mort", personne ne l'a tué
           p.deathPassiveProcessed = false; // pourra redéclencher ce passif à sa prochaine mort
+          // Se révèle automatiquement à sa PREMIÈRE résurrection — ne
+          // s'applique naturellement qu'une seule fois, puisqu'il est déjà
+          // révélé pour toutes les résurrections suivantes.
+          p.revealed = true;
         }
       }
       // Felipe : s'il est en sursis (a survécu à des dégâts létaux) et que
@@ -2010,6 +2270,34 @@ class GameEngine with AbilityEngine {
   /// Indique si un effet Clémence nécessite une cible ou s'applique automatiquement.
   bool builderNeedsTarget(String eff) =>
       !const {'dmg1_all', 'heal1_all', 'dmg4_zone45'}.contains(eff);
+
+  /// Les 11 potions possibles de l'Alchimiste — poids égal, tirage simple
+  /// de 3 potions DISTINCTES parmi les 11.
+  static const List<String> kPotionPool = [
+    'heal3', 'dmg3', 'force', 'weak', 'intellect', 'resist',
+    'poison', 'freeze', 'blur', 'fire', 'provoke',
+  ];
+
+  List<String> alchimistDraw3() {
+    final pool = List<String>.from(kPotionPool)..shuffle(_rng);
+    return pool.take(3).toList();
+  }
+
+  /// Texte affiché pour une potion de l'Alchimiste.
+  String potionLabel(String p) => switch (p) {
+    'heal3'     => '💚 Potion de soin (3 blessures soignées)',
+    'dmg3'      => '💥 Potion de blessure (3 dégâts)',
+    'force'     => '💪 Potion de force (+1 dégât infligé, 2 tours)',
+    'weak'      => '🫥 Potion de faiblesse (-1 dégât infligé, 2 tours)',
+    'intellect' => '🧠 Potion d\'intellect (téléportation)',
+    'resist'    => '🛡️ Potion de résistance (-1 dégât subi, 2 tours)',
+    'poison'    => '☠️ Potion de poison (2 dégâts/tour, 2 tours)',
+    'freeze'    => '❄️ Potion de gel (2 tours)',
+    'blur'      => '🍺 Potion de flou (ivresse, 1 tour)',
+    'fire'      => '🔥 Potion de feu (brûlure croissante)',
+    'provoke'   => '🐂 Potion de provocation',
+    _ => p,
+  };
 
   /// Texte affiché pour un effet Clémence.
   String builderEffectLabel(String eff) => switch (eff) {
@@ -2380,13 +2668,16 @@ class GameEngine with AbilityEngine {
       }
     }
 
-    // Damien : poison — 3 blessures par tour pendant 2 tours (6 au total)
+    // Damien : poison — 3 blessures par tour pendant 2 tours (6 au total).
+    // Alchimiste (Potion de poison) réutilise ce même mécanisme mais avec
+    // 2 dégâts/tour — d'où le montant désormais configurable par joueur
+    // plutôt que codé en dur.
     if (p.alive && p.poisonTurnsRemaining > 0) {
-      applyDamage(p, 3);
+      applyDamage(p, p.poisonDamagePerTurn);
       p.poisonTurnsRemaining--;
-      logs.add('☠️ ${p.name} subit 3 blessures du poison (${p.poisonTurnsRemaining} tour(s) restant(s))');
+      logs.add('☠️ ${p.name} subit ${p.poisonDamagePerTurn} blessures du poison (${p.poisonTurnsRemaining} tour(s) restant(s))');
       if (!p.alive) p.killedByUid = p.poisonSourceUid; // attribue le kill à Damien
-      if (p.poisonTurnsRemaining <= 0) p.poisonSourceUid = null;
+      if (p.poisonTurnsRemaining <= 0) { p.poisonSourceUid = null; p.poisonDamagePerTurn = 3; } // remet le défaut pour la prochaine fois
     }
 
     // Luc : feu — brûlure CROISSANTE (1→2→3→4→5, plafonnée à 5) tant que
@@ -2443,14 +2734,29 @@ class GameEngine with AbilityEngine {
 
   // ─── Délégation capacité (retourne log + special) ───────────────────────────
   Map<String, dynamic> applyAbilityFull(Player actor, List<Player> all,
-      List<Terrain> layout, {Player? target}) {
+      List<Terrain> layout, {Player? target, String? extra, int? disappearedZone}) {
     // Appelle applyAbility et enveloppe le résultat
     try {
-      final log = applyAbility(actor, all, layout, target: target);
+      final log = applyAbility(actor, all, layout, target: target, extra: extra, disappearedZone: disappearedZone);
       if (log == null || log == 'cible_requise') return {'needsTarget': true};
       if (log == 'draw_dark') return {'log': '', 'special': 'draw_dark'};
       if (log == 'draw_light') return {'log': '', 'special': 'draw_light'};
       if (log == 'trigger_terrain') return {'log': '', 'special': 'trigger_terrain'};
+      if (log == 'chameleon_choose_power') return {'log': '', 'special': 'chameleon_choose_power'};
+      if (log == 'alchimiste_choose_potion') return {'log': '', 'special': 'alchimiste_choose_potion'};
+      if (log == 'nautilus_choose_zone') return {'log': '', 'special': 'nautilus_choose_zone'};
+      if (log == 'chameleon_draw_light') return {'log': '', 'special': 'chameleon_draw_light'};
+      if (log == 'chameleon_draw_dark') return {'log': '', 'special': 'chameleon_draw_dark'};
+      if (log.startsWith('nautilus_vanished:')) {
+        // Le premier segment (avant '|') encode la zone qui vient de
+        // disparaître — extrait ici pour que l'appelant active l'état
+        // GameState/SoloState correspondant.
+        final rest = log.substring('nautilus_vanished:'.length);
+        final sep = rest.indexOf('|');
+        final zoneIdx = int.tryParse(sep >= 0 ? rest.substring(0, sep) : rest);
+        final realLog = sep >= 0 ? rest.substring(sep + 1) : '';
+        return {'log': realLog, 'special': 'nautilus_vanished', 'nautilusZone': zoneIdx};
+      }
       return {'log': log, 'special': null};
     } catch (e) {
       return {'log': 'Erreur pouvoir: $e', 'special': null};
