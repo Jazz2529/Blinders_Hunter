@@ -187,6 +187,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'bob_resurrect', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
 
+  CharacterCard(id:'conan', name:'Conan', faction:Faction.shadow, hp:12, icon:'😈',
+    ability:'Répétable: choisissez 2 options parmi 3 tirées au hasard (parmi 9 possibles) et offrez ce choix machiavélique à un joueur — il devra choisir laquelle des 2 s\'applique',
+    abilityEffect:'conan_choice', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+  
   CharacterCard(id:'damien', name:'Damien', faction:Faction.shadow, hp:12, icon:'🍸',
     ability:'Unique, au début du tour: choisissez un joueur et servez-lui soit un alcool fort (4 blessures instantanées) soit un poison (3 blessures au début de chacun de ses 2 prochains tours, 6 au total)',
     abilityEffect:'damien_serve', abilityRepeatable:false,
@@ -197,10 +202,20 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'reroll_d6_attack', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
+  CharacterCard(id:'emma', name:'Emma', faction:Faction.shadow, hp:12, icon:'🌀',
+    ability:'Répétable: déplacez-vous sur le même terrain qu\'un joueur de votre choix',
+    abilityEffect:'emma_teleport_to', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
+
   CharacterCard(id:'fifi_shadow', name:'Fifi', faction:Faction.shadow, hp:13, icon:'🍀',
     ability:'Unique: ce tour, tous vos dés sont au maximum (7 déplacement, 5 dégâts attaque)',
     abilityEffect:'choose_all_dice',
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'henry', name:'Henry', faction:Faction.shadow, hp:13, icon:'🩸',
+    ability:'Passif: si vous tuez un Shadow, vous gagnez 2 PV max et infligez 2 blessures de plus sur vos attaques (cumulable)',
+    abilityEffect:'henry_shadow_slayer',
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
 
   CharacterCard(id:'hong_yi', name:'Hong Yi', faction:Faction.shadow, hp:8, icon:'⚡',
     ability:'Unique: choisissez un joueur — lui infligez 8 blessures, et infligez-vous 5 blessures',
@@ -215,7 +230,12 @@ const List<CharacterCard> kAllCharacters = [
   CharacterCard(id:'julien', name:'Julien', faction:Faction.shadow, hp:11, icon:'😈',
     ability:'Répétable: infligez 2 blessures à un joueur de votre choix, ou soignez-vous de 1 blessure',
     abilityEffect:'damage2_or_heal1', abilityRepeatable:true,
-    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'), 
+
+  CharacterCard(id:'louis', name:'Louis', faction:Faction.shadow, hp:10, icon:'💢',
+    ability:'Répétable (1 tour de pause entre chaque utilisation): infligez 5 blessures au joueur de votre choix',
+    abilityEffect:'louis_burst_damage', abilityRepeatable:true,
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),   
 
   CharacterCard(id:'louise', name:'Louise', faction:Faction.shadow, hp:10, icon:'💢',
     ability:'Passif: si votre attaque inflige 0 blessure → infligez 4. Sinon infligez 1 de plus',
@@ -262,6 +282,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'bonus_turns', abilityRepeatable:false,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
+  CharacterCard(id:'odin', name:'Odin', faction:Faction.shadow, hp:9, icon:'🐦‍⬛',
+    ability:'Unique: échangez le nombre de blessures de 2 joueurs de votre choix (vous compris)',
+    abilityEffect:'odin_swap_wounds',
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
+
   CharacterCard(id:'peio', name:'Peio', faction:Faction.shadow, hp:14, icon:'🧌',
     ability:'Répétable: subissez 1 blessure pour réutiliser l\'effet du terrain où vous êtes',
     abilityEffect:'self1_trigger_terrain', abilityRepeatable:true,
@@ -271,6 +296,11 @@ const List<CharacterCard> kAllCharacters = [
     ability:'Passif révélé: portée infinie — vous pouvez attaquer tout joueur sans restriction',
     abilityEffect:'infinite_range', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'raph_shadow', name:'Raph', faction:Faction.shadow, hp:14, icon:'🔪',
+    ability:'Unique: attaquez autant de fois que vous le souhaitez un joueur de votre choix — vous subissez autant de blessures que vous en infligez à chaque attaque',
+    abilityEffect:'raph_shadow_rampage',
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
 
   CharacterCard(id:'theo', name:'Theo', faction:Faction.shadow, hp:12, icon:'🗲',
     ability:'Passif révélé: si vous n\'avez pas attaqué au tour précédent, votre prochaine attaque infligera 2 blessures de plus',
@@ -291,6 +321,13 @@ const List<CharacterCard> kAllCharacters = [
     ability:'Répétable: attaquez avec le D4 un joueur à portée',
     abilityEffect:'d4_bonus_attack', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  CharacterCard(id:'zoe', name:'Zoé', faction:Faction.shadow, hp:12, icon:'🩹',
+    ability:'Passif: plus vous avez subi de blessures, plus vos attaques sont fortes (1-5 blessures: +1 dégât, 6-9: +2, 10-11: +3)',
+    abilityEffect:'zoe_wound_power',
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+
+  
 
   // ══════════ NEUTRES (8) ══════════
 

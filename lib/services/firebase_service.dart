@@ -602,6 +602,12 @@ class FirebaseService {
     int? disappearedTurnsRemaining,
     int? chameleonDrawsRemaining,
     String? chameleonDeck,
+    List<String>? conanOffered,
+    List<String>? conanChosen2,
+    String? conanActorUid,
+    String? conanOpt1,
+    String? conanOpt2,
+    String? odinT1Uid,
     bool clearOverlay = false,
     bool clearPending = false,
     bool clearPunish = false,
@@ -710,6 +716,12 @@ class FirebaseService {
     if (disappearedTurnsRemaining != null) updates['disappearedTurnsRemaining'] = disappearedTurnsRemaining;
     if (chameleonDrawsRemaining != null) updates['chameleonDrawsRemaining'] = chameleonDrawsRemaining;
     if (chameleonDeck != null) updates['chameleonDeck'] = chameleonDeck == '__clear__' ? null : chameleonDeck;
+    if (conanOffered != null) updates['conanOffered'] = conanOffered;
+    if (conanChosen2 != null) updates['conanChosen2'] = conanChosen2;
+    if (conanActorUid != null) updates['conanActorUid'] = conanActorUid == '__clear__' ? null : conanActorUid;
+    if (conanOpt1 != null) updates['conanOpt1'] = conanOpt1 == '__clear__' ? null : conanOpt1;
+    if (conanOpt2 != null) updates['conanOpt2'] = conanOpt2 == '__clear__' ? null : conanOpt2;
+    if (odinT1Uid != null) updates['odinT1Uid'] = odinT1Uid == '__clear__' ? null : odinT1Uid;
     await _patch('rooms/$roomId/gameState', updates);
   }
 

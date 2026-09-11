@@ -163,7 +163,7 @@ const Map<String, String> kCharacterImages = {
   'pirate': 'assets/images/characters/pirate.png',
   'pretresse_raph': 'assets/images/characters/pretresse_raph.png',
   'raph_soleil': 'assets/images/characters/raph_du_soleil_levant.png',
-  'raphael_shadow': 'assets/images/characters/raphael.png',
+  'raph_shadow': 'assets/images/characters/raph_shadow.png',
   'rat_rouen': 'assets/images/characters/rat.png',
   'remi': 'assets/images/characters/remi.png',
   'remi_canada': 'assets/images/characters/remi_du_canada.png',
@@ -196,6 +196,19 @@ const Map<String, String> kCharacterImages = {
   'sorciere': 'assets/images/characters/sorciere.png',
   'alchimiste': 'assets/images/characters/alchimiste.png',
   'nautilus': 'assets/images/characters/nautilus.png',
+  'pigeon_hunter': 'assets/images/characters/pigeon_hunter.png',
+  'pigeon_shadow': 'assets/images/characters/pigeon_shadow.png',
+  'pigeon_neutre': 'assets/images/characters/pigeon_neutre.png',
+  'conan': 'assets/images/characters/conan.png',
+  'henry': 'assets/images/characters/henry.png',
+  'odin': 'assets/images/characters/odin.png',
+  'raph': 'assets/images/characters/raph.png',
+  'zoe': 'assets/images/characters/zoe.png',
+  'escanor': 'assets/images/characters/escanor.png',
+  'emma': 'assets/images/characters/emma.png',
+  'louis': 'assets/images/characters/louis.png',
+
+ 
 };
 
 // Mapping terrain effect → image PNG

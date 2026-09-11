@@ -258,6 +258,7 @@ class GameProvider extends ChangeNotifier {
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors','luc_ignite','baptiste_revive',
     'lock_ability_while_alive','steal_max_hp','maxence_drunk',
     'store_damage_nils','d4_bonus_attack','rudolf_freeze','taureador_provoke','artisan_copy_equip','pere_noel_gift','sorciere_pigeon','chameleon_terrain_power','alchimiste_potion','pigeon_peck',
+    'nautilus_vanish','conan_choice','raph_shadow_rampage','odin_swap_wounds','emma_teleport_to','louis_burst_damage',
   ].contains(eff);
 
   bool _cardNeedsTarget(String eff) => [
@@ -514,6 +515,7 @@ class GameProvider extends ChangeNotifier {
       }
       final needsTarget = _abilityNeedsTarget(eff);
       Player? target;
+      Player? odinTarget2; // Odin : second joueur prévu (calculé avec le premier)
       if (eff == 'copy_ability') {
         // Tommy (bot) : choisit un joueur révélé au pouvoir copiable, au hasard
         // — bestTarget() générique ne convient pas ici (pas de notion de
@@ -529,6 +531,23 @@ class GameProvider extends ChangeNotifier {
         final candidates = all.where((x) =>
           x.uid != bot!.uid && x.alive && adjZones.contains(x.zoneIndex)).toList();
         if (candidates.isNotEmpty) target = candidates[Random().nextInt(candidates.length)];
+      } else if (eff == 'odin_swap_wounds') {
+        // Odin (bot) : échange l'allié (ou lui-même) le PLUS blessé avec
+        // l'ennemi CONNU le MOINS blessé — même logique que côté solo.
+        bool isEnemyOf(Player me, Faction f) =>
+            (me.character!.faction == Faction.hunter && f == Faction.shadow) ||
+            (me.character!.faction == Faction.shadow && f == Faction.hunter);
+        final allies = all.where((p) =>
+          p.alive && (p.uid == bot!.uid || (p.revealed && p.character != null && !isEnemyOf(bot!, p.character!.faction)))).toList();
+        final enemies = all.where((p) =>
+          p.alive && p.uid != bot!.uid && p.revealed && p.character != null && isEnemyOf(bot!, p.character!.faction)).toList();
+        if (allies.isNotEmpty && enemies.isNotEmpty) {
+          target = allies.reduce((a, b) => a.wounds >= b.wounds ? a : b);
+          odinTarget2 = enemies.reduce((a, b) => a.wounds <= b.wounds ? a : b);
+        } else {
+          final pool = all.where((p) => p.alive).toList()..shuffle(Random());
+          if (pool.length >= 2) { target = pool[0]; odinTarget2 = pool[1]; }
+        }
       } else if (needsTarget) target = _ai.bestTarget(bot, all, _botDifficulty, context: eff);
       // Christine (bot) : tire une zone adjacente au hasard elle-même, puisque
       // le moteur exige désormais un choix explicite (humain OU bot).
@@ -603,6 +622,78 @@ class GameProvider extends ChangeNotifier {
           final chosen = offered[Random().nextInt(offered.length)];
           final potionTarget = _ai.bestTarget(safeBot, all, _botDifficulty, context: 'potion_$chosen');
           abLog = _eg.applyAbility(safeBot, all, layout, target: potionTarget, extra: 'potion_$chosen', disappearedZone: gameState?.disappearedZoneIndex);
+        }
+        if (abLog == 'conan_choose3') {
+          // Conan (bot) : même logique que côté solo — tire 3, garde 2 au
+          // hasard, vise un ennemi de préférence.
+          final safeBot = bot;
+          final offered = _eg.conanDraw3()..shuffle(Random());
+          final picked = [offered[0], offered[1]];
+          final conanTarget = _ai.bestTarget(safeBot, all, _botDifficulty);
+          abLog = conanTarget != null
+              ? _eg.applyAbility(safeBot, all, layout, target: conanTarget, extra: 'conan_2opts:${picked[0]},${picked[1]}')
+              : '';
+          if (abLog.startsWith('conan_awaiting_target:')) {
+            final rest = abLog.substring('conan_awaiting_target:'.length);
+            final parts = rest.split('|');
+            final respTarget = all.firstWhere((p) => p.uid == parts[0]);
+            if (respTarget.isBot) {
+              final chosen = _eg.botConanChoice(respTarget, parts[1], parts[2]);
+              abLog = _eg.resolveConanChoice(safeBot, respTarget, chosen);
+            } else {
+              // La cible est un humain : dépose l'attente dans Firebase,
+              // encodée dans pendingTargetAction (identifie QUI doit
+              // répondre) — chaque client vérifie s'il est concerné.
+              await _commitAll(all, '');
+              await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+                  pendingTargetAction: 'conan_target_response:${parts[0]}',
+                  conanActorUid: safeBot.uid, conanOpt1: parts[1], conanOpt2: parts[2]);
+              abLog = '';
+            }
+          }
+        }
+        if (abLog.startsWith('raph_rampage_started:')) {
+          // Raph (bot) : même logique que côté solo — calcule toute la
+          // rafale en mémoire, puis ne commite qu'une seule fois (évite
+          // de multiplier les allers-retours Firebase à chaque coup).
+          final targetUid = abLog.substring('raph_rampage_started:'.length);
+          var raphTarget = all.firstWhere((p) => p.uid == targetUid);
+          final logs = <String>[];
+          var keepGoing = true;
+          while (keepGoing) {
+            final remainingHp = (bot.character?.hp ?? 14) - bot.wounds;
+            if (remainingHp <= 5) break;
+            final res = _eg.raphAttackOnce(bot, raphTarget, all);
+            logs.add(res['log'] as String);
+            if (res['raphAlive'] != true || res['targetAlive'] != true) {
+              keepGoing = false;
+              if (res['raphAlive'] != true) logs.add(logT('💀 {name} est éliminé !', {'name': bot.name}));
+              if (res['targetAlive'] != true) logs.add(logT('💀 {name} est éliminé !', {'name': raphTarget.name}));
+            }
+          }
+          bot.raphRepeatTargetUid = null;
+          if (!bot.alive) {
+            // Le repli générique plus bas ne vérifie que la mort de
+            // `target`, jamais celle du bot ACTEUR lui-même — Raph peut
+            // pourtant mourir de ses propres dégâts miroir.
+            _eg.applyDeathPassives(all);
+            await _commitAll(all, logs.join('\n'));
+            if (await _checkWin(all, justDiedId: bot.uid)) return;
+            abLog = ''; // déjà commité ci-dessus, évite un double commit plus bas
+          } else {
+            abLog = logs.join('\n');
+          }
+        }
+        if (abLog.startsWith('odin_pick_second:') && odinTarget2 != null) {
+          // Odin (bot) : finalise l'échange avec la seconde cible déjà
+          // calculée stratégiquement plus haut.
+          final t1uid = abLog.substring('odin_pick_second:'.length);
+          abLog = _eg.applyAbility(bot, all, layout, target: odinTarget2, extra: 'odin_t1:$t1uid');
+        }
+        if (abLog == 'louis_on_cooldown') {
+          // Louis (bot) : capacité en recharge — filet de sécurité, ne
+          // fait rien (le bot passe simplement au déplacement).
+          abLog = '';
         }
         if (abLog == 'nautilus_choose_zone') {
           // Nautilus (bot) : même logique que côté solo.
@@ -813,6 +904,18 @@ class GameProvider extends ChangeNotifier {
           all = _mutableAll();
           bot = all.where((p) => p.uid == botUid).firstOrNull;
           if (bot == null || !bot.alive) return;
+        } else if (eff == 'emma_teleport_to' && abLog != null && abLog.isNotEmpty) {
+          // Emma : vient de se téléporter — déclenche l'effet de SA
+          // NOUVELLE zone plutôt qu'un déplacement normal (même logique
+          // que Christine ci-dessus).
+          _eg.applyDeathPassives(all);
+          await _commitAll(all, abLog);
+          await _fb.setPhase(roomId!, GamePhase.attack, clearPending: true);
+          await Future.delayed(const Duration(milliseconds: 700));
+          await _botApplyTerrainEffect(botUid);
+          all = _mutableAll();
+          bot = all.where((p) => p.uid == botUid).firstOrNull;
+          if (bot == null || !bot.alive) return;
         } else if (abLog != null && abLog != 'cible_requise' && abLog != 'cible_vlad') {
           _eg.applyDeathPassives(all);
           await _commitAll(all, abLog);
@@ -836,11 +939,12 @@ class GameProvider extends ChangeNotifier {
     final skipMove = gameState?.phase == GamePhase.zoneEffect ||
         gameState?.phase == GamePhase.attack;
     if (!skipMove) {
-      if (bot.frozenTurnsRemaining > 0) {
-        // Rudolf : bot gelé — ne peut pas se déplacer ce tour-ci, reste
-        // sur sa zone actuelle (l'effet de terrain se redéclenche quand
-        // même juste après, comme pour un déplacement normal).
-        await _commitAll(all, logT('❄️ {name} est gelé — ne peut pas se déplacer ce tour', {'name': bot.name}));
+      if (bot.frozenTurnsRemaining > 0 || bot.conanNoMoveTurns > 0) {
+        // Rudolf (gel) ou Conan (option "no_move") : bot bloqué — ne peut
+        // pas se déplacer ce tour-ci, reste sur sa zone actuelle (l'effet
+        // de terrain se redéclenche quand même juste après, comme pour un
+        // déplacement normal).
+        await _commitAll(all, logT('😈❄️ {name} ne peut pas se déplacer ce tour', {'name': bot.name}));
         await Future.delayed(const Duration(milliseconds: 700));
       } else {
         final roll = _eg.rollMove();
@@ -1631,8 +1735,59 @@ class GameProvider extends ChangeNotifier {
         richardActivateZone: zoneIdx, abilityOverlay: 'christine_map');
   }
 
-  /// Baptiste étape 1 : cible choisie (un joueur mort) — passe à l'étape
-  /// "montant à sacrifier" plutôt que de résoudre directement.
+  /// Conan : les 2 options sont choisies — passe au choix de cible.
+  Future<void> conanChoose2(List<String> opts) async {
+    await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+        pendingTargetAction: 'conan_target', conanChosen2: opts);
+  }
+
+  /// Conan : la cible du choix machiavélique a été choisie (via le
+  /// sélecteur de cible standard, pendingTargetAction == 'conan_target').
+  Future<void> conanChooseTarget(Player target) async {
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final opts = gameState?.conanChosen2 ?? [];
+    if (opts.length != 2) return; // sécurité
+    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout,
+        target: target, extra: 'conan_2opts:${opts[0]},${opts[1]}');
+    if (!log.startsWith('conan_awaiting_target:')) return; // sécurité
+    actor.abilityUsed = true;
+    final rest = log.substring('conan_awaiting_target:'.length);
+    final parts = rest.split('|');
+    final respTarget = all.firstWhere((p) => p.uid == parts[0]);
+    if (respTarget.isBot) {
+      final chosen = _eg.botConanChoice(respTarget, parts[1], parts[2]);
+      final resLog = _eg.resolveConanChoice(actor, respTarget, chosen);
+      _eg.applyDeathPassives(all);
+      await _commitAll(all, resLog);
+      final ended = await _checkWin(all, justDiedId: respTarget.alive ? null : respTarget.uid);
+      if (ended) return;
+      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+      return;
+    }
+    // Cible humaine : dépose l'attente dans Firebase.
+    await _fb.updatePlayer(roomId!, actor); // persiste abilityUsed=true
+    await _commitAll(all, '');
+    await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+        pendingTargetAction: 'conan_target_response:${parts[0]}',
+        conanActorUid: actor.uid, conanOpt1: parts[1], conanOpt2: parts[2]);
+  }
+
+  /// Conan : l'humain (cible du choix machiavélique) vient de choisir
+  /// laquelle des 2 options s'applique.
+  Future<void> conanResolveTargetChoice(String chosenOption) async {
+    final all = _mutableAll();
+    final conanActor = all.firstWhere((p) => p.uid == gameState?.conanActorUid);
+    final respTarget = all.firstWhere((p) => p.uid == myUid);
+    final resLog = _eg.resolveConanChoice(conanActor, respTarget, chosenOption);
+    _eg.applyDeathPassives(all);
+    await _commitAll(all, resLog);
+    final ended = await _checkWin(all, justDiedId: respTarget.alive ? null : respTarget.uid);
+    if (ended) return;
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
+        conanActorUid: '__clear__', conanOpt1: '__clear__', conanOpt2: '__clear__');
+  }
+
   Future<void> baptisteChooseTarget(Player target) async {
     await _fb.setPhase(roomId!, GamePhase.chooseTarget,
         pendingTargetAction: 'baptiste_amount', baptisteTargetUid: target.uid);
@@ -1786,9 +1941,53 @@ class GameProvider extends ChangeNotifier {
           pendingTargetAction: 'alchimiste_choose_potion', builderOffered: _eg.alchimistDraw3());
       return;
     }
+    if (log == 'conan_choose3') {
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+          pendingTargetAction: 'conan_choose3', conanOffered: _eg.conanDraw3());
+      return;
+    }
+    if (log.startsWith('conan_awaiting_target:')) {
+      final rest = log.substring('conan_awaiting_target:'.length);
+      final parts = rest.split('|');
+      final respTarget = all.firstWhere((p) => p.uid == parts[0]);
+      if (respTarget.isBot) {
+        final chosen = _eg.botConanChoice(respTarget, parts[1], parts[2]);
+        final resLog = _eg.resolveConanChoice(actor, respTarget, chosen);
+        _eg.applyDeathPassives(all);
+        await _commitAll(all, resLog);
+        final ended = await _checkWin(all, justDiedId: respTarget.alive ? null : respTarget.uid);
+        if (ended) return;
+        await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+        return;
+      }
+      // Cible humaine : dépose l'attente dans Firebase, encodée dans
+      // pendingTargetAction (identifie QUI doit répondre) — chaque
+      // client vérifie s'il est concerné.
+      await _commitAll(all, '');
+      await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+          pendingTargetAction: 'conan_target_response:${parts[0]}',
+          conanActorUid: actor.uid, conanOpt1: parts[1], conanOpt2: parts[2]);
+      return;
+    }
     if (log == 'nautilus_choose_zone') {
       await _fb.setPhase(roomId!, GamePhase.chooseTarget,
           pendingTargetAction: 'nautilus_choose_zone');
+      return;
+    }
+    if (log.startsWith('raph_rampage_started:')) {
+      final rTargetUid = log.substring('raph_rampage_started:'.length);
+      await _raphResolveOnceMulti(actor.uid, rTargetUid);
+      return;
+    }
+    if (log.startsWith('odin_pick_second:')) {
+      final t1uid = log.substring('odin_pick_second:'.length);
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+          pendingTargetAction: 'odin_pick_second', odinT1Uid: t1uid);
+      return;
+    }
+    if (log == 'louis_on_cooldown') {
+      await _commitAll(all, logT('💢 {name} — capacité encore en recharge, encore {n} tour(s)', {'name': actor.name, 'n': '${actor.louisCooldown}'}));
+      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
       return;
     }
     if (log.startsWith('nautilus_vanished:')) {
@@ -2013,6 +2212,13 @@ class GameProvider extends ChangeNotifier {
             ? (tgt == null ? 'julien_heal' : 'julien_attack')
             : _abilityOverlays[eff ?? ''];
     final dice = _extractDiceFromLog(log);
+    if (eff == 'emma_teleport_to') {
+      // Emma : vient de se téléporter — déclenche l'effet de SA NOUVELLE
+      // zone plutôt qu'un déplacement normal.
+      await _fb.setPhase(roomId!, GamePhase.attack, clearPending: true);
+      await applyTerrainEffect();
+      return;
+    }
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true,
         abilityOverlay: overlay, abilityDiceResult: dice);
   }
@@ -2070,6 +2276,76 @@ class GameProvider extends ChangeNotifier {
     final p = all.firstWhere((x) => x.uid == myUid);
     await _commitAll(all, logT('❄️ {name} est gelé — ne peut pas se déplacer ce tour', {'name': p.name}));
     await _fb.setPhase(roomId!, GamePhase.zoneEffect, richardActivateZone: -1);
+  }
+
+  /// Conan (option "no_move") : même logique que le gel de Rudolf.
+  Future<void> skipMoveConanBlocked() async {
+    final all = _mutableAll();
+    final p = all.firstWhere((x) => x.uid == myUid);
+    await _commitAll(all, logT('😈 {name} ne peut pas se déplacer ce tour (choix de Conan)', {'name': p.name}));
+    await _fb.setPhase(roomId!, GamePhase.zoneEffect, richardActivateZone: -1);
+  }
+
+  /// Raph : résout UN coup de sa rafale — commun à l'activation initiale
+  /// et à raphAttackAgain(), pour ne pas dupliquer la logique.
+  Future<void> _raphResolveOnceMulti(String raphUid, String targetUid) async {
+    final all = _mutableAll();
+    final raph = all.firstWhere((p) => p.uid == raphUid);
+    final target = all.firstWhere((p) => p.uid == targetUid);
+    final res = _eg.raphAttackOnce(raph, target, all);
+    final raphAlive = res['raphAlive'] as bool;
+    final targetAlive = res['targetAlive'] as bool;
+    var log = res['log'] as String;
+    if (!raphAlive) log += '\n' + logT('💀 {name} est éliminé !', {'name': raph.name});
+    if (!targetAlive) log += '\n' + logT('💀 {name} est éliminé !', {'name': target.name});
+    if (!raphAlive || !targetAlive) {
+      raph.raphRepeatTargetUid = null;
+      _eg.applyDeathPassives(all);
+      await _commitAll(all, log);
+      if (!raphAlive && await _checkWin(all, justDiedId: raph.uid)) return;
+      if (!targetAlive && await _checkWin(all, justDiedId: target.uid)) return;
+      await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+      return;
+    }
+    // Les deux sont encore en vie — propose "encore ?" / "arrêter".
+    await _commitAll(all, log);
+    await _fb.setPhase(roomId!, GamePhase.chooseTarget, pendingTargetAction: 'raph_continue');
+  }
+
+  /// Raph : choisit de frapper à nouveau la même cible.
+  Future<void> raphAttackAgain() async {
+    final raph = players[myUid];
+    final targetUid = raph?.raphRepeatTargetUid;
+    if (raph == null || targetUid == null) return;
+    await _raphResolveOnceMulti(raph.uid, targetUid);
+  }
+
+  /// Raph : choisit d'arrêter sa rafale.
+  Future<void> raphStopRampage() async {
+    final all = _mutableAll();
+    final raph = all.firstWhere((p) => p.uid == myUid);
+    raph.raphRepeatTargetUid = null;
+    await _commitAll(all, '');
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+  }
+
+  /// Odin : second joueur choisi — finalise l'échange de blessures.
+  Future<void> odinChooseSecond(Player target) async {
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final t1uid = gameState?.odinT1Uid;
+    if (t1uid == null) return;
+    final t2 = all.firstWhere((p) => p.uid == target.uid);
+    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout,
+        target: t2, extra: 'odin_t1:$t1uid');
+    if (log == 'cible_requise') return; // sécurité minimale
+    actor.abilityUsed = true;
+    _eg.applyDeathPassives(all);
+    await _commitAll(all, log);
+    final t1now = all.firstWhere((p) => p.uid == t1uid, orElse: () => actor);
+    if (!t1now.alive && await _checkWin(all, justDiedId: t1now.uid)) return;
+    if (!t2.alive && await _checkWin(all, justDiedId: t2.uid)) return;
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, odinT1Uid: '__clear__');
   }
 
   /// Voiture de Clem (capacité) ou Portail du Nether (équipement) : échange
@@ -2638,6 +2914,12 @@ class GameProvider extends ChangeNotifier {
     if (p.forceBuffTurnsRemaining > 0) p.forceBuffTurnsRemaining--;
     if (p.weaknessDebuffTurnsRemaining > 0) p.weaknessDebuffTurnsRemaining--;
     if (p.resistanceBuffTurnsRemaining > 0) p.resistanceBuffTurnsRemaining--;
+    // Conan : les 2 débuffs à durée décomptent à la fin du tour concerné
+    // (même logique que côté solo).
+    if (p.conanNoMoveTurns > 0) p.conanNoMoveTurns--;
+    if (p.conanNoAttackTurns > 0) p.conanNoAttackTurns--;
+    // Louis : décompte son tour de pause obligatoire.
+    if (p.louisCooldown > 0) p.louisCooldown--;
     await _fb.updatePlayer(roomId!, p);
     players = Map<String, Player>.from(players)..[p.uid] = p;
     // Nautilus : la zone disparue est un effet GLOBAL (pas lié à un joueur

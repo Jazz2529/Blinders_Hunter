@@ -207,6 +207,11 @@ class Player {
   int weaknessDebuffTurnsRemaining; // Alchimiste (Potion de faiblesse) : tours restants avec -1 dégât infligé sur ses attaques
   int resistanceBuffTurnsRemaining; // Alchimiste (Potion de résistance) : tours restants avec -1 dégât subi sur les attaques reçues
   int poisonDamagePerTurn; // dégâts infligés par tic de poison — 3 par défaut (Damien), 2 pour la Potion de poison de l'Alchimiste
+  int conanNoMoveTurns; // Conan : tours restants sans pouvoir se déplacer
+  int conanNoAttackTurns; // Conan : tours restants sans pouvoir attaquer
+  int henryDamageBonus; // Henry : bonus de dégâts cumulatif (+2 par Shadow tué)
+  String? raphRepeatTargetUid; // Raph : cible en cours de "rafale" (pouvoir unique), null = inactif
+  int louisCooldown; // Louis : tours restants avant de pouvoir réutiliser sa capacité (0 = disponible)
   int drunkTurnsRemaining = 0; // Maxence : tours restants ivre (vision brouillée, sur SON écran uniquement)
   int drunkSeed = 0;           // Maxence : graine fixe pour que le brouillage reste cohérent pendant les 2 tours
   int tomBonusDmg = 0; // Tom : dégâts bonus PERMANENTS cumulés, +2 à chaque Shadow qu'il élimine
@@ -297,6 +302,11 @@ class Player {
     this.weaknessDebuffTurnsRemaining = 0,
     this.resistanceBuffTurnsRemaining = 0,
     this.poisonDamagePerTurn = 3,
+    this.conanNoMoveTurns = 0,
+    this.conanNoAttackTurns = 0,
+    this.henryDamageBonus = 0,
+    this.raphRepeatTargetUid,
+    this.louisCooldown = 0,
     this.drunkTurnsRemaining = 0,
     this.drunkSeed = 0,
     this.tomBonusDmg = 0,
@@ -366,6 +376,11 @@ class Player {
     'weaknessDebuffTurnsRemaining': weaknessDebuffTurnsRemaining,
     'resistanceBuffTurnsRemaining': resistanceBuffTurnsRemaining,
     'poisonDamagePerTurn': poisonDamagePerTurn,
+    'conanNoMoveTurns': conanNoMoveTurns,
+    'conanNoAttackTurns': conanNoAttackTurns,
+    'henryDamageBonus': henryDamageBonus,
+    'raphRepeatTargetUid': raphRepeatTargetUid,
+    'louisCooldown': louisCooldown,
     'drunkTurnsRemaining': drunkTurnsRemaining,
     'drunkSeed': drunkSeed,
     'tomBonusDmg': tomBonusDmg,
@@ -460,6 +475,11 @@ class Player {
     weaknessDebuffTurnsRemaining: (j['weaknessDebuffTurnsRemaining'] as int?) ?? 0,
     resistanceBuffTurnsRemaining: (j['resistanceBuffTurnsRemaining'] as int?) ?? 0,
     poisonDamagePerTurn: (j['poisonDamagePerTurn'] as int?) ?? 3,
+    conanNoMoveTurns: (j['conanNoMoveTurns'] as int?) ?? 0,
+    conanNoAttackTurns: (j['conanNoAttackTurns'] as int?) ?? 0,
+    henryDamageBonus: (j['henryDamageBonus'] as int?) ?? 0,
+    raphRepeatTargetUid: j['raphRepeatTargetUid'] as String?,
+    louisCooldown: (j['louisCooldown'] as int?) ?? 0,
     drunkTurnsRemaining: (j['drunkTurnsRemaining'] as int?) ?? 0,
     drunkSeed: (j['drunkSeed'] as int?) ?? 0,
     tomBonusDmg: (j['tomBonusDmg'] as int?) ?? 0,
@@ -544,6 +564,12 @@ class GameState {
   final int? disappearedZoneIndex; // Nautilus : index du terrain actuellement disparu (null = aucun)
   final int chameleonDrawsRemaining; // Chameleon : nombre de tirages encore à faire (0 = aucun en cours)
   final String? chameleonDeck; // Chameleon : deck en cours ('lumiere' ou 'tenebres'), nom de DeckType
+  final List<String> conanOffered; // Conan : les 3 options tirées, en attente du choix de 2
+  final List<String> conanChosen2; // Conan : les 2 options choisies, en attente du choix de cible
+  final String? conanActorUid; // Conan : qui a lancé le choix machiavélique
+  final String? conanOpt1; // Conan : première option offerte à la cible
+  final String? conanOpt2; // Conan : seconde option offerte à la cible
+  final String? odinT1Uid; // Odin : uid du premier joueur choisi, en attente du second
   final int disappearedTurnsRemaining; // Nautilus : tours restants avant réapparition
   final List<String> haileyOffered;      // Hailey : 3 Hunters non joués proposés au tour courant
   // Jeanne (Prophétesse)
@@ -620,6 +646,12 @@ class GameState {
     this.disappearedZoneIndex,
     this.chameleonDrawsRemaining = 0,
     this.chameleonDeck,
+    this.conanOffered = const [],
+    this.conanChosen2 = const [],
+    this.conanActorUid,
+    this.conanOpt1,
+    this.conanOpt2,
+    this.odinT1Uid,
     this.disappearedTurnsRemaining = 0,
     this.haileyOffered = const [],
     this.markedPlayerUid,
@@ -685,6 +717,12 @@ class GameState {
     'disappearedZoneIndex': disappearedZoneIndex,
     'chameleonDrawsRemaining': chameleonDrawsRemaining,
     'chameleonDeck': chameleonDeck,
+    'conanOffered': conanOffered,
+    'conanChosen2': conanChosen2,
+    'conanActorUid': conanActorUid,
+    'conanOpt1': conanOpt1,
+    'conanOpt2': conanOpt2,
+    'odinT1Uid': odinT1Uid,
     'disappearedTurnsRemaining': disappearedTurnsRemaining,
     'haileyOffered': haileyOffered,
     'markedPlayerUid': markedPlayerUid,
@@ -763,6 +801,12 @@ class GameState {
     disappearedZoneIndex: j['disappearedZoneIndex'] as int?,
     chameleonDrawsRemaining: (j['chameleonDrawsRemaining'] as int?) ?? 0,
     chameleonDeck: j['chameleonDeck'] as String?,
+    conanOffered: List<String>.from((j['conanOffered'] as List?) ?? []),
+    conanChosen2: List<String>.from((j['conanChosen2'] as List?) ?? []),
+    conanActorUid: j['conanActorUid'] as String?,
+    conanOpt1: j['conanOpt1'] as String?,
+    conanOpt2: j['conanOpt2'] as String?,
+    odinT1Uid: j['odinT1Uid'] as String?,
     disappearedTurnsRemaining: (j['disappearedTurnsRemaining'] as int?) ?? 0,
     haileyOffered: List<String>.from((j['haileyOffered'] as List?) ?? []),
     markedPlayerUid: j['markedPlayerUid'] as String?,

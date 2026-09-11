@@ -116,6 +116,21 @@ class GameEngine with AbilityEngine {
     return {'d4': d4, 'd6': d6, 'damage': (d4 - d6).abs()};
   }
 
+  /// Raph (Shadow) : un coup de sa rafale — attaque normalement (dés +
+  /// équipements pris en compte pour la cible), puis Raph subit EXACTEMENT
+  /// les mêmes dégâts que ceux réellement infligés à la cible.
+  Map<String, dynamic> raphAttackOnce(Player raph, Player target, List<Player> all) {
+    final roll = rollAttack();
+    final res = resolveAttackFull(raph, target, roll['damage']!, all);
+    final actualDmg = (res['actualDmg'] as int?) ?? 0;
+    if (actualDmg > 0) {
+      applyDamage(raph, actualDmg);
+      if (!raph.alive) raph.killedByUid = raph.uid; // s'inflige lui-même via sa propre rafale
+    }
+    final log = '${res['log'] as String} ${logTCore("🔪 Raph subit lui-même {n} blessure(s) en retour !", {'n': '$actualDmg'})}';
+    return {'log': log, 'actualDmg': actualDmg, 'raphAlive': raph.alive, 'targetAlive': target.alive};
+  }
+
   // ─── Terrain ─────────────────────────────
   int? sumToTerrainId(int sum) {
     const m = {2: 0, 3: 0, 4: 1, 5: 1, 6: 2, 7: 2, 8: 3, 9: 4, 10: 5};
@@ -578,9 +593,7 @@ class GameEngine with AbilityEngine {
         final adjZones = kAdjacences[actor.zoneIndex];
         if (extra == null) return 'christine_zone_choice'; // signal : ouvrir le sélecteur de zone
         final chosenZone = int.tryParse(extra);
-        if (chosenZone == null || !adjZones.contains(chosenZone) || chosenZone == disappearedZone) {
-          return 'christine_zone_choice';
-        }
+        if (chosenZone == null || !adjZones.contains(chosenZone)) return 'christine_zone_choice';
         actor.zoneIndex = chosenZone;
         return 'christine_moved:$chosenZone';
 
@@ -668,8 +681,17 @@ class GameEngine with AbilityEngine {
       case 'sorciere_pigeon':
         if (target == null) return 'cible_requise';
         final orig = target.character!;
+        // Le nom ET L'ID du pigeon dépendent du camp d'origine de la
+        // victime — ex: un Shadow devient "PigeonShadow" (id
+        // 'pigeon_shadow'), ce qui permet au jeu de chercher une
+        // illustration DÉDIÉE plutôt que de garder le portrait original.
+        final (pigeonName, pigeonId) = switch (orig.faction) {
+          Faction.hunter  => ('PigeonHunter', 'pigeon_hunter'),
+          Faction.shadow  => ('PigeonShadow', 'pigeon_shadow'),
+          Faction.neutral => ('PigeonNeutre', 'pigeon_neutre'),
+        };
         target.character = CharacterCard(
-          id: orig.id, name: orig.name, faction: orig.faction, hp: 12, icon: '🕊️',
+          id: pigeonId, name: pigeonName, faction: orig.faction, hp: 12, icon: '🕊️',
           ability: 'Répétable: infligez 1 blessure au joueur de votre choix',
           abilityEffect: 'pigeon_peck', abilityRepeatable: true,
           winCondition: orig.winCondition, winEffect: orig.winEffect,
@@ -679,7 +701,7 @@ class GameEngine with AbilityEngine {
         // si ses blessures actuelles dépassaient déjà les 12 PV max du
         // pigeon, on les plafonne juste en dessous plutôt que de le tuer.
         if (target.wounds >= 12) target.wounds = 11;
-        return logTCore('🧙 {name} transforme {target} en pigeon !', {'name': actor.name, 'target': target.name});
+        return logTCore('🧙 {name} transforme {target} en {pigeon} !', {'name': actor.name, 'target': target.name, 'pigeon': pigeonName});
 
       // ── Alchimiste : prépare une potion parmi 3 tirées au hasard, puis
       // l'offre à un joueur choisi. `extra` encode le choix : 'potion_<id>'. ──
@@ -704,10 +726,8 @@ class GameEngine with AbilityEngine {
           case 'intellect':
             // Simplification : téléportation immédiate vers une zone
             // aléatoire, plutôt qu'un choix manuel (évite un troisième
-            // niveau de sélection pour cette seule potion). Exclut la
-            // zone actuellement disparue (Nautilus), le cas échéant.
-            final intellectOptions = List.generate(6, (i) => i)..remove(disappearedZone);
-            target.zoneIndex = intellectOptions[_rng.nextInt(intellectOptions.length)];
+            // niveau de sélection pour cette seule potion).
+            target.zoneIndex = _rng.nextInt(6);
             return logTCore('⚗️ {name} offre une Potion d\'intellect à {target} — téléporté !', {'name': actor.name, 'target': target.name});
           case 'resist':
             target.resistanceBuffTurnsRemaining = 2;
@@ -756,6 +776,65 @@ class GameEngine with AbilityEngine {
         // pas accès à l'état de partie (GameState/SoloState) pour le
         // faire lui-même.
         return 'nautilus_vanished:$zoneIdx|' + logTCore('🐚 {name} fait disparaître un terrain pendant 2 tours — {affected} (3 dégâts, déplacés) !', {'name': actor.name, 'affected': affectedNautilus.isEmpty ? "personne dessus" : affectedNautilus.join(', ')});
+
+      // ── Conan : choix machiavélique — Conan choisit 2 options parmi 3
+      // tirées au hasard puis une cible, qui devra ENSUITE choisir
+      // laquelle des 2 s'applique (voir resolveConanChoice ci-dessous).
+      // applyAbility() n'a pas accès à l'état de partie pour mettre en
+      // place cette attente inter-joueurs — le signal encode donc tout
+      // ce dont l'appelant a besoin (uid cible + les 2 options).
+      case 'conan_choice':
+        if (extra == null || !extra.startsWith('conan_2opts:')) return 'conan_choose3'; // signal : tirer 3 options
+        if (target == null) return 'cible_requise';
+        final optsStr = extra.substring('conan_2opts:'.length);
+        final opts = optsStr.split(',');
+        if (opts.length != 2) return 'conan_choose3';
+        return 'conan_awaiting_target:${target.uid}|${opts[0]}|${opts[1]}';
+
+      // ── Raph (Shadow) : lance la rafale — chaque attaque suivante se
+      // fait via raphAttackOnce() (côté controller), pas ici, puisqu'elle
+      // se répète et implique un choix "encore ?" après chaque coup. ──
+      case 'raph_shadow_rampage':
+        if (target == null) return 'cible_requise';
+        actor.raphRepeatTargetUid = target.uid;
+        return 'raph_rampage_started:${target.uid}';
+
+      // ── Odin : échange le nombre de blessures de 2 joueurs de son
+      // choix (lui compris) — sélection en 2 étapes, comme Richard II
+      // pour ses zones. ──
+      case 'odin_swap_wounds':
+        if (extra == null || !extra.startsWith('odin_t1:')) {
+          if (target == null) return 'cible_requise'; // étape 1 : choisir le premier joueur
+          return 'odin_pick_second:${target.uid}'; // signal : demander le second joueur
+        }
+        if (target == null) return 'cible_requise'; // étape 2 : choisir le second joueur
+        final t1uid = extra.substring('odin_t1:'.length);
+        final t1 = all.firstWhere((p) => p.uid == t1uid, orElse: () => target);
+        final w1 = t1.wounds; final w2 = target.wounds;
+        t1.wounds = w2; target.wounds = w1;
+        if (t1.wounds >= effectiveMaxHp(t1)) t1.alive = false;
+        if (target.wounds >= effectiveMaxHp(target)) target.alive = false;
+        return logTCore('🔄 {name} échange les blessures de {t1} ({w1}) et {t2} ({w2}) !',
+            {'name': actor.name, 't1': t1.name, 'w1': '$w1', 't2': target.name, 'w2': '$w2'});
+
+      // ── Emma : se téléporte sur le même terrain qu'une cible — réutilise
+      // le signal 'trigger_terrain' existant (Marin), qui redéclenche
+      // l'effet de la zone COURANTE, laquelle vient d'être mise à jour. ──
+      case 'emma_teleport_to':
+        if (target == null) return 'cible_requise';
+        actor.zoneIndex = target.zoneIndex;
+        return logTCore('🌀 {name} se téléporte auprès de {target} !', {'name': actor.name, 'target': target.name});
+
+      // ── Louis : 5 dégâts, mais 1 tour de pause obligatoire entre
+      // chaque utilisation (vérifié AVANT de demander une cible, pour ne
+      // pas gaspiller le tour si la capacité est encore en recharge). ──
+      case 'louis_burst_damage':
+        if (actor.louisCooldown > 0) return 'louis_on_cooldown';
+        if (target == null) return 'cible_requise';
+        final dealtLouis = applyDamage(target, 5);
+        if (!target.alive) target.killedByUid = actor.uid;
+        actor.louisCooldown = 1;
+        return logTCore('💢 {name} inflige 5 blessures à {target} — {dmg} dégâts !', {'name': actor.name, 'target': target.name, 'dmg': '$dealtLouis'});
 
       // ── Pigeon (transformation de la Sorcière) : picore 1 dégât ──
       case 'pigeon_peck':
@@ -1037,11 +1116,7 @@ class GameEngine with AbilityEngine {
       case 'reroll_move':
         final d4r = rollD4(); final d6r = rollD6(); final sumr = d4r + d6r;
         final tidr = sumToTerrainId(sumr);
-        var idxr = tidr != null ? terrainLayoutIdx(layout, tidr) : -1;
-        // Bouteille de Ricard : si le tirage retombe sur la zone
-        // actuellement disparue (Nautilus), inaccessible — se rabat sur
-        // la zone suivante, comme pour un tirage invalide classique.
-        if (idxr == disappearedZone) idxr = (actor.zoneIndex + 1) % 6;
+        final idxr = tidr != null ? terrainLayoutIdx(layout, tidr) : -1;
         if (idxr >= 0) actor.zoneIndex = idxr;
         // Signal 'reroll_move' pour que le controller déclenche l'effet du terrain
         return {'log': logTCore('🍾 Bouteille de Ricard — {name} se déplace (résultat {n})', {'name': actor.name, 'n': '$sumr'}),
@@ -1283,6 +1358,15 @@ class GameEngine with AbilityEngine {
     // portait cette épée. Alignée sur resolveAttack (multijoueur), qui ne
     // souffrait pas de ce problème.
     if (attacker.epeeNinja && dmg > 0) dmg += 2;
+    // Henry : bonus cumulatif de dégâts (+2 par Shadow déjà tué).
+    if (dmg > 0) dmg += attacker.henryDamageBonus;
+    // Zoé : plus elle est blessée, plus ses attaques sont fortes.
+    if (attacker.character?.abilityEffect == 'zoe_wound_power' && dmg > 0) {
+      final w = attacker.wounds;
+      if (w >= 10) dmg += 3;
+      else if (w >= 6) dmg += 2;
+      else if (w >= 1) dmg += 1;
+    }
     // NOTE : la réduction de la Sainte Tunique se fait déjà correctement
     // DANS applyDamage(), en vérifiant le porteur qui SUBIT les dégâts (la
     // cible), pas l'attaquant — une ligne ici vérifiait à tort la Tunique de
@@ -1416,6 +1500,14 @@ class GameEngine with AbilityEngine {
 
     final actual = applyDamage(target, dmg);
     if (!target.alive) target.killedByUid = attacker.uid;
+    // Henry : tuer un Shadow octroie +2 PV max et +2 dégâts d'attaque
+    // permanents et cumulables — appliqué APRÈS l'attaque qui vient de
+    // tuer (n'affecte donc que les attaques SUIVANTES, pas celle-ci).
+    if (!target.alive && attacker.character?.abilityEffect == 'henry_shadow_slayer' &&
+        target.character?.faction == Faction.shadow) {
+      attacker.maxHpModifier += 2;
+      attacker.henryDamageBonus += 2;
+    }
     // Oscar : cumule 1 XP par blessure infligée en attaque — le bonus de
     // l'Épée du Ninja est désormais déjà inclus dans `actual` (voir plus
     // haut), plus besoin de l'ajouter une seconde fois séparément.
@@ -1545,6 +1637,15 @@ class GameEngine with AbilityEngine {
         attacker.character?.faction == Faction.hunter && attacker.revealed) dmg += 2;
     if (dmg > 0) dmg += attacker.equipment.where((e) => e.effect == 'dague_voleur').length;
     if (attacker.epeeNinja && dmg > 0) dmg += 2;
+    // Henry : bonus cumulatif de dégâts (+2 par Shadow déjà tué).
+    if (dmg > 0) dmg += attacker.henryDamageBonus;
+    // Zoé : plus elle est blessée, plus ses attaques sont fortes.
+    if (attacker.character?.abilityEffect == 'zoe_wound_power' && dmg > 0) {
+      final w = attacker.wounds;
+      if (w >= 10) dmg += 3;
+      else if (w >= 6) dmg += 2;
+      else if (w >= 1) dmg += 1;
+    }
     // Mathieu : à partir de la 3ème attaque, +2 dégâts PERMANENT sur toutes
     // les attaques suivantes (idem resolveAttackFull, utilisée par les bots).
     if (effectiveAbility(attacker) == 'third_attack_bonus'
@@ -1643,6 +1744,14 @@ class GameEngine with AbilityEngine {
     }
     final actual = applyDamage(target, dmg);
     if (!target.alive) target.killedByUid = attacker.uid;
+    // Henry : tuer un Shadow octroie +2 PV max et +2 dégâts d'attaque
+    // permanents et cumulables — appliqué APRÈS l'attaque qui vient de
+    // tuer (n'affecte donc que les attaques SUIVANTES, pas celle-ci).
+    if (!target.alive && attacker.character?.abilityEffect == 'henry_shadow_slayer' &&
+        target.character?.faction == Faction.shadow) {
+      attacker.maxHpModifier += 2;
+      attacker.henryDamageBonus += 2;
+    }
     // (epeeNinja already included in dmg above)
     // Oscar : cumule 1 XP par blessure infligée en attaque.
     if (effectiveAbility(attacker) == 'oscar_xp_spend' && attacker.revealed && actual > 0) {
@@ -1986,10 +2095,73 @@ class GameEngine with AbilityEngine {
     return ('👻 Gège tire aussi au Bazooka — D4(${r['d4']}) D6(${r['d6']}) → $dmg dégâts à $hit joueur(s)', true);
   }
 
-  /// Résout le choix de la cible pour les cartes "Divination X ou Y" :
-  /// `giveEquipment = true` → la cible donne un équipement (choisi par
-  /// `equipmentIndex` si fourni, sinon le premier) à l'auteur de la carte.
-  /// `giveEquipment = false` → la cible subit 1 blessure à la place.
+  /// Résout le choix machiavélique de Conan — la CIBLE a choisi laquelle
+  /// des 2 options offertes s'applique. `actor` = Conan, `target` = celui
+  /// qui a fait le choix (la victime).
+  String resolveConanChoice(Player actor, Player target, String chosenOption) {
+    switch (chosenOption) {
+      case 'dmg2':
+        final d = applyDamage(target, 2);
+        if (!target.alive) target.killedByUid = actor.uid;
+        return logTCore('😈 {target} choisit de subir 2 blessures ({dmg}) !', {'target': target.name, 'dmg': '$d'});
+      case 'heal2_actor':
+        applyHeal(actor, 2);
+        return logTCore('😈 {target} choisit de laisser {name} se soigner de 2 !', {'target': target.name, 'name': actor.name});
+      case 'give_equip':
+        if (target.equipment.isEmpty) {
+          return logTCore('😈 {target} choisit de donner un équipement… mais n\'en a aucun !', {'target': target.name});
+        }
+        final e = target.equipment.removeAt(_rng.nextInt(target.equipment.length));
+        actor.equipment.add(e); _equipPassive(actor, e);
+        recalcPassives(target);
+        return logTCore('😈 {target} donne "{item}" à {name} !', {'target': target.name, 'item': e.name, 'name': actor.name});
+      case 'give_maxhp':
+        target.maxHpModifier -= 1;
+        actor.maxHpModifier += 1;
+        if (target.wounds >= effectiveMaxHp(target)) target.wounds = effectiveMaxHp(target) - 1;
+        return logTCore('😈 {target} donne 1 PV max à {name} !', {'target': target.name, 'name': actor.name});
+      case 'no_move':
+        target.conanNoMoveTurns = 1;
+        return logTCore('😈 {target} choisit de ne pas pouvoir se déplacer !', {'target': target.name});
+      case 'no_attack':
+        target.conanNoAttackTurns = 1;
+        return logTCore('😈 {target} choisit de ne pas pouvoir attaquer !', {'target': target.name});
+      case 'dmg1_heal1':
+        final d = applyDamage(target, 1);
+        if (!target.alive) target.killedByUid = actor.uid;
+        applyHeal(actor, 1);
+        return logTCore('😈 {target} subit 1 blessure, {name} se soigne de 1 !', {'target': target.name, 'name': actor.name});
+      case 'random_equip_actor':
+        final pool = [...kLumiereCards, ...kTenebresCards].where((c) => c.type == CardType.equipement).toList();
+        final gift = pool[_rng.nextInt(pool.length)];
+        actor.equipment.add(gift); _equipPassive(actor, gift);
+        return logTCore('😈 {target} laisse {name} obtenir "{item}" au hasard !', {'target': target.name, 'name': actor.name, 'item': gift.name});
+      case 'random_debuff':
+        final debuffs = ['fire', 'poison', 'provoke', 'drunk'];
+        final chosen = debuffs[_rng.nextInt(debuffs.length)];
+        switch (chosen) {
+          case 'fire':
+            target.lucFireTurnsRemaining = 1;
+            target.lucFireSourceUid = actor.uid;
+            return logTCore('😈 {target} subit la brûlure au hasard !', {'target': target.name});
+          case 'poison':
+            target.poisonSourceUid = actor.uid;
+            target.poisonTurnsRemaining = 2;
+            target.poisonDamagePerTurn = 3;
+            return logTCore('😈 {target} subit le poison au hasard !', {'target': target.name});
+          case 'provoke':
+            target.provokedByUid = actor.uid;
+            return logTCore('😈 {target} subit la provocation au hasard !', {'target': target.name});
+          default:
+            target.drunkTurnsRemaining = 1;
+            target.drunkSeed = _rng.nextInt(999999) + 1;
+            return logTCore('😈 {target} subit l\'ivresse au hasard !', {'target': target.name});
+        }
+      default:
+        return logTCore('😈 {target} fait son choix', {'target': target.name});
+    }
+  }
+
   String resolvePunishChoice(Player actor, Player target, bool giveEquipment, {int? equipmentIndex}) {
     if (!giveEquipment || target.equipment.isEmpty) {
       applyDamage(target, 1);
@@ -2010,6 +2182,25 @@ class GameEngine with AbilityEngine {
   bool botPunishChoice(Player target) {
     if (target.equipment.isEmpty) return false;
     return target.wounds > 0;
+  }
+
+  /// Heuristique du bot ciblé par le choix machiavélique de Conan : score
+  /// approximatif de "nuisance pour moi" pour chacune des 2 options
+  /// offertes, choisit la moins pénalisante.
+  String botConanChoice(Player target, String opt1, String opt2) {
+    int harm(String o) => switch (o) {
+      'dmg2' => 20,
+      'heal2_actor' => 5,
+      'give_equip' => target.equipment.isEmpty ? 0 : 15,
+      'give_maxhp' => 15,
+      'no_move' => 10,
+      'no_attack' => 12,
+      'dmg1_heal1' => 12,
+      'random_equip_actor' => 3,
+      'random_debuff' => 15,
+      _ => 10,
+    };
+    return harm(opt1) <= harm(opt2) ? opt1 : opt2;
   }
 
   /// À appeler une seule fois, juste après qu'un coup a potentiellement tué un
@@ -2297,6 +2488,34 @@ class GameEngine with AbilityEngine {
     'fire'      => '🔥 Potion de feu (brûlure croissante)',
     'provoke'   => '🐂 Potion de provocation',
     _ => p,
+  };
+
+  /// Les 9 options possibles de Conan — tirage de 3 DISTINCTES parmi les 9,
+  /// Conan en choisit ensuite 2 à offrir à sa cible (qui devra choisir
+  /// laquelle des 2 s'applique).
+  static const List<String> kConanPool = [
+    'dmg2', 'heal2_actor', 'give_equip', 'give_maxhp', 'no_move',
+    'no_attack', 'dmg1_heal1', 'random_equip_actor', 'random_debuff',
+  ];
+
+  List<String> conanDraw3() {
+    final pool = List<String>.from(kConanPool)..shuffle(_rng);
+    return pool.take(3).toList();
+  }
+
+  /// Texte affiché pour une option de Conan — toujours formulé du point
+  /// de vue de la CIBLE qui devra choisir.
+  String conanOptionLabel(String o) => switch (o) {
+    'dmg2'                => '💥 Tu subis 2 blessures',
+    'heal2_actor'         => '💚 Conan se soigne de 2 blessures',
+    'give_equip'          => '🎁 Tu donnes 1 équipement à Conan',
+    'give_maxhp'          => '📉 Tu donnes 1 PV max à Conan',
+    'no_move'             => '🚫 Tu ne peux pas te déplacer',
+    'no_attack'           => '🛑 Tu ne peux pas attaquer',
+    'dmg1_heal1'          => '🩸 Tu subis 1 blessure, Conan se soigne de 1',
+    'random_equip_actor'  => '🎲 Conan obtient un équipement aléatoire',
+    'random_debuff'       => '☣️ Tu subis un malus aléatoire',
+    _ => o,
   };
 
   /// Texte affiché pour un effet Clémence.
@@ -2744,7 +2963,22 @@ class GameEngine with AbilityEngine {
       if (log == 'trigger_terrain') return {'log': '', 'special': 'trigger_terrain'};
       if (log == 'chameleon_choose_power') return {'log': '', 'special': 'chameleon_choose_power'};
       if (log == 'alchimiste_choose_potion') return {'log': '', 'special': 'alchimiste_choose_potion'};
+      if (log == 'conan_choose3') return {'log': '', 'special': 'conan_choose3'};
+      if (log.startsWith('conan_awaiting_target:')) {
+        final rest = log.substring('conan_awaiting_target:'.length);
+        final parts = rest.split('|');
+        return {'log': '', 'special': 'conan_awaiting_target', 'conanTargetUid': parts[0], 'conanOpt1': parts[1], 'conanOpt2': parts[2]};
+      }
       if (log == 'nautilus_choose_zone') return {'log': '', 'special': 'nautilus_choose_zone'};
+      if (log.startsWith('raph_rampage_started:')) {
+        final targetUid = log.substring('raph_rampage_started:'.length);
+        return {'log': '', 'special': 'raph_rampage_started', 'raphTargetUid': targetUid};
+      }
+      if (log.startsWith('odin_pick_second:')) {
+        final t1uid = log.substring('odin_pick_second:'.length);
+        return {'log': '', 'special': 'odin_pick_second', 'odinT1Uid': t1uid};
+      }
+      if (log == 'louis_on_cooldown') return {'log': '', 'special': 'louis_on_cooldown'};
       if (log == 'chameleon_draw_light') return {'log': '', 'special': 'chameleon_draw_light'};
       if (log == 'chameleon_draw_dark') return {'log': '', 'special': 'chameleon_draw_dark'};
       if (log.startsWith('nautilus_vanished:')) {

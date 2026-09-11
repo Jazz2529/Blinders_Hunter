@@ -54,6 +54,12 @@ class SoloState {
   String? stealTargetUid;  // Terrain 10 : joueur choisi, en attente du choix de l'objet précis à voler
   List<String> alchimistOffered = []; // Alchimiste : les 3 potions tirées, en attente du choix
   String? alchimistChosenPotion; // Alchimiste : la potion choisie, en attente du choix de cible
+  List<String> conanOffered = []; // Conan : les 3 options tirées, en attente du choix de 2
+  List<String> conanChosen2 = []; // Conan : les 2 options choisies, en attente du choix de cible
+  String? conanActorUid; // Conan : qui a lancé le choix machiavélique (pour la résolution)
+  String? conanOpt1; // Conan : première option offerte à la cible
+  String? conanOpt2; // Conan : seconde option offerte à la cible
+  String? odinT1Uid; // Odin : uid du premier joueur choisi, en attente du second
   int? disappearedZoneIndex; // Nautilus : index du terrain actuellement disparu (null = aucun)
   int chameleonDrawsRemaining = 0; // Chameleon : nombre de tirages encore à faire (2 cartes à jouer normalement, l'une après l'autre)
   DeckType? chameleonDeck; // Chameleon : deck en cours de tirage (Lumière ou Ténèbres)
@@ -311,6 +317,8 @@ class AiBrain {
         return all.any((p) => p.alive && p.uid != bot.uid && p.lucFireTurnsRemaining == 0);
       case 'rudolf_freeze':
         return all.any((p) => p.alive && p.uid != bot.uid && p.frozenTurnsRemaining == 0);
+      case 'louis_burst_damage':
+        return bot.louisCooldown == 0 && all.any((p) => p.alive && p.uid != bot.uid);
       case 'taureador_provoke':
         return all.any((p) => p.alive && p.uid != bot.uid && p.provokedByUid == null);
       case 'artisan_copy_equip':
@@ -663,6 +671,7 @@ class AiBrain {
     me.character!.faction != Faction.neutral && me.character!.faction == other.character!.faction;
 
   bool shouldAttack(Player bot, List<Player> all, List<Terrain> layout, AiDifficulty d) {
+    if (bot.conanNoAttackTurns > 0) return false; // Conan : bloqué ce tour-ci
     final targets = _eg.attackTargets(bot, all, layout);
     if (targets.isEmpty) return false;
     // IMPORTANT : ne jamais attaquer si TOUTES les cibles disponibles sont
@@ -832,6 +841,12 @@ class SoloController extends ChangeNotifier {
     if (outgoing.forceBuffTurnsRemaining > 0) outgoing.forceBuffTurnsRemaining--;
     if (outgoing.weaknessDebuffTurnsRemaining > 0) outgoing.weaknessDebuffTurnsRemaining--;
     if (outgoing.resistanceBuffTurnsRemaining > 0) outgoing.resistanceBuffTurnsRemaining--;
+    // Conan : les 2 débuffs à durée décomptent à la fin du tour concerné,
+    // même logique que les autres effets temporaires.
+    if (outgoing.conanNoMoveTurns > 0) outgoing.conanNoMoveTurns--;
+    if (outgoing.conanNoAttackTurns > 0) outgoing.conanNoAttackTurns--;
+    // Louis : décompte son tour de pause obligatoire.
+    if (outgoing.louisCooldown > 0) outgoing.louisCooldown--;
     // Nautilus : la zone disparue est un effet GLOBAL (pas lié à un joueur
     // précis) — décompte à chaque fin de tour, peu importe qui joue.
     if (state!.disappearedTurnsRemaining > 0) {
@@ -919,6 +934,16 @@ class SoloController extends ChangeNotifier {
   /// terrain qu'il vient d'échanger), qui doivent déclencher CE MÊME
   /// traitement en dehors de leur propre déplacement normal.
   Future<void> _botApplyTerrainEffectFor(Player bot, AiDifficulty difficulty) async {
+    // Nautilus : même mécanique que côté humain — le terrain englouti
+    // reste accessible mais inflige 3 blessures à l'arrivée.
+    if (bot.zoneIndex == state!.disappearedZoneIndex && state!.disappearedTurnsRemaining > 0) {
+      _eg.applyDamage(bot, 3);
+      _log(logT('🌊 {name} subit 3 blessures en s\'aventurant sur le terrain englouti !', {'name': bot.name}), cls: 'bot');
+      if (!bot.alive) {
+        await _checkWin(justDiedId: bot.uid);
+        return;
+      }
+    }
     final terrain = state!.terrainLayout[bot.zoneIndex];
     if (terrain.effect == 'choice') {
       final deck = _ai.bestDeck(bot, difficulty);
@@ -1069,6 +1094,7 @@ class SoloController extends ChangeNotifier {
       }
       final needsTarget = _abilityNeedsTarget(bot.character!.abilityEffect);
       Player? target;
+      Player? odinTarget2; // Odin : second joueur prévu (calculé en même temps que le premier, pour une stratégie cohérente)
       if (bot.character!.abilityEffect == 'copy_ability') {
         // Tommy (bot) : choisit un joueur révélé au pouvoir copiable, au hasard.
         final candidates = state!.players.where((x) =>
@@ -1081,6 +1107,21 @@ class SoloController extends ChangeNotifier {
         final candidates = state!.players.where((x) =>
           x.uid != bot.uid && x.alive && adjZones.contains(x.zoneIndex)).toList();
         if (candidates.isNotEmpty) target = candidates[_rng.nextInt(candidates.length)];
+      } else if (bot.character!.abilityEffect == 'odin_swap_wounds') {
+        // Odin (bot) : échange l'allié (ou lui-même) le PLUS blessé avec
+        // l'ennemi CONNU le MOINS blessé — maximise l'impact stratégique.
+        final allies = state!.players.where((p) =>
+          p.alive && (p.uid == bot.uid || (p.revealed && p.character != null && !_ai._isEnemy(bot, p.character!.faction)))).toList();
+        final enemies = state!.players.where((p) =>
+          p.alive && p.uid != bot.uid && p.revealed && p.character != null && _ai._isEnemy(bot, p.character!.faction)).toList();
+        if (allies.isNotEmpty && enemies.isNotEmpty) {
+          target = allies.reduce((a, b) => a.wounds >= b.wounds ? a : b);
+          odinTarget2 = enemies.reduce((a, b) => a.wounds <= b.wounds ? a : b);
+        } else {
+          // Pas de distinction claire allié/ennemi — 2 joueurs au hasard (lui inclus).
+          final pool = state!.players.where((p) => p.alive).toList()..shuffle(_rng);
+          if (pool.length >= 2) { target = pool[0]; odinTarget2 = pool[1]; }
+        }
       } else if (needsTarget) {
         target = _ai.bestTarget(bot, state!.players, difficulty, context: bot.character!.abilityEffect);
       }
@@ -1088,10 +1129,10 @@ class SoloController extends ChangeNotifier {
       // le moteur exige désormais un choix explicite (humain OU bot).
       String? extraParam;
       if (bot.character!.abilityEffect == 'move_adjacent_choice') {
-        final adjZones = kAdjacences[bot.zoneIndex].where((z) => z != state!.disappearedZoneIndex).toList();
-        extraParam = adjZones.isNotEmpty ? adjZones[_rng.nextInt(adjZones.length)].toString() : null;
+        final adjZones = kAdjacences[bot.zoneIndex];
+        extraParam = adjZones[_rng.nextInt(adjZones.length)].toString();
       }
-      var log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: target, extra: extraParam, disappearedZone: state!.disappearedZoneIndex);
+      var log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: target, extra: extraParam);
       // Chameleon (bot) : zone 4-5 — choisit au hasard l'un des 5 autres
       // pouvoirs, puis relance immédiatement avec ce choix encodé (et une
       // cible fraîchement choisie si le pouvoir "révélation forcée" sort).
@@ -1133,6 +1174,33 @@ class SoloController extends ChangeNotifier {
         final potionTarget = _ai.bestTarget(bot, state!.players, difficulty, context: 'potion_$chosen');
         log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: potionTarget, extra: 'potion_$chosen', disappearedZone: state!.disappearedZoneIndex);
       }
+      if (log == 'conan_choose3') {
+        // Conan (bot) : tire 3 options, en garde 2 au hasard, puis vise
+        // un ennemi de préférence.
+        final offered = _eg.conanDraw3()..shuffle(_rng);
+        final picked = [offered[0], offered[1]];
+        final conanTarget = _ai.bestTarget(bot, state!.players, difficulty);
+        log = conanTarget != null
+            ? _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: conanTarget, extra: 'conan_2opts:${picked[0]},${picked[1]}')
+            : '';
+        if (log.startsWith('conan_awaiting_target:')) {
+          final rest = log.substring('conan_awaiting_target:'.length);
+          final parts = rest.split('|');
+          final respTarget = state!.players.firstWhere((p) => p.uid == parts[0]);
+          if (respTarget.isBot) {
+            final chosen = _eg.botConanChoice(respTarget, parts[1], parts[2]);
+            log = _eg.resolveConanChoice(bot, respTarget, chosen);
+          } else {
+            // La cible est l'humain : ouvre son écran de réponse.
+            state!.conanActorUid = bot.uid;
+            state!.conanOpt1 = parts[1]; state!.conanOpt2 = parts[2];
+            state!.pendingTargetAction = 'conan_target_response';
+            state!.phase = GamePhase.chooseTarget;
+            notifyListeners();
+            log = '';
+          }
+        }
+      }
       if (log == 'nautilus_choose_zone') {
         // Nautilus (bot) : choisit la zone comptant le plus d'ennemis
         // RÉVÉLÉS actuellement dessus (maximise les dégâts utiles), sinon
@@ -1159,6 +1227,42 @@ class SoloController extends ChangeNotifier {
           state!.disappearedTurnsRemaining = 2;
           log = sep >= 0 ? rest.substring(sep + 1) : '';
         }
+      }
+      if (log.startsWith('raph_rampage_started:')) {
+        // Raph (bot) : enchaîne les coups tant qu'il lui reste une marge
+        // de sécurité confortable (>5 PV restants, la pire relance
+        // possible), s'arrête dès que l'un des deux meurt.
+        final targetUid = log.substring('raph_rampage_started:'.length);
+        var raphTarget = state!.players.firstWhere((p) => p.uid == targetUid);
+        var keepGoing = true;
+        var lastLog = '';
+        while (keepGoing) {
+          final remainingHp = (bot.character?.hp ?? 14) - bot.wounds;
+          if (remainingHp <= 5) break; // marge de sécurité — trop risqué de continuer
+          final res = _eg.raphAttackOnce(bot, raphTarget, state!.players);
+          lastLog = res['log'] as String;
+          _log(lastLog, cls: 'bot');
+          if (res['raphAlive'] != true || res['targetAlive'] != true) {
+            keepGoing = false;
+            if (res['raphAlive'] != true) _log(logT('💀 {name} est éliminé !', {'name': bot.name}), cls: 'death');
+            if (res['targetAlive'] != true) _log(logT('💀 {name} est éliminé !', {'name': raphTarget.name}), cls: 'death');
+          }
+        }
+        bot.raphRepeatTargetUid = null;
+        if (!bot.alive) { await _checkWin(justDiedId: bot.uid); }
+        if (!raphTarget.alive) { await _checkWin(justDiedId: raphTarget.uid); }
+        log = '';
+      }
+      if (log.startsWith('odin_pick_second:') && odinTarget2 != null) {
+        // Odin (bot) : finalise l'échange avec la seconde cible déjà
+        // calculée stratégiquement plus haut (allié le plus blessé /
+        // ennemi le moins blessé).
+        final t1uid = log.substring('odin_pick_second:'.length);
+        log = _eg.applyAbility(bot, state!.players, state!.terrainLayout,
+            target: odinTarget2, extra: 'odin_t1:$t1uid') ?? '';
+        final t1now = state!.players.firstWhere((p) => p.uid == t1uid, orElse: () => bot);
+        if (!t1now.alive) { await _checkWin(justDiedId: t1now.uid); }
+        if (!odinTarget2.alive) { await _checkWin(justDiedId: odinTarget2.uid); }
       }
       abilityLog = log;
       if (log == 'draw_dark' || log == 'draw_light') {
@@ -1318,7 +1422,7 @@ class SoloController extends ChangeNotifier {
         // Richard II (bot) : mécanisme ENTIÈREMENT absent auparavant — il
         // n'échangeait jamais réellement de zone.
         final richardStartZone = bot.zoneIndex;
-        final z2 = _ai.bestZone(bot, state!.players, state!.terrainLayout, difficulty, excludeZone: state!.disappearedZoneIndex);
+        final z2 = _ai.bestZone(bot, state!.players, state!.terrainLayout, difficulty);
         if (z2 != richardStartZone) {
           for (final p in state!.players) {
             if (p.zoneIndex == richardStartZone) p.zoneIndex = z2;
@@ -1367,32 +1471,29 @@ class SoloController extends ChangeNotifier {
 
     // Christine : déjà déplacée via son pouvoir — ne pas relancer les dés
     // de déplacement normal, elle a choisi sa zone directement.
-    final skipNormalMove = abilityLog?.startsWith('christine_moved:') ?? false;
+    final skipNormalMove = (abilityLog?.startsWith('christine_moved:') ?? false) ||
+        (bot.character?.abilityEffect == 'emma_teleport_to' && (abilityLog?.isNotEmpty ?? false));
     if (skipNormalMove) state!.abilityOverlay = 'christine_map';
     int zoneIdx = bot.zoneIndex; // déjà à jour si Christine a bougé
 
     // Déplacement
-    if (bot.frozenTurnsRemaining > 0) {
-      // Rudolf : bot gelé — ne peut pas se déplacer ce tour-ci, reste sur
-      // sa zone actuelle (pas de nouvel effet de zone déclenché).
+    if (bot.frozenTurnsRemaining > 0 || bot.conanNoMoveTurns > 0) {
+      // Rudolf (gel) ou Conan (option "no_move") : bot bloqué — ne peut
+      // pas se déplacer ce tour-ci, reste sur sa zone actuelle (pas de
+      // nouvel effet de zone déclenché).
       await Future.delayed(d);
-      _log(logT('❄️ {name} est gelé — ne peut pas se déplacer ce tour', {'name': bot.name}), cls: 'bot');
+      _log(logT('😈❄️ {name} ne peut pas se déplacer ce tour', {'name': bot.name}), cls: 'bot');
     } else if (!skipNormalMove) {
       await Future.delayed(d);
       if (_stopped) return;
       final roll = _eg.rollMove();
       final sum = roll['sum']!;
       if (sum == 7) {
-        zoneIdx = _ai.bestZone(bot, state!.players, state!.terrainLayout, difficulty, excludeZone: state!.disappearedZoneIndex);
+        zoneIdx = _ai.bestZone(bot, state!.players, state!.terrainLayout, difficulty);
       } else {
         final tid = _eg.sumToTerrainId(sum);
         zoneIdx = tid != null ? _eg.terrainLayoutIdx(state!.terrainLayout, tid) : (bot.zoneIndex + 1) % 6;
         if (zoneIdx == -1 || zoneIdx == bot.zoneIndex) zoneIdx = (bot.zoneIndex + 1) % 6;
-        // Nautilus : zone visée disparue — retombe sur bestZone, comme
-        // pour un 7 (choix libre).
-        if (zoneIdx == state!.disappearedZoneIndex) {
-          zoneIdx = _ai.bestZone(bot, state!.players, state!.terrainLayout, difficulty, excludeZone: state!.disappearedZoneIndex);
-        }
       }
       bot.zoneIndex = zoneIdx;
       final isAugustinBot = bot.character?.abilityEffect == 'heal_on_same_terrain' && bot.revealed;
@@ -2502,10 +2603,44 @@ class SoloController extends ChangeNotifier {
           s.pendingTargetAction = 'alchimiste_choose_potion';
           s.phase = GamePhase.chooseTarget; notifyListeners(); return;
         }
+        // Conan : ouvre l'écran de choix de 2 options parmi les 3 tirées,
+        // résolu ensuite via humanChooseConan2().
+        if (special == 'conan_choose3') {
+          s.conanOffered = _eg.conanDraw3();
+          s.pendingTargetAction = 'conan_choose3';
+          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+        }
+        // Conan : la cible a été choisie — détermine si c'est un bot
+        // (résolution immédiate via heuristique) ou l'humain (ouvre
+        // l'écran de choix qui lui est destiné, même si ce n'est pas
+        // son tour — c'est LUI la victime qui doit répondre).
+        if (special == 'conan_awaiting_target') {
+          _handleConanAwaitingTarget(res, p);
+          return;
+        }
         // Nautilus : ouvre l'écran de choix de ZONE (pas de joueur),
         // résolu ensuite via humanChooseNautilusZone().
         if (special == 'nautilus_choose_zone') {
           s.pendingTargetAction = 'nautilus_choose_zone';
+          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+        }
+        // Louis : capacité encore en recharge — message informatif, pas
+        // de cible demandée, passe simplement au déplacement.
+        if (special == 'louis_on_cooldown') {
+          _log(logT('💢 {name} — capacité encore en recharge, encore {n} tour(s)', {'name': p.name, 'n': '${p.louisCooldown}'}), cls: 'player');
+          s.phase = GamePhase.move; notifyListeners(); return;
+        }
+        // Raph : la rafale démarre — première attaque immédiate, puis
+        // choix "encore ?" via _raphResolveOnce().
+        if (special == 'raph_rampage_started') {
+          _raphResolveOnce(p, res['raphTargetUid'] as String);
+          return;
+        }
+        // Odin : premier joueur choisi — ouvre le choix du second (lui
+        // compris, contrairement au sélecteur de cible standard).
+        if (special == 'odin_pick_second') {
+          s.odinT1Uid = res['odinT1Uid'] as String?;
+          s.pendingTargetAction = 'odin_pick_second';
           s.phase = GamePhase.chooseTarget; notifyListeners(); return;
         }
         if (special == 'nautilus_vanished') {
@@ -2546,7 +2681,9 @@ class SoloController extends ChangeNotifier {
     // bloqué sur l'écran de sélection indéfiniment (Luc pouvait ainsi
     // enflammer plusieurs joueurs à la suite).
     if (state!.phase == GamePhase.ability || state!.phase == GamePhase.chooseTarget) {
-      state!.phase = GamePhase.move;
+      // Emma : vient de se téléporter — l'effet de SA NOUVELLE zone doit
+      // se déclencher, pas un déplacement normal.
+      state!.phase = (eff == 'emma_teleport_to') ? GamePhase.zoneEffect : GamePhase.move;
     }
     await _checkWin(); notifyListeners();
   }
@@ -2823,6 +2960,15 @@ class SoloController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Conan (option "no_move") : même logique que le gel de Rudolf, message
+  /// différent.
+  void humanSkipMoveConanBlocked() {
+    final p = state!.current;
+    _log(logT('😈 {name} ne peut pas se déplacer ce tour (choix de Conan)', {'name': p.name}), cls: 'player');
+    state!.phase = GamePhase.zoneEffect;
+    notifyListeners();
+  }
+
   void humanMove(int zoneIdx, {int diceSum = 0}) {
     final p = state!.current; p.zoneIndex = zoneIdx;
     final isAugustin = p.character?.abilityEffect == 'heal_on_same_terrain' && p.revealed;
@@ -2852,11 +2998,6 @@ class SoloController extends ChangeNotifier {
     final adj = kAdjacences[p.zoneIndex];
     if (!adj.contains(zoneIdx)) {
       _log(logT("🗺️ Cette zone n'est pas adjacente !", {}), cls: 'player');
-      notifyListeners(); return;
-    }
-    // Nautilus : zone disparue, inaccessible même si adjacente.
-    if (zoneIdx == s.disappearedZoneIndex) {
-      _log(ui('nautilus_zone_gone'), cls: 'player');
       notifyListeners(); return;
     }
     p.zoneIndex = zoneIdx;
@@ -2929,7 +3070,24 @@ class SoloController extends ChangeNotifier {
   }
 
   void humanApplyTerrainEffect({GamePhase nextPhaseIfDefault = GamePhase.attack, int? zoneOverride}) {
-    final terrain = state!.terrainLayout[zoneOverride ?? state!.current.zoneIndex];
+    final zIdx = zoneOverride ?? state!.current.zoneIndex;
+    // Nautilus : le terrain englouti reste ACCESSIBLE mais dangereux —
+    // quiconque s'y trouve à l'arrivée subit 3 blessures, pendant les 2
+    // tours où il reste submergé. Point central (déclenché après TOUT
+    // type de déplacement), pour ne pas avoir à dupliquer ce contrôle
+    // partout où une zone peut être atteinte.
+    if (zIdx == state!.disappearedZoneIndex && state!.disappearedTurnsRemaining > 0) {
+      final p = state!.current;
+      _eg.applyDamage(p, 3);
+      _log(logT('🌊 {name} subit 3 blessures en s\'aventurant sur le terrain englouti !', {'name': p.name}), cls: 'player');
+      if (!p.alive) {
+        // Pas d'await : cette fonction reste synchrone (11 appelants à
+        // travers le fichier) — _checkWin() notifie déjà l'UI lui-même en
+        // interne, inutile d'attendre ici pour que ça fonctionne.
+        _checkWin(justDiedId: p.uid);
+      }
+    }
+    final terrain = state!.terrainLayout[zIdx];
     switch (terrain.effect) {
       case 'vision':   humanDrawCard(DeckType.vision); return;
       case 'lumiere':  humanDrawCard(DeckType.lumiere); return;
@@ -3123,6 +3281,72 @@ class SoloController extends ChangeNotifier {
   /// Chameleon (zone 4-5) : résout le choix de l'un des 5 autres pouvoirs.
   /// Le pouvoir '0' (révélation forcée) nécessite ENCORE un choix de
   /// cible ensuite — les autres se résolvent immédiatement.
+  /// Conan : résout le signal "en attente de réponse de la cible" — commun
+  /// aux deux points d'entrée (humanUseAbility() ET humanChooseTarget()),
+  /// pour ne pas dupliquer la logique bot/humain deux fois.
+  void _handleConanAwaitingTarget(Map<String, dynamic> res, Player conanActor) {
+    final s = state!;
+    final targetUid = res['conanTargetUid'] as String;
+    final opt1 = res['conanOpt1'] as String;
+    final opt2 = res['conanOpt2'] as String;
+    final respTarget = s.players.firstWhere((pl) => pl.uid == targetUid);
+    if (respTarget.isBot) {
+      // Bot : heuristique simple, choisit l'option la moins pénalisante pour lui.
+      final chosen = _eg.botConanChoice(respTarget, opt1, opt2);
+      final resLog = _eg.resolveConanChoice(conanActor, respTarget, chosen);
+      _log(resLog, cls: 'player');
+      s.pendingTargetAction = null;
+      if (!respTarget.alive) {
+        // IMPORTANT : _checkWin() ne notifie l'UI que s'il détecte une
+        // victoire OU si state!.current (celui dont c'est le tour) est
+        // le mort — ici c'est Conan qui joue, pas respTarget, donc dans
+        // le cas (fréquent) où la mort du bot ne termine pas la partie,
+        // _checkWin() ne fait RIEN et le notifyListeners() ci-dessous
+        // est le SEUL qui rafraîchit l'écran. Sans lui : gel total.
+        _checkWin(justDiedId: respTarget.uid);
+      }
+      if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
+      notifyListeners(); return;
+    }
+    // Humain (target de Conan, qu'il joue actuellement ou non) : ouvre
+    // l'écran de choix qui lui est destiné.
+    s.conanActorUid = conanActor.uid;
+    s.conanOpt1 = opt1; s.conanOpt2 = opt2;
+    s.pendingTargetAction = 'conan_target_response';
+    s.phase = GamePhase.chooseTarget; notifyListeners();
+  }
+
+  /// Conan : l'humain (cible du choix machiavélique) vient de choisir
+  /// laquelle des 2 options s'applique.
+  void humanResolveConanResponse(String chosenOption) {
+    final s = state!;
+    final conanActor = s.players.firstWhere((p) => p.uid == s.conanActorUid);
+    final respTarget = s.players.firstWhere((p) => !p.isBot); // l'humain répond forcément pour lui-même — jamais s.current, qui serait Conan pendant SON tour
+    final resLog = _eg.resolveConanChoice(conanActor, respTarget, chosenOption);
+    _log(resLog, cls: 'player');
+    s.pendingTargetAction = null;
+    s.conanActorUid = null; s.conanOpt1 = null; s.conanOpt2 = null;
+    if (!respTarget.alive) {
+      // Même piège que dans _handleConanAwaitingTarget : si cette mort
+      // ne déclenche pas de victoire, _checkWin() ne notifie rien tant
+      // que ce n'est pas au tour du mort — ici c'est Conan (souvent un
+      // bot) qui joue, pas respTarget. Sans notifyListeners() ci-dessous
+      // en dehors du bloc, gel total garanti.
+      _checkWin(justDiedId: respTarget.uid);
+    }
+    if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
+    notifyListeners();
+  }
+
+  /// Conan : résout le choix de 2 des 3 options tirées — nécessite
+  /// ensuite le choix d'une cible.
+  void humanChooseConan2(List<String> opts) {
+    final s = state!;
+    s.conanChosen2 = opts;
+    s.pendingTargetAction = 'conan_target';
+    s.phase = GamePhase.chooseTarget; notifyListeners();
+  }
+
   /// Alchimiste : résout le choix de l'une des 3 potions tirées — TOUTES
   /// nécessitent ensuite une cible (contrairement à Chameleon).
   void humanChoosePotion(String potion) {
@@ -3130,6 +3354,57 @@ class SoloController extends ChangeNotifier {
     s.alchimistChosenPotion = potion;
     s.pendingTargetAction = 'alchimiste_potion_target';
     s.phase = GamePhase.chooseTarget; notifyListeners();
+  }
+
+  /// Raph : résout UN coup de sa rafale (attaque + dégâts miroir), puis
+  /// soit termine (si l'un des deux meurt), soit propose "encore ?".
+  void _raphResolveOnce(Player raph, String targetUid) {
+    final s = state!;
+    final target = s.players.firstWhere((p) => p.uid == targetUid);
+    final res = _eg.raphAttackOnce(raph, target, s.players);
+    _log(res['log'] as String, cls: 'player');
+    final raphAlive = res['raphAlive'] as bool;
+    final targetAlive = res['targetAlive'] as bool;
+    if (!raphAlive) _log(logT('💀 {name} est éliminé !', {'name': raph.name}), cls: 'death');
+    if (!targetAlive) _log(logT('💀 {name} est éliminé !', {'name': target.name}), cls: 'death');
+    if (!raphAlive || !targetAlive) {
+      // La rafale se termine (mort de l'un ou l'autre).
+      raph.raphRepeatTargetUid = null;
+      s.pendingTargetAction = null;
+      // IMPORTANT : ne jamais `return` à l'intérieur de ces vérifications
+      // sans notifyListeners() après — même piège déjà rencontré avec
+      // Conan (_checkWin() ne notifie que s'il détecte une victoire OU si
+      // c'est au tour du mort, ce qui n'est pas garanti ici).
+      if (!raphAlive) _checkWin(justDiedId: raph.uid);
+      if (!targetAlive) _checkWin(justDiedId: target.uid);
+      if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
+      notifyListeners();
+      return;
+    }
+    // Les deux sont encore en vie — propose "encore ?" / "arrêter".
+    s.pendingTargetAction = 'raph_continue';
+    s.phase = GamePhase.chooseTarget;
+    notifyListeners();
+  }
+
+  /// Raph : choisit de frapper à nouveau la même cible.
+  void raphAttackAgain() {
+    final s = state!;
+    final raph = s.current;
+    final targetUid = raph.raphRepeatTargetUid;
+    if (targetUid == null) {
+      s.pendingTargetAction = null; s.phase = GamePhase.move; notifyListeners(); return;
+    }
+    _raphResolveOnce(raph, targetUid);
+  }
+
+  /// Raph : choisit d'arrêter sa rafale.
+  void raphStopRampage() {
+    final s = state!;
+    s.current.raphRepeatTargetUid = null;
+    s.pendingTargetAction = null;
+    if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
+    notifyListeners();
   }
 
   /// Nautilus : résout le choix de la zone à faire disparaître — se
@@ -3200,6 +3475,39 @@ class SoloController extends ChangeNotifier {
       state!.pendingTargetAction = null;
       if (!state!.isOver && !state!.turnEndedByDeath) { state!.phase = GamePhase.move; }
       notifyListeners();
+      return;
+    }
+    if (state!.pendingTargetAction == 'odin_pick_second') {
+      // Odin : premier joueur déjà choisi (state!.odinT1Uid) — le second
+      // vient d'être choisi, résout directement l'échange.
+      final res = _eg.applyAbilityFull(state!.current, state!.players, state!.terrainLayout,
+          target: target, extra: 'odin_t1:${state!.odinT1Uid}');
+      final log = res['log'] as String? ?? '';
+      if (log.isNotEmpty) _log(log, cls: 'player');
+      state!.pendingTargetAction = null;
+      final t1uidCheck = state!.odinT1Uid;
+      state!.odinT1Uid = null;
+      // Ne vérifie QUE les 2 joueurs concernés par l'échange — pas tous
+      // les joueurs déjà morts avant même cette capacité.
+      if (t1uidCheck != null) {
+        final t1 = state!.players.firstWhere((p) => p.uid == t1uidCheck, orElse: () => target);
+        if (!t1.alive) _checkWin(justDiedId: t1.uid);
+      }
+      if (!target.alive) _checkWin(justDiedId: target.uid);
+      if (!state!.isOver && !state!.turnEndedByDeath) { state!.phase = GamePhase.move; }
+      notifyListeners();
+      return;
+    }
+    if (state!.pendingTargetAction == 'conan_target') {
+      // Conan : 2 options déjà choisies (state!.conanChosen2) — la cible
+      // vient d'être choisie, résout via applyAbilityFull puis le
+      // helper partagé (bot/humain).
+      final opts = state!.conanChosen2;
+      final res = _eg.applyAbilityFull(state!.current, state!.players, state!.terrainLayout,
+          target: target, extra: 'conan_2opts:${opts[0]},${opts[1]}');
+      if (res['special'] == 'conan_awaiting_target') {
+        _handleConanAwaitingTarget(res, state!.current);
+      }
       return;
     }
     if (state!.pendingTargetAction == 'alchimiste_potion_target') {
@@ -3643,6 +3951,7 @@ class SoloController extends ChangeNotifier {
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors',
     'lock_ability_while_alive','steal_max_hp','luc_ignite','baptiste_revive','maxence_drunk',
     'store_damage_nils','d4_bonus_attack','rudolf_freeze','taureador_provoke','artisan_copy_equip','pere_noel_gift','sorciere_pigeon','chameleon_terrain_power','alchimiste_potion','pigeon_peck',
+    'nautilus_vanish','conan_choice','raph_shadow_rampage','odin_swap_wounds','emma_teleport_to','louis_burst_damage',
   ].contains(eff);
 
   // Liste synchronisée avec le switch needsTarget de resolveCard() —

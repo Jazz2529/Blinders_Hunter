@@ -531,6 +531,7 @@ class _GameScreenState extends State<GameScreen> {
                       players: playerData,
                       humanZoneIndex: gp.me?.zoneIndex ?? 0,
                       showAdjacent: true,
+                      disappearedZoneIndex: g.disappearedZoneIndex,
                     ),
                     if (overlay == 'artcade_flames')
                       Positioned(left: tx, top: ty, width: tileW, height: tileH,
@@ -1277,6 +1278,7 @@ class _ActionPanel extends StatefulWidget {
 class _ActionPanelState extends State<_ActionPanel> {
   int? _atkD4,_atkD6,_atkDmg;
   bool _emilienRerolledThisTurn = false; // suivi local — évite tout souci de sync réseau pour ce simple garde-fou d'interface
+  String? _conanFirstPick; // Conan : premier des 2 choix parmi les 3 tirés
   int? _atkD4b,_atkD6b; // Mango Loco : 2ème lancer si cible costaude (13+ PV)
   int? _d4, _d6, _sum;
   int? _d4b, _d6b, _sum2; // Boussole Mystique : 2e lancer optionnel
@@ -1665,6 +1667,19 @@ class _ActionPanelState extends State<_ActionPanel> {
             BHButton(label: ui('btn_confirm'), onTap: () => _act(gp.skipMoveFrozen)),
           ];
         }
+        // Conan (option "no_move") : même court-circuit que le gel.
+        if ((gp.me?.conanNoMoveTurns ?? 0) > 0) {
+          return [
+            Container(padding: const EdgeInsets.all(14), decoration: surfaceDecor(),
+              child: Column(children: [
+                const Text('😈', style: TextStyle(fontSize: 32)),
+                const SizedBox(height: 8),
+                Text(ui('conan_cannot_move'), style: cinzel(13, c: kHunter, fw: FontWeight.w900), textAlign: TextAlign.center),
+              ])),
+            const SizedBox(height: 10),
+            BHButton(label: ui('btn_confirm'), onTap: () => _act(gp.skipMoveConanBlocked)),
+          ];
+        }
         if (_showingSwapTargets) {
           final others = gp.players.values.where((p) => p.alive && p.uid != gp.myUid).toList();
           return [
@@ -1857,6 +1872,79 @@ class _ActionPanelState extends State<_ActionPanel> {
               onTap: () => _act(() => gp.useAbility(extra: 'potion_$p'))),
           )).toList();
         }
+        // Conan : choisit 2 des 3 options tirées.
+        if (pta == 'conan_choose3') {
+          if (!gp.isMyTurn) {
+            return [Text('😈 ${gp.currentPlayer?.name ?? "Conan"} prépare un choix machiavélique…',
+              style: cinzel(13, c: kGold))];
+          }
+          final offered = gp.gameState?.conanOffered ?? [];
+          return [
+            Padding(padding: const EdgeInsets.only(bottom: 8),
+              child: Text('😈 Choisis 2 options à offrir :', style: cinzel(13, c: kGold2))),
+            ...offered.map((o) {
+              final isPicked = o == _conanFirstPick;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: BHButton(
+                  label: '${isPicked ? "✅ " : ""}${GameEngine.instance.conanOptionLabel(o)}',
+                  outlined: isPicked,
+                  onTap: () {
+                    if (_conanFirstPick == null) {
+                      setState(() => _conanFirstPick = o);
+                    } else if (_conanFirstPick == o) {
+                      setState(() => _conanFirstPick = null);
+                    } else {
+                      final picked = [_conanFirstPick!, o];
+                      setState(() => _conanFirstPick = null);
+                      _act(() => gp.conanChoose2(picked));
+                    }
+                  },
+                ),
+              );
+            }),
+          ];
+        }
+        // Conan : je suis la cible du choix machiavélique — je dois
+        // choisir laquelle des 2 options s'applique. L'uid concerné est
+        // embarqué dans pta ('conan_target_response:<uid>').
+        if (pta != null && pta.startsWith('conan_target_response:')) {
+          final respUid = pta.substring('conan_target_response:'.length);
+          if (respUid != gp.myUid) {
+            return [Text('😈 En attente de la réponse au choix machiavélique de Conan…',
+              style: cinzel(13, c: kGold))];
+          }
+          final opt1 = gp.gameState?.conanOpt1;
+          final opt2 = gp.gameState?.conanOpt2;
+          return [
+            Padding(padding: const EdgeInsets.only(bottom: 8),
+              child: Text('😈 Conan t\'offre un choix machiavélique :', style: cinzel(13, c: kGold2))),
+            if (opt1 != null)
+              Padding(padding: const EdgeInsets.only(bottom: 8),
+                child: BHButton(label: GameEngine.instance.conanOptionLabel(opt1),
+                  onTap: () => _act(() => gp.conanResolveTargetChoice(opt1)))),
+            if (opt2 != null)
+              Padding(padding: const EdgeInsets.only(bottom: 8),
+                child: BHButton(label: GameEngine.instance.conanOptionLabel(opt2),
+                  onTap: () => _act(() => gp.conanResolveTargetChoice(opt2)))),
+          ];
+        }
+        // Raph : après chaque coup de sa rafale, propose de continuer ou
+        // de s'arrêter.
+        if (pta == 'raph_continue') {
+          if (!gp.isMyTurn) {
+            return [Text('🔪 ${gp.currentPlayer?.name ?? "Raph"} continue sa rafale…',
+              style: cinzel(13, c: kGold))];
+          }
+          return [
+            Padding(padding: const EdgeInsets.only(bottom: 8),
+              child: Text('🔪 Continuer la rafale ?', style: cinzel(13, c: kGold2))),
+            Padding(padding: const EdgeInsets.only(bottom: 8),
+              child: BHButton(label: '🔪 Frapper encore', onTap: () => _act(gp.raphAttackAgain))),
+            Padding(padding: const EdgeInsets.only(bottom: 8),
+              child: BHButton(label: '🛑 Arrêter', outlined: true, onTap: () => _act(gp.raphStopRampage))),
+          ];
+        }
         // Nautilus : affiche les 6 zones du plateau (pas des joueurs).
         if (pta == 'nautilus_choose_zone') {
           if (!gp.isMyTurn) {
@@ -1912,6 +2000,9 @@ class _ActionPanelState extends State<_ActionPanel> {
         } else if (pta == 'artisan_copy_equip') {
           // Artisan : ne peut cibler QUE des joueurs ayant au moins un équipement
           all = gp.players.values.where((p) => p.alive && p.uid != gp.myUid && p.equipment.isNotEmpty).toList();
+        } else if (pta == 'ability_default_odin_swap_wounds' || pta == 'odin_pick_second') {
+          // Odin : peut se cibler LUI-MÊME pour l'un ou l'autre des 2 joueurs.
+          all = gp.players.values.where((p) => p.alive).toList();
         } else {
           all = gp.players.values.where((p)=>p.alive&&p.uid!=gp.myUid).toList();
         }
@@ -1960,7 +2051,7 @@ class _ActionPanelState extends State<_ActionPanel> {
           return [
             Text(ui('title_richard2_zone'),
               style: cinzel(12, c: kGold)), const SizedBox(height: 8),
-            ...layout.asMap().entries.where((e) => e.key != myZoneIdx && e.key != gp.gameState?.disappearedZoneIndex).map((entry) {
+            ...layout.asMap().entries.where((e) => e.key != myZoneIdx).map((entry) {
               final idx = entry.key; final terrain = entry.value;
               final dv = DrunkVision.forViewer(gp.me);
               final here = gp.players.values.where((p) => p.alive && p.zoneIndex == idx)
@@ -2066,6 +2157,14 @@ class _ActionPanelState extends State<_ActionPanel> {
                 // Alchimiste : la potion choisie est embarquée dans pta
                 // (ex: 'alchimiste_potion:potion_heal3') — on l'extrait.
                 await gp.useAbility(target: t, extra: pta.substring('alchimiste_potion:'.length));
+              } else if (pta == 'conan_target') {
+                // Conan : les 2 options sont déjà choisies (gp.gameState
+                // .conanChosen2) — la cible vient d'être choisie.
+                await gp.conanChooseTarget(t);
+              } else if (pta == 'odin_pick_second') {
+                // Odin : premier joueur déjà choisi (gp.gameState.odinT1Uid)
+                // — le second vient d'être choisi.
+                await gp.odinChooseSecond(t);
               } else if (pta != null && pta.startsWith('vision_') ||
                   pta == 'banane_demonique' || pta == 'vampirisation' ||
                   pta == 'blue_shell' || pta == 'veuve_noire' ||
@@ -2090,6 +2189,20 @@ class _ActionPanelState extends State<_ActionPanel> {
           }),
         ];
       case GamePhase.attack:
+        // Conan (option "no_attack") : court-circuite toute la phase
+        // d'attaque, comme le gel le fait pour le déplacement.
+        if ((gp.me?.conanNoAttackTurns ?? 0) > 0) {
+          return [
+            Container(padding: const EdgeInsets.all(14), decoration: surfaceDecor(),
+              child: Column(children: [
+                const Text('😈', style: TextStyle(fontSize: 32)),
+                const SizedBox(height: 8),
+                Text(ui('conan_cannot_attack'), style: cinzel(13, c: kHunter, fw: FontWeight.w900), textAlign: TextAlign.center),
+              ])),
+            const SizedBox(height: 10),
+            BHButton(label: ui('btn_confirm'), onTap: () => _act(gp.endTurn)),
+          ];
+        }
         final targets = gp.attackTargets;
         final alreadyAttacked = gp.gameState?.hasAttacked == true;
         final hasHache = gp.me?.hache == true && gp.me?.equipment.any((e) => e.effect == 'hache_berserker') == true;
@@ -2247,7 +2360,7 @@ class _ActionPanelState extends State<_ActionPanel> {
   });
 
   List<Widget> _buildZoneChoices() => List.generate(6, (i) {
-    if (i == gp.me?.zoneIndex || i == gp.gameState?.disappearedZoneIndex) return const SizedBox.shrink();
+    if (i == gp.me?.zoneIndex) return const SizedBox.shrink();
     final t = gp.gameState!.terrainLayout[i];
     return BHButton(
       label: '${t.icon} ${t.num} — ${tr(t.name)}',
@@ -2261,14 +2374,6 @@ class _ActionPanelState extends State<_ActionPanel> {
     final layout = gp.gameState!.terrainLayout;
     int idx = tid != null ? layout.indexWhere((t) => t.id == tid) : -1;
     if (idx == -1 || idx == gp.me?.zoneIndex) idx = ((gp.me?.zoneIndex ?? 0) + 1) % 6;
-    // Nautilus : zone visée disparue — bascule sur le choix libre plutôt
-    // que de proposer un déplacement vers une zone inaccessible.
-    if (idx == gp.gameState?.disappearedZoneIndex) {
-      return BHButton(
-        label: '🚫 ${ui('nautilus_zone_gone')}',
-        onTap: () => setState(() => _sum = 7),
-      );
-    }
     final t = layout[idx];
     return BHButton(
       label: '→ ${t.icon} ${tr(t.name)}  (${tr(t.keyword)})',
@@ -3358,7 +3463,7 @@ class _MultiChristineZoneWidget extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text('🗺️ Christine — Choisissez votre prochain terrain', style: cinzel(15, c: kGold2), textAlign: TextAlign.center),
         const SizedBox(height: 12),
-        ...adj.where((idx) => idx != gp.gameState?.disappearedZoneIndex).map((idx) {
+        ...adj.map((idx) {
           final terrain = idx < layout.length ? layout[idx] : null;
           final dv = DrunkVision.forViewer(gp.me);
           final playersHere = (gp.gameState?.playerOrder ?? const [])

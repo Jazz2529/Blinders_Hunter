@@ -242,6 +242,54 @@ const Map<String, String> kLogTemplatesEn = {
 };
 
 const Map<String, String> kGameTranslations = {
+  'Répétable: déplacez-vous sur le même terrain qu\'un joueur de votre choix': 'Repeatable: move to the same terrain as a player of your choice',
+  'Répétable (1 tour de pause entre chaque utilisation): infligez 5 blessures au joueur de votre choix': 'Repeatable (1 turn of pause between each use): deal 5 damage to a player of your choice',
+  '🌀 {name} se téléporte auprès de {target} !': '🌀 {name} teleports to {target}!',
+  '💢 {name} inflige 5 blessures à {target} — {dmg} dégâts !': '💢 {name} deals 5 damage to {target} — {dmg} damage!',
+  '💢 {name} — capacité encore en recharge, encore {n} tour(s)': '💢 {name} — ability still on cooldown, {n} more turn(s)',
+
+  'Unique: échangez le nombre de blessures de 2 joueurs de votre choix (vous compris)': 'Unique: swap the wound count of 2 players of your choice (yourself included)',
+  'Passif: plus vous avez subi de blessures, plus vos attaques sont fortes (1-5 blessures: +1 dégât, 6-9: +2, 10-11: +3)': 'Passive: the more wounds you\'ve taken, the stronger your attacks (1-5 wounds: +1 damage, 6-9: +2, 10-11: +3)',
+  '🔄 {name} échange les blessures de {t1} ({w1}) et {t2} ({w2}) !': '🔄 {name} swaps the wounds of {t1} ({w1}) and {t2} ({w2})!',
+
+  '🔪 Raph subit lui-même {n} blessure(s) en retour !': '🔪 Raph takes {n} damage in return!',
+
+  'Unique: attaquez autant de fois que vous le souhaitez un joueur de votre choix — vous subissez autant de blessures que vous en infligez à chaque attaque': 'Unique: attack a player of your choice as many times as you want — you take as much damage as you deal on each attack',
+  'Passif: si vous tuez un Shadow, vous gagnez 2 PV max et infligez 2 blessures de plus sur vos attaques (cumulable)': 'Passive: if you kill a Shadow, you gain 2 max HP and deal 2 more damage on your attacks (stackable)',
+  '🔪 Continuer la rafale ?': '🔪 Continue the rampage?',
+  '🔪 Frapper encore': '🔪 Strike again',
+  '🛑 Arrêter': '🛑 Stop',
+
+  '💥 Tu subis 2 blessures': '💥 You take 2 damage',
+  '💚 Conan se soigne de 2 blessures': '💚 Conan heals 2 wounds',
+  '🎁 Tu donnes 1 équipement à Conan': '🎁 You give 1 equipment to Conan',
+  '📉 Tu donnes 1 PV max à Conan': '📉 You give 1 max HP to Conan',
+  '🚫 Tu ne peux pas te déplacer': '🚫 You cannot move',
+  '🛑 Tu ne peux pas attaquer': '🛑 You cannot attack',
+  '🩸 Tu subis 1 blessure, Conan se soigne de 1': '🩸 You take 1 damage, Conan heals 1',
+  '🎲 Conan obtient un équipement aléatoire': '🎲 Conan gets a random equipment',
+  '☣️ Tu subis un malus aléatoire': '☣️ You get a random debuff',
+  '😈 {target} choisit de subir 2 blessures ({dmg}) !': '😈 {target} chooses to take 2 damage ({dmg})!',
+  '😈 {target} choisit de laisser {name} se soigner de 2 !': '😈 {target} chooses to let {name} heal 2!',
+  '😈 {target} choisit de donner un équipement… mais n\'en a aucun !': '😈 {target} chooses to give an equipment… but has none!',
+  '😈 {target} donne "{item}" à {name} !': '😈 {target} gives "{item}" to {name}!',
+  '😈 {target} donne 1 PV max à {name} !': '😈 {target} gives 1 max HP to {name}!',
+  '😈 {target} choisit de ne pas pouvoir se déplacer !': '😈 {target} chooses to be unable to move!',
+  '😈 {target} choisit de ne pas pouvoir attaquer !': '😈 {target} chooses to be unable to attack!',
+  '😈 {target} subit 1 blessure, {name} se soigne de 1 !': '😈 {target} takes 1 damage, {name} heals 1!',
+  '😈 {target} laisse {name} obtenir "{item}" au hasard !': '😈 {target} lets {name} get "{item}" at random!',
+  '😈 {target} subit la brûlure au hasard !': '😈 {target} gets randomly set on fire!',
+  '😈 {target} subit le poison au hasard !': '😈 {target} gets randomly poisoned!',
+  '😈 {target} subit la provocation au hasard !': '😈 {target} gets randomly provoked!',
+  '😈 {target} subit l\'ivresse au hasard !': '😈 {target} gets randomly drunk!',
+  '😈 {target} fait son choix': '😈 {target} makes their choice',
+  '😈 {name} ne peut pas se déplacer ce tour (choix de Conan)': '😈 {name} cannot move this turn (Conan\'s choice)',
+  '😈❄️ {name} ne peut pas se déplacer ce tour': '😈❄️ {name} cannot move this turn',
+
+  'Répétable: choisissez 2 options parmi 3 tirées au hasard (parmi 9 possibles) et offrez ce choix machiavélique à un joueur — il devra choisir laquelle des 2 s\'applique': 'Repeatable: choose 2 options among 3 drawn at random (out of 9 possible) and offer this devious choice to a player — they will have to pick which of the 2 applies',
+
+  'Unique: transformez un joueur de votre choix en pigeon (PigeonHunter, PigeonShadow ou PigeonNeutre selon son camp d\'origine) — sa carte personnage passe à 12 PV max et son pouvoir devient répétable : "Inflige 1 blessure au joueur de son choix" (son camp et sa condition de victoire restent inchangés)': 'Unique: transform a player of your choice into a pigeon (PigeonHunter, PigeonShadow, or PigeonNeutre depending on their original faction) — their character card becomes 12 max HP and their power becomes repeatable: "Deal 1 damage to a player of their choice" (their faction and win condition remain unchanged)',
+
   'Unique: faites disparaître un terrain de votre choix pendant 2 tours — les joueurs qui s\'y trouvaient subissent 3 blessures et passent sur le terrain adjacent à droite. Un terrain disparu n\'est plus accessible tant qu\'il n\'est pas réapparu': 'Unique: make a zone of your choice vanish for 2 turns — players standing on it take 3 damage and move to the adjacent zone on the right. A vanished zone becomes inaccessible until it reappears',
   '🐚 {name} fait disparaître un terrain pendant 2 tours — {affected} (3 dégâts, déplacés) !': '🐚 {name} makes a zone vanish for 2 turns — {affected} (3 damage, moved)!',
 
@@ -270,13 +318,12 @@ const Map<String, String> kGameTranslations = {
   '⚗️ {name} offre une Potion de provocation à {target} !': '⚗️ {name} gives a Provocation Potion to {target}!',
 
   'Unique: pouvoir différent selon la zone où vous vous trouvez — 2-3: obligez un joueur de votre choix à se révéler • 4-5: choisissez l\'un des 5 autres pouvoirs de zone • 6: piochez 2 cartes Lumière • 8: piochez 2 cartes Ténèbres • 9: infligez 2 blessures à tous les autres joueurs • 10: récupérez tous les équipements de tous les autres joueurs': 'Unique: different power depending on the zone you\'re on — 2-3: force a player of your choice to reveal • 4-5: choose one of the 5 other zone powers • 6: draw 2 Light cards • 8: draw 2 Dark cards • 9: deal 2 damage to all other players • 10: recover all equipment from all other players',
-  'Unique: transformez un joueur de votre choix en pigeon — sa carte personnage passe à 12 PV max et son pouvoir devient répétable : "Inflige 1 blessure au joueur de son choix" (son camp et sa condition de victoire restent inchangés)': 'Unique: transform a player of your choice into a pigeon — their character card becomes 12 max HP and their power becomes repeatable: "Deal 1 damage to a player of their choice" (their faction and win condition remain unchanged)',
   'Répétable: infligez 1 blessure au joueur de votre choix': 'Repeatable: deal 1 damage to a player of your choice',
   '🦎 {name} oblige {target} à se révéler !': '🦎 {name} forces {target} to reveal!',
   '🦎 {name} pioche 2 cartes {deck} : {cards}': '🦎 {name} draws 2 {deck} cards: {cards}',
   '🦎 {name} inflige 2 dégâts à tous les autres joueurs !': '🦎 {name} deals 2 damage to all other players!',
   '🦎 {name} récupère tout l\'équipement des autres joueurs : {items}': '🦎 {name} recovers all equipment from other players: {items}',
-  '🧙 {name} transforme {target} en pigeon !': '🧙 {name} transforms {target} into a pigeon!',
+  '🧙 {name} transforme {target} en {pigeon} !': '🧙 {name} transforms {target} into {pigeon}!',
   '🕊️ {name} picore {target} — {dmg} dégât': '🕊️ {name} pecks {target} — {dmg} damage',
 
   'Répétable: copiez un équipement d\'un joueur de votre choix — vous obtenez une copie identique, sans le lui retirer': 'Repeatable: copy an equipment from a player of your choice — you get an identical copy, without taking it from them',
@@ -525,6 +572,8 @@ const Map<String, String> kUiStringsFr = {
   'btn_cancel': 'Annuler',
   'btn_confirm': 'Confirmer',
   'frozen_cannot_move': '❄️ Vous êtes gelé ! Vous ne pouvez pas vous déplacer ce tour-ci.',
+  'conan_cannot_move': '😈 Conan vous empêche de vous déplacer ce tour-ci.',
+  'conan_cannot_attack': '😈 Conan vous empêche d\'attaquer ce tour-ci.',
   'nautilus_zone_gone': 'Cette zone a disparu — choisissez-en une autre',
   'btn_close': 'Fermer',
   'btn_attack': '⚔️ Attaquer',
@@ -1003,6 +1052,8 @@ const Map<String, String> kUiStringsEn = {
   'btn_cancel': 'Cancel',
   'btn_confirm': 'Confirm',
   'frozen_cannot_move': '❄️ You are frozen! You cannot move this turn.',
+  'conan_cannot_move': '😈 Conan prevents you from moving this turn.',
+  'conan_cannot_attack': '😈 Conan prevents you from attacking this turn.',
   'nautilus_zone_gone': 'This zone has vanished — choose another one',
   'btn_close': 'Close',
   'btn_attack': '⚔️ Attack',
