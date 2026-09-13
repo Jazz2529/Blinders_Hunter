@@ -414,12 +414,14 @@ class _TokensOverlay extends StatelessWidget {
           // le serveur (voir sendEmote/watchEmotes dans firebase_service).
           final uid = p['uid'] as String?;
           String? emoteEmoji;
+          String? emoteImagePath;
           if (uid != null && emotes.containsKey(uid)) {
             final ev = Map<String, dynamic>.from(emotes[uid] as Map);
             final ts = ev['ts'] as int? ?? 0;
             if (DateTime.now().millisecondsSinceEpoch - ts < 3000) {
               final item = kCosmeticsCatalog.where((c) => c.id == ev['emoteId']).firstOrNull;
               emoteEmoji = item?.fallbackEmoji;
+              if (item != null && item.imagePath.isNotEmpty) emoteImagePath = item.imagePath;
             }
           }
 
@@ -476,7 +478,10 @@ class _TokensOverlay extends StatelessWidget {
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white70, width: 1),
                         ),
-                        child: Text(emoteEmoji, style: TextStyle(fontSize: 14 * scale)),
+                        child: emoteImagePath != null
+                          ? Image.asset(emoteImagePath, width: 16 * scale, height: 16 * scale, fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Text(emoteEmoji ?? '?', style: TextStyle(fontSize: 14 * scale)))
+                          : Text(emoteEmoji ?? '?', style: TextStyle(fontSize: 14 * scale)),
                       ),
                     ),
                   ),

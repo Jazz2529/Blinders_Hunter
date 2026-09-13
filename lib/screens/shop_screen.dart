@@ -236,12 +236,22 @@ class _ShopCard extends StatelessWidget {
           child: ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
             child: Stack(fit: StackFit.expand, children: [
-              Image.asset(item.imagePath, fit: BoxFit.cover,
-                cacheWidth: 300,
-                errorBuilder: (_, __, ___) => Container(
-                  color: kBg3,
-                  child: Center(child: Text('🖼️', style: TextStyle(fontSize: 32, color: kTextDim.withValues(alpha: 0.5))))),
-              ),
+              item.imagePath.isNotEmpty
+                ? Image.asset(item.imagePath, fit: BoxFit.cover,
+                    cacheWidth: 300,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: kBg3,
+                      child: Center(child:
+                        (item.category == CosmeticCategory.emote || item.category == CosmeticCategory.token)
+                          ? Text(item.fallbackEmoji, style: const TextStyle(fontSize: 36))
+                          : Text('🖼️', style: TextStyle(fontSize: 32, color: kTextDim.withValues(alpha: 0.5))))),
+                  )
+                // Chemin vide (emote gratuit sans image dédiée) : affiche
+                // directement l'emoji de repli, sans tenter Image.asset('')
+                // (comportement d'échec incertain avec un chemin vide).
+                : Container(
+                    color: kBg3,
+                    child: Center(child: Text(item.fallbackEmoji, style: const TextStyle(fontSize: 36)))),
               if (!isOwned)
                 Container(color: Colors.black54,
                   child: const Center(child: Icon(Icons.lock, color: Colors.white70, size: 28))),

@@ -4494,7 +4494,10 @@ void showEmotePickerDialog(BuildContext ctx, GameProvider gp) {
                 child: Center(
                   child: Opacity(
                     opacity: unlocked ? 1.0 : 0.35,
-                    child: Text(item.fallbackEmoji, style: const TextStyle(fontSize: 26)),
+                    child: item.imagePath.isNotEmpty
+                      ? Image.asset(item.imagePath, width: 28, height: 28, fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => Text(item.fallbackEmoji, style: const TextStyle(fontSize: 26)))
+                      : Text(item.fallbackEmoji, style: const TextStyle(fontSize: 26)),
                   ),
                 ),
               ),
