@@ -274,7 +274,7 @@ class _SoloSetupState extends State<SoloSetupScreen> with SingleTickerProviderSt
     );
     ctrl.startGame();
     Navigator.of(context).pushReplacement(MaterialPageRoute(
-      builder: (_) => ChangeNotifierProvider.value(value: ctrl, child: const SoloGameScreen())));
+      builder: (_) => ChangeNotifierProvider.value(value: ctrl, child: _ChaosOverlayWrapper(ctrl: ctrl, child: const SoloGameScreen()))));
   }
 }
 
@@ -330,6 +330,82 @@ class _FactionBadgeSmall extends StatelessWidget {
 class SoloGameScreen extends StatefulWidget {
   const SoloGameScreen({super.key});
   @override State<SoloGameScreen> createState() => _SoloGameScreenState();
+}
+
+/// Mode Chaos : contour rouge pulsant tout autour de l'écran, affiché dès
+/// que 10 tours de jeu se sont écoulés (state!.globalTurnCount >= 10).
+/// Enveloppe SoloGameScreen SANS toucher à sa structure interne — bien
+/// plus sûr que de modifier l'arbre de widgets existant, déjà très
+/// profondément imbriqué.
+class _ChaosOverlayWrapper extends StatefulWidget {
+  final SoloController ctrl;
+  final Widget child;
+  const _ChaosOverlayWrapper({required this.ctrl, required this.child});
+  @override State<_ChaosOverlayWrapper> createState() => _ChaosOverlayWrapperState();
+}
+
+class _ChaosOverlayWrapperState extends State<_ChaosOverlayWrapper>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseAc = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+
+  @override
+  void dispose() { _pulseAc.dispose(); super.dispose(); }
+
+  void _maybeShowChaosPopup() {
+    final s = widget.ctrl.state;
+    if (s == null || !s.chaosJustActivated) return;
+    s.chaosJustActivated = false; // consommé — ne se réaffichera pas
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierColor: Colors.black.withValues(alpha: 0.75),
+        builder: (dctx) => AlertDialog(
+          backgroundColor: kBg2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Colors.redAccent, width: 2)),
+          title: Text('🔥⛓️ MODE CHAOS ACTIVÉ !', style: cinzel(17, c: Colors.redAccent, fw: FontWeight.w900), textAlign: TextAlign.center),
+          content: Text(
+            "5 tours de table sont écoulés. Le jeu s'accélère : toutes les attaques infligent désormais 2 blessures de plus, jusqu'à la fin de la partie. Un contour rouge autour de l'écran rappelle que le mode Chaos est actif.",
+            style: body(13), textAlign: TextAlign.center),
+          actions: [
+            Center(child: TextButton(onPressed: () => Navigator.pop(dctx),
+              child: Text(ui('btn_close2'), style: cinzel(13, c: kGold)))),
+          ],
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([widget.ctrl, _pulseAc]),
+      builder: (context, _) {
+        _maybeShowChaosPopup();
+        final s = widget.ctrl.state;
+        final active = s != null && s.globalTurnCount >= 5 * s.players.length;
+        return Stack(children: [
+          widget.child,
+          if (active)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.red.withValues(alpha: 0.4 + 0.4 * _pulseAc.value),
+                      width: 10,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ]);
+      },
+    );
+  }
 }
 
 class _SoloGameScreenState extends State<SoloGameScreen> {
@@ -460,6 +536,50 @@ class _SoloGameScreenState extends State<SoloGameScreen> {
                     const Text('💘', style: TextStyle(fontSize: 15)),
                     const SizedBox(width: 4),
                     Text('Charme', style: cinzel(10, c: Colors.pinkAccent)),
+                  ]),
+                ),
+              );
+            }),
+            // Masochiste uniquement : bouton pour consulter les joueurs
+            // distincts qui l'ont déjà blessé (condition de victoire : 3).
+            Builder(builder: (bctx) {
+              final me3 = ctrl.state?.players.where((p) => !p.isBot).firstOrNull;
+              if (me3?.character?.id != 'masochiste') return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: TextButton(
+                  onPressed: () => showMasochisteAttackersPanel(ctx, me3!, ctrl.state!.players),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.redAccent.withValues(alpha: 0.15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('⛓️', style: TextStyle(fontSize: 15)),
+                    const SizedBox(width: 4),
+                    Text('${me3!.masochisteAttackers.length}/3', style: cinzel(12, c: kRed)),
+                  ]),
+                ),
+              );
+            }),
+            // Gourmand uniquement : bouton pour consulter les items de
+            // nourriture déjà mangés (condition de victoire : les 4).
+            Builder(builder: (bctx) {
+              final me4 = ctrl.state?.players.where((p) => !p.isBot).firstOrNull;
+              if (me4?.character?.id != 'gourmand') return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: TextButton(
+                  onPressed: () => showGourmandFoodPanel(ctx, me4!),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.orangeAccent.withValues(alpha: 0.15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('🍗', style: TextStyle(fontSize: 15)),
+                    const SizedBox(width: 4),
+                    Text('${me4!.foodItemsEaten.length}/4', style: cinzel(12, c: Colors.orangeAccent)),
                   ]),
                 ),
               );
@@ -2053,6 +2173,31 @@ class _PlayerCardSide extends StatelessWidget {
                   overflow: TextOverflow.ellipsis),
               ]),
             ),
+            // Masochiste : indicateur des joueurs distincts l'ayant déjà
+            // blessé par attaque (condition de victoire : 3 différents).
+            if (c.winEffect == 'masochiste_win') ...[
+              const SizedBox(height: 4),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: kBg3, borderRadius: BorderRadius.circular(6)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('⛓️ ${me.masochisteAttackers.length}/3',
+                    style: cinzel(9, c: kGold2, ls: 1)),
+                  if (me.masochisteAttackers.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      me.masochisteAttackers.map((uid) {
+                        final atk = s.players.where((p) => p.uid == uid).firstOrNull;
+                        return atk?.name ?? '?';
+                      }).join(', '),
+                      style: body(8, c: kTextSub), maxLines: 2, overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ]),
+              ),
+            ],
             // Équipements
             if (me.equipment.isNotEmpty) ...[
               const SizedBox(height: 4),
@@ -2162,10 +2307,15 @@ class _HpLeaderboard extends StatelessWidget {
       final maximeTarget = (isMe && effectiveChar.id == 'maxime' && p.maximeFirstAttackerUid != null)
           ? ctrl.state?.players.where((pp) => pp.uid == p.maximeFirstAttackerUid).firstOrNull
           : null;
+      final angeProtected = (isMe && effectiveChar.id == 'ange' && p.angeProtectedUid != null)
+          ? ctrl.state?.players.where((pp) => pp.uid == p.angeProtectedUid).firstOrNull
+          : null;
       showFullCardDialog(ctx, effectiveChar, hpOverride: effectiveChar.hp + p.maxHpModifier,
         oscarXpOverride: drunkChar == null && effectiveChar.id == 'oscar' ? p.oscarXp : null,
         maximeTargetName: (isMe && effectiveChar.id == 'maxime')
           ? (maximeTarget?.name ?? ui('nobody_yet')) : null,
+        angeProtectedName: (isMe && effectiveChar.id == 'ange')
+          ? (angeProtected?.name ?? ui('nobody_yet')) : null,
         megFormOverride: drunkChar == null && effectiveChar.abilityEffect == 'meg_shapeshift' ? p.megForm : null,
         mathieuAttackCount: drunkChar == null && (p.copiedEffect ?? effectiveChar.abilityEffect) == 'third_attack_bonus' ? p.attackCount : null,
         copiedAbilityText: (drunkChar == null && p.copiedEffect != null)
@@ -2320,6 +2470,7 @@ class _MiniBoard extends StatelessWidget {
                     }
                 },
                 disappearedZoneIndex: s.disappearedZoneIndex,
+                burningZoneIndex: s.burningZoneIndex,
               ),
               // Flammes Art'Cade sur la tuile Chapelle Sacrée
               if (s.abilityOverlay == 'artcade_flames')
@@ -3160,7 +3311,32 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
   }
 
   // ── Liste de cibles INLINE (correction freeze terrain9) ──
+  /// Enveloppe _buildInlineTargetListInner() pour ajouter un TITRE explicite
+  /// rappelant ce qui est en train d'être choisi — sans ça, un joueur face
+  /// à un choix en plusieurs étapes (Masochiste, Odin, Gourmand...) ne sait
+  /// pas s'il choisit la première ou la seconde chose.
   List<Widget> _buildInlineTargetList(BuildContext ctx) {
+    final context = _targetContext ?? s.pendingTargetAction ?? '';
+    final title = switch (context) {
+      'ability_default_masochiste_force_attack' => "⛓️ Choix de l'attaquant",
+      'masochiste_pick_victim' => '⛓️ Choix de celui qui subit l\'attaque',
+      'ability_default_odin_swap_wounds' => '🐦‍⬛ Choisissez le premier joueur',
+      'odin_pick_second' => '🐦‍⬛ Choisissez le second joueur',
+      'gourmand_choose_target' => '🍗 Choisissez la cible de la nourriture',
+      _ => null,
+    };
+    final inner = _buildInlineTargetListInner(ctx);
+    if (title == null) return inner;
+    return [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(title, style: cinzel(13, c: kGold2, fw: FontWeight.w900), textAlign: TextAlign.center),
+      ),
+      ...inner,
+    ];
+  }
+
+  List<Widget> _buildInlineTargetListInner(BuildContext ctx) {
     final me = s.current;
     final context = _targetContext ?? s.pendingTargetAction ?? '';
     // Chameleon (zone 4-5) : affiche les 5 AUTRES pouvoirs à choisir,
@@ -3271,6 +3447,37 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
         );
       }).toList();
     }
+    // Escanor : même schéma que Nautilus — la zone déjà en feu est exclue.
+    if (context == 'escanor_choose_zone') {
+      return List.generate(6, (i) => i)
+          .where((i) => i != s.burningZoneIndex)
+          .map((i) {
+        final t = s.terrainLayout[i];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: BHButton(label: '${t.icon} ${tr(t.name)}', onTap: () => ctrl.humanChooseEscanorZone(i)),
+        );
+      }).toList();
+    }
+    // Gourmand : choix du TYPE de nourriture à aller chercher — les types
+    // déjà mangés sont marqués (mais restent sélectionnables, l'effet
+    // reste utile même une fois mangé).
+    if (context == 'gourmand_choose_food') {
+      const gFoodLabels = {
+        'vampirisation': '🦇 Chauve-souris Vampire',
+        'veuve_noire': '🕷 Araignée Sanguinaire',
+        'low_hp_reveal_heal': '🍫 Barre de Chocolat',
+        'heal_self_4': '🍗 Bucket de Poulet',
+      };
+      return gFoodLabels.entries.map((entry) {
+        final eaten = me.foodItemsEaten.contains(entry.key);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: BHButton(label: eaten ? '${entry.value} ✅' : entry.value,
+              onTap: () => ctrl.humanChooseGourmandFood(entry.key)),
+        );
+      }).toList();
+    }
     bool needsEquip = context.contains('steal') || context == 'oscar_water_target';
 
     var targets = s.players.where((p) => p.alive && p.uid != me.uid).toList();
@@ -3314,6 +3521,12 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
     // Odin : peut se cibler LUI-MÊME pour l'un ou l'autre des 2 joueurs
     // (contrairement au filtrage standard qui exclut toujours soi-même).
     if (context == 'ability_default_odin_swap_wounds' || context == 'odin_pick_second') {
+      targets = s.players.where((p) => p.alive).toList();
+    }
+    // Masochiste : peut se cibler lui-même pour l'un OU l'autre des 2
+    // choix (forcer quelqu'un à L'attaquer, ou se forcer lui-même à
+    // attaquer quelqu'un — les deux ont un sens stratégique).
+    if (context == 'ability_default_masochiste_force_attack' || context == 'masochiste_pick_victim') {
       targets = s.players.where((p) => p.alive).toList();
     }
 
@@ -3609,14 +3822,14 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       ctrl.jeanneChooseTarget(target.uid);
     } else if (context == 'ability_tristan') {
       ctrl.humanTristanChooseTarget(target.uid);
-    } else if (context == 'chameleon_reveal_target' || context == 'alchimiste_potion_target' || context == 'conan_target' || context == 'odin_pick_second') {
+    } else if (context == 'chameleon_reveal_target' || context == 'alchimiste_potion_target' || context == 'conan_target' || context == 'odin_pick_second' || context == 'masochiste_pick_victim' || context == 'gourmand_choose_target') {
       // Chameleon (révélation forcée choisie via le menu zone 4-5),
-      // Alchimiste (cible de la potion choisie) et Conan (cible du choix
-      // machiavélique, une fois les 2 options sélectionnées) — ces
-      // contextes ne commencent PAS par 'ability_' et ne correspondaient
-      // à AUCUN cas ci-dessus, tombant à tort dans humanApplyCard() qui
-      // ne faisait rien (aucune carte en attente). La résolution réelle
-      // est dans humanChooseTarget(), pas ici.
+      // Alchimiste (cible de la potion choisie), Conan (cible du choix
+      // machiavélique), Odin, Masochiste et Gourmand — ces contextes ne
+      // commencent PAS par 'ability_' et ne correspondaient à AUCUN cas
+      // ci-dessus, tombant à tort dans humanApplyCard() qui ne faisait
+      // rien (aucune carte en attente). La résolution réelle est dans
+      // humanChooseTarget(), pas ici.
       ctrl.humanChooseTarget(target.uid);
     } else if (context.startsWith('ability_')) {
       // Pour les abilities, pendingTargetAction est encore valide
@@ -3941,6 +4154,7 @@ class _SoloActionPanelState extends State<_SoloActionPanel> {
       'lock_ability_while_alive', 'maxence_drunk', 'rudolf_freeze', 'taureador_provoke',
       'artisan_copy_equip', 'pere_noel_gift', 'sorciere_pigeon', 'chameleon_terrain_power',
       'alchimiste_potion', 'pigeon_peck', 'nautilus_vanish', 'conan_choice', 'raph_shadow_rampage', 'odin_swap_wounds',
+      'emma_teleport_to', 'louis_burst_damage', 'escanor_burn_zone', 'masochiste_force_attack', 'gourmand_fetch_food',
     };
     if (selfManaged.contains(eff)) {
       ctrl.humanUseAbility();
@@ -4107,6 +4321,92 @@ void showVictorCharmPanel(BuildContext ctx, Player victor, List<Player> allPlaye
                   child: Text('💘 Charmé — ne peut plus t\'attaquer',
                     style: body(10, c: Colors.pinkAccent)),
                 ),
+              ]),
+            );
+          }).toList(),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dctx),
+          child: Text(ui('btn_close2'), style: cinzel(12, c: kTextSub))),
+      ],
+    ),
+  );
+}
+
+// ─── Masochiste : panneau des attaquants distincts ────────────────────────
+/// Liste des joueurs ayant déjà blessé Masochiste par attaque (condition de
+/// victoire : 3 différents), avec le JETON (avatar) de chacun affiché —
+/// même schéma que le panneau de charme de Victor ci-dessus.
+void showMasochisteAttackersPanel(BuildContext ctx, Player masochiste, List<Player> allPlayers) {
+  showDialog(
+    context: ctx,
+    builder: (dctx) => AlertDialog(
+      backgroundColor: kBg2,
+      title: Text('⛓️ Attaquants — ${masochiste.masochisteAttackers.length}/3', style: cinzel(15, c: kRed)),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: masochiste.masochisteAttackers.isEmpty
+          ? Text(tr("Personne ne t'a encore blessé par attaque."), style: body(13, c: kTextSub))
+          : Column(mainAxisSize: MainAxisSize.min,
+              children: masochiste.masochisteAttackers.map((uid) {
+                final atk = allPlayers.where((p) => p.uid == uid).firstOrNull;
+                final tok = atk != null ? findToken(atk.token) : null;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(children: [
+                    Container(
+                      width: 32, height: 32,
+                      decoration: const BoxDecoration(shape: BoxShape.circle),
+                      child: ClipOval(
+                        child: tok?.imagePath != null
+                          ? Image.asset(tok!.imagePath, fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(color: kBg3,
+                                child: Center(child: Text(tok.fallbackEmoji, style: const TextStyle(fontSize: 16)))))
+                          : Container(color: kBg3, child: const Center(child: Text('?'))),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(atk != null ? (atk.alive ? atk.name : '${atk.name} 💀') : '?',
+                      style: body(13, c: kText))),
+                  ]),
+                );
+              }).toList(),
+            ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dctx),
+          child: Text(ui('btn_close2'), style: cinzel(12, c: kTextSub))),
+      ],
+    ),
+  );
+}
+
+// ─── Gourmand : panneau des nourritures mangées ───────────────────────────
+/// Liste des 4 items de nourriture, avec indicateur ✅ pour ceux déjà
+/// mangés au moins une fois (condition de victoire : les 4).
+void showGourmandFoodPanel(BuildContext ctx, Player gourmand) {
+  const gFoodLabelsPanel = {
+    'vampirisation': '🦇 Chauve-souris Vampire',
+    'veuve_noire': '🕷 Araignée Sanguinaire',
+    'low_hp_reveal_heal': '🍫 Barre de Chocolat',
+    'heal_self_4': '🍗 Bucket de Poulet',
+  };
+  showDialog(
+    context: ctx,
+    builder: (dctx) => AlertDialog(
+      backgroundColor: kBg2,
+      title: Text('🍗 Nourritures — ${gourmand.foodItemsEaten.length}/4', style: cinzel(15, c: Colors.orangeAccent)),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(mainAxisSize: MainAxisSize.min,
+          children: gFoodLabelsPanel.entries.map((entry) {
+            final eaten = gourmand.foodItemsEaten.contains(entry.key);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                Expanded(child: Text(entry.value, style: body(13, c: eaten ? kText : kTextSub))),
+                Text(eaten ? '✅' : '❌', style: const TextStyle(fontSize: 16)),
               ]),
             );
           }).toList(),

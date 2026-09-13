@@ -543,6 +543,28 @@ class FirebaseService {
     }).distinct((a, b) => a.length == b.length && (a.isEmpty || a.last == b.last));
   }
 
+  /// Émotes : un joueur envoie un emote (libre ou personnalisé acheté en
+  /// boutique) — visible par tous, affiché au-dessus de son jeton. Un
+  /// horodatage accompagne chaque emote pour que les clients sachent
+  /// quand le faire disparaître (l'affichage/minuterie est géré
+  /// entièrement côté client, ceci ne fait que diffuser l'événement).
+  Future<void> sendEmote(String roomId, String uid, String emoteId) async {
+    await _put('rooms/$roomId/emotes/$uid',
+        {'emoteId': emoteId, 'ts': DateTime.now().millisecondsSinceEpoch});
+  }
+
+  /// uid -> {emoteId, ts} pour tous les joueurs ayant envoyé un emote
+  /// récemment (les entrées trop anciennes ne sont PAS supprimées côté
+  /// serveur — chaque client filtre lui-même selon l'horodatage, pour
+  /// éviter une écriture supplémentaire à chaque expiration).
+  Stream<Map<String, dynamic>> watchEmotes(String roomId) {
+    return _pollRoom(roomId).map((room) {
+      final data = room?['emotes'];
+      if (data == null) return <String, dynamic>{};
+      return Map<String, dynamic>.from(data as Map);
+    });
+  }
+
   /// Met à jour la phase ET le joueur courant / actions en attente
   Future<void> setPhase(String roomId, GamePhase phase, {
     String? currentPlayerId,
@@ -599,6 +621,10 @@ class FirebaseService {
     int? jeanneRewardBannerTimestamp,
     int? publicRevealTimestamp,
     int? disappearedZoneIndex,
+    String? disappearedActivatorUid,
+    int? burningZoneIndex,
+    int? burningTurnsRemaining,
+    String? burningActivatorUid,
     int? disappearedTurnsRemaining,
     int? chameleonDrawsRemaining,
     String? chameleonDeck,
@@ -608,6 +634,9 @@ class FirebaseService {
     String? conanOpt1,
     String? conanOpt2,
     String? odinT1Uid,
+    String? masochisteT1Uid,
+    String? gourmandFoodType,
+    int? globalTurnCount,
     bool clearOverlay = false,
     bool clearPending = false,
     bool clearPunish = false,
@@ -714,6 +743,10 @@ class FirebaseService {
       updates['disappearedZoneIndex'] = disappearedZoneIndex == -1 ? null : disappearedZoneIndex;
     }
     if (disappearedTurnsRemaining != null) updates['disappearedTurnsRemaining'] = disappearedTurnsRemaining;
+    if (disappearedActivatorUid != null) updates['disappearedActivatorUid'] = disappearedActivatorUid == '__clear__' ? null : disappearedActivatorUid;
+    if (burningZoneIndex != null) updates['burningZoneIndex'] = burningZoneIndex == -1 ? null : burningZoneIndex;
+    if (burningTurnsRemaining != null) updates['burningTurnsRemaining'] = burningTurnsRemaining;
+    if (burningActivatorUid != null) updates['burningActivatorUid'] = burningActivatorUid == '__clear__' ? null : burningActivatorUid;
     if (chameleonDrawsRemaining != null) updates['chameleonDrawsRemaining'] = chameleonDrawsRemaining;
     if (chameleonDeck != null) updates['chameleonDeck'] = chameleonDeck == '__clear__' ? null : chameleonDeck;
     if (conanOffered != null) updates['conanOffered'] = conanOffered;
@@ -722,6 +755,9 @@ class FirebaseService {
     if (conanOpt1 != null) updates['conanOpt1'] = conanOpt1 == '__clear__' ? null : conanOpt1;
     if (conanOpt2 != null) updates['conanOpt2'] = conanOpt2 == '__clear__' ? null : conanOpt2;
     if (odinT1Uid != null) updates['odinT1Uid'] = odinT1Uid == '__clear__' ? null : odinT1Uid;
+    if (masochisteT1Uid != null) updates['masochisteT1Uid'] = masochisteT1Uid == '__clear__' ? null : masochisteT1Uid;
+    if (gourmandFoodType != null) updates['gourmandFoodType'] = gourmandFoodType == '__clear__' ? null : gourmandFoodType;
+    if (globalTurnCount != null) updates['globalTurnCount'] = globalTurnCount;
     await _patch('rooms/$roomId/gameState', updates);
   }
 

@@ -81,8 +81,9 @@ class GameProvider extends ChangeNotifier {
   int roleConfirms = 0;
   List<String> log = [];
   List<String> privateLog = []; // logs visibles seulement par ce joueur
+  Map<String, dynamic> emotes = {}; // uid -> {emoteId, ts} — dernier emote envoyé par chaque joueur
 
-  StreamSubscription? _gsSub, _pSub, _stSub, _rSub, _rcSub, _logSub, _privLogSub, _hostSub;
+  StreamSubscription? _gsSub, _pSub, _stSub, _rSub, _rcSub, _logSub, _privLogSub, _hostSub, _emotesSub;
 
   // ─── Getters ────────────────────────────
   Player? get me => myUid != null ? players[myUid] : null;
@@ -209,8 +210,8 @@ class GameProvider extends ChangeNotifier {
     if (roomId == null || myUid == null) return;
     await _fb.convertPlayerToBot(roomId!, myUid!);
     Prefs.clearRoom();
-    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel();
-    _pSub = _gsSub = _stSub = _rSub = _rcSub = _logSub = _privLogSub = _hostSub = null;
+    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel(); _emotesSub?.cancel();
+    _pSub = _gsSub = _stSub = _rSub = _rcSub = _logSub = _privLogSub = _hostSub = _emotesSub = null;
     _fb.stopPollingRoom(roomId!);
     roomId = null; myUid = null; hostId = null;
     gameState = null; players = {};
@@ -258,7 +259,7 @@ class GameProvider extends ChangeNotifier {
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors','luc_ignite','baptiste_revive',
     'lock_ability_while_alive','steal_max_hp','maxence_drunk',
     'store_damage_nils','d4_bonus_attack','rudolf_freeze','taureador_provoke','artisan_copy_equip','pere_noel_gift','sorciere_pigeon','chameleon_terrain_power','alchimiste_potion','pigeon_peck',
-    'nautilus_vanish','conan_choice','raph_shadow_rampage','odin_swap_wounds','emma_teleport_to','louis_burst_damage',
+    'nautilus_vanish','conan_choice','raph_shadow_rampage','odin_swap_wounds','emma_teleport_to','louis_burst_damage','escanor_burn_zone','masochiste_force_attack',
   ].contains(eff);
 
   bool _cardNeedsTarget(String eff) => [
@@ -516,6 +517,7 @@ class GameProvider extends ChangeNotifier {
       final needsTarget = _abilityNeedsTarget(eff);
       Player? target;
       Player? odinTarget2; // Odin : second joueur prévu (calculé avec le premier)
+      String? gourmandFoodChoice; // Gourmand : type de nourriture prévu
       if (eff == 'copy_ability') {
         // Tommy (bot) : choisit un joueur révélé au pouvoir copiable, au hasard
         // — bestTarget() générique ne convient pas ici (pas de notion de
@@ -548,6 +550,35 @@ class GameProvider extends ChangeNotifier {
           final pool = all.where((p) => p.alive).toList()..shuffle(Random());
           if (pool.length >= 2) { target = pool[0]; odinTarget2 = pool[1]; }
         }
+      } else if (eff == 'masochiste_force_attack') {
+        // Masochiste (bot) : même stratégie mixte que côté solo — une
+        // chance sur deux de forcer un joueur (qui ne l'a pas encore
+        // blessé) à L'attaquer lui-même, sinon force 2 AUTRES joueurs au
+        // hasard à s'affronter.
+        final others = all.where((p) => p.alive && p.uid != bot!.uid).toList();
+        if (others.isNotEmpty) {
+          final freshAttackers = others.where((p) => !bot!.masochisteAttackers.contains(p.uid)).toList();
+          if (freshAttackers.isNotEmpty && Random().nextBool()) {
+            target = freshAttackers[Random().nextInt(freshAttackers.length)];
+            odinTarget2 = bot;
+          } else if (others.length >= 2) {
+            final pool = List<Player>.from(others)..shuffle(Random());
+            target = pool[0];
+            odinTarget2 = pool[1];
+          }
+        }
+      } else if (eff == 'gourmand_fetch_food') {
+        // Gourmand (bot) : même stratégie que côté solo — priorise un
+        // type pas encore mangé.
+        const gAllTypesM = ['vampirisation', 'veuve_noire', 'low_hp_reveal_heal', 'heal_self_4'];
+        final gUnEatenM = gAllTypesM.where((f) => !bot!.foodItemsEaten.contains(f)).toList();
+        gourmandFoodChoice = gUnEatenM.isNotEmpty
+            ? gUnEatenM[Random().nextInt(gUnEatenM.length)]
+            : gAllTypesM[Random().nextInt(gAllTypesM.length)];
+        if (gourmandFoodChoice == 'vampirisation' || gourmandFoodChoice == 'veuve_noire') {
+          final others = all.where((p) => p.alive && p.uid != bot!.uid).toList();
+          if (others.isNotEmpty) target = others[Random().nextInt(others.length)];
+        }
       } else if (needsTarget) target = _ai.bestTarget(bot, all, _botDifficulty, context: eff);
       // Christine (bot) : tire une zone adjacente au hasard elle-même, puisque
       // le moteur exige désormais un choix explicite (humain OU bot).
@@ -555,6 +586,9 @@ class GameProvider extends ChangeNotifier {
       if (eff == 'move_adjacent_choice') {
         final adjZones = kAdjacences[bot.zoneIndex];
         extraParam = adjZones[Random().nextInt(adjZones.length)].toString();
+      }
+      if (eff == 'gourmand_fetch_food' && gourmandFoodChoice != null) {
+        extraParam = 'gourmand_food:$gourmandFoodChoice';
       }
       if (eff == 'hailey_copy_hunter') {
         // Hailey (bot) : tire 3 Hunters non joués et en copie un au hasard —
@@ -690,6 +724,12 @@ class GameProvider extends ChangeNotifier {
           final t1uid = abLog.substring('odin_pick_second:'.length);
           abLog = _eg.applyAbility(bot, all, layout, target: odinTarget2, extra: 'odin_t1:$t1uid');
         }
+        if (abLog.startsWith('masochiste_pick_victim:') && odinTarget2 != null) {
+          // Masochiste (bot) : finalise l'attaque forcée avec la victime
+          // déjà calculée stratégiquement plus haut.
+          final t1uidM = abLog.substring('masochiste_pick_victim:'.length);
+          abLog = _eg.applyAbility(bot, all, layout, target: odinTarget2, extra: 'masochiste_t1:$t1uidM');
+        }
         if (abLog == 'louis_on_cooldown') {
           // Louis (bot) : capacité en recharge — filet de sécurité, ne
           // fait rien (le bot passe simplement au déplacement).
@@ -723,8 +763,42 @@ class GameProvider extends ChangeNotifier {
             abLog = sep >= 0 ? rest.substring(sep + 1) : '';
             await _commitAll(all, abLog);
             await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
-                disappearedZoneIndex: zoneIdx ?? -1, disappearedTurnsRemaining: 2);
+                disappearedZoneIndex: zoneIdx ?? -1, disappearedTurnsRemaining: 3,
+                disappearedActivatorUid: safeBot.uid);
             abLog = ''; // déjà commité ci-dessus, évite un double log plus bas
+          }
+        }
+        if (abLog == 'escanor_choose_zone') {
+          // Escanor (bot) : même logique que Nautilus.
+          final safeBotE = bot;
+          final zoneCountsE = <int, int>{};
+          for (final p in all) {
+            if (!p.alive || p.uid == safeBotE.uid || !p.revealed || p.character == null) continue;
+            final botFactionE = safeBotE.character!.faction;
+            final isEnemyE = (botFactionE == Faction.hunter && p.character!.faction == Faction.shadow) ||
+                (botFactionE == Faction.shadow && p.character!.faction == Faction.hunter);
+            if (isEnemyE) {
+              zoneCountsE[p.zoneIndex] = (zoneCountsE[p.zoneIndex] ?? 0) + 1;
+            }
+          }
+          int chosenZoneE;
+          if (zoneCountsE.isNotEmpty) {
+            chosenZoneE = zoneCountsE.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+          } else {
+            final optionsE = List.generate(6, (i) => i)..remove(safeBotE.zoneIndex);
+            chosenZoneE = optionsE[Random().nextInt(optionsE.length)];
+          }
+          abLog = _eg.applyAbility(safeBotE, all, layout, extra: '$chosenZoneE');
+          if (abLog.startsWith('escanor_burning:')) {
+            final rest = abLog.substring('escanor_burning:'.length);
+            final sep = rest.indexOf('|');
+            final zoneIdxE = sep >= 0 ? int.tryParse(rest.substring(0, sep)) : null;
+            abLog = sep >= 0 ? rest.substring(sep + 1) : '';
+            await _commitAll(all, abLog);
+            await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.attack,
+                burningZoneIndex: zoneIdxE ?? -1, burningTurnsRemaining: 3,
+                burningActivatorUid: safeBotE.uid);
+            abLog = '';
           }
         }
         if (abLog == 'draw_dark' || abLog == 'draw_light') {
@@ -1027,7 +1101,13 @@ class GameProvider extends ChangeNotifier {
         final dmg = roll2['damage']!;
         if (bot.revealed) bot.attackCount++;
         _ai.recordAttack(bot, tgt);
-        final attackRes = _eg.resolveAttack(bot, tgt, dmg, all: all);
+        final woundsBeforeBotM = tgt.wounds;
+        final attackRes = _eg.resolveAttack(bot, tgt, dmg, all: all,
+            chaosMode: (gameState?.globalTurnCount ?? 0) >= 10);
+        if (tgt.character?.winEffect == 'masochiste_win' && tgt.wounds > woundsBeforeBotM &&
+            !tgt.masochisteAttackers.contains(bot.uid)) {
+          tgt.masochisteAttackers.add(bot.uid);
+        }
         _eg.applyDeathPassives(all);
         // Gège le Fantôme : attaque automatiquement en plus dès qu'un
         // Hunter révélé attaque — ce mécanisme manquait ENTIÈREMENT ici,
@@ -1147,6 +1227,16 @@ class GameProvider extends ChangeNotifier {
         return; // bot mort — ne pas continuer avec sa référence périmée (dead: true) plus bas
       }
     }
+    // Escanor : même mécanique que côté humain.
+    if (bot.zoneIndex == gameState?.burningZoneIndex && (gameState?.burningTurnsRemaining ?? 0) > 0) {
+      final all = _mutableAll();
+      final b = all.firstWhere((x) => x.uid == botUid);
+      if (b.lucFireTurnsRemaining <= 0) {
+        b.lucFireTurnsRemaining = 1;
+        b.lucFireSourceUid = gameState?.burningActivatorUid;
+        await _commitAll(all, logT("☀️ {name} prend feu en s'aventurant sur le terrain embrasé !", {'name': b.name}));
+      }
+    }
     final t = gameState!.terrainLayout[bot.zoneIndex];
     switch (t.effect) {
       case 'vision':   await _botDrawAndResolveCard(botUid, DeckType.vision); break;
@@ -1237,7 +1327,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   void _subscribe() {
-    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel();
+    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel(); _emotesSub?.cancel();
     _pSub  = _fb.watchPlayers(roomId!).listen((d) {
       // Détecte une expulsion : si mon propre uid a disparu de la liste des
       // joueurs (alors que la salle contient déjà des données, pour éviter
@@ -1254,7 +1344,14 @@ class GameProvider extends ChangeNotifier {
       _syncMySkinIfNeeded();
       _syncMyShineWinsIfNeeded();
     });
-    _gsSub = _fb.watchGameState(roomId!).listen((d) { gameState = d; _maybeForceTurn(); _maybeDriveBot(); _maybeResolvePunishForBot(); notifyListeners(); });
+    _gsSub = _fb.watchGameState(roomId!).listen((d) { gameState = d;
+      // Mode Chaos : synchronise le champ du moteur à CHAQUE mise à jour
+      // de l'état (pas seulement quand CE client termine son propre
+      // tour) — indispensable en multijoueur, où chaque client a sa
+      // propre instance du moteur, jamais mise à jour par les tours des
+      // AUTRES joueurs sans ce point central.
+      _eg.chaosModeActive = (d?.globalTurnCount ?? 0) >= 10;
+      _maybeForceTurn(); _maybeDriveBot(); _maybeResolvePunishForBot(); notifyListeners(); });
     _stSub = _fb.watchStatus(roomId!).listen((d) {
       final wasPlaying = roomStatus == 'playing';
       roomStatus = d;
@@ -1267,6 +1364,7 @@ class GameProvider extends ChangeNotifier {
     _rSub  = _fb.watchResult(roomId!).listen((d) { gameResult = d; _recordMultiResult(d); notifyListeners(); });
     _rcSub = _fb.watchRoleConfirms(roomId!).listen((d) { roleConfirms = d; notifyListeners(); });
     _logSub = _fb.watchLog(roomId!).listen((d) { log = d; notifyListeners(); });
+    _emotesSub = _fb.watchEmotes(roomId!).listen((d) { emotes = d; notifyListeners(); });
     // Suivi en continu de l'hôte — si l'hôte quitte la salle, ce champ
     // change côté Firebase (transfert automatique) ; sans cette écoute, les
     // autres clients gardaient un hostId périmé et personne ne pouvait plus
@@ -1279,7 +1377,7 @@ class GameProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel();
+    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel(); _emotesSub?.cancel();
     super.dispose();
   }
 
@@ -1289,8 +1387,8 @@ class GameProvider extends ChangeNotifier {
   Future<void> leaveRoomAndReset({bool alreadyRemoved = false}) async {
     Prefs.clearRoom();
     _resultRecorded = false;
-    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel();
-    _pSub = _gsSub = _stSub = _rSub = _rcSub = _logSub = _privLogSub = _hostSub = null;
+    _pSub?.cancel(); _gsSub?.cancel(); _stSub?.cancel(); _rSub?.cancel(); _rcSub?.cancel(); _logSub?.cancel(); _privLogSub?.cancel(); _hostSub?.cancel(); _emotesSub?.cancel();
+    _pSub = _gsSub = _stSub = _rSub = _rcSub = _logSub = _privLogSub = _hostSub = _emotesSub = null;
     if (roomId != null) {
       // Si on a déjà été retiré de la salle (expulsion détectée par le
       // listener), pas besoin de retenter une suppression du même nœud —
@@ -1357,13 +1455,32 @@ class GameProvider extends ChangeNotifier {
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, haileyOffered: const [], abilityOverlay: 'hailey_copy');
   }
 
+  /// Envoie un emote (gratuit ou personnalisé acheté en boutique) —
+  /// n'importe quel joueur peut réagir à tout moment, indépendamment de
+  /// la phase/du tour en cours (pas une action de jeu, juste une
+  /// réaction sociale).
+  Future<void> sendEmote(String emoteId) async {
+    if (roomId == null || myUid == null) return;
+    await _fb.sendEmote(roomId!, myUid!, emoteId);
+  }
+
   Future<void> revealSelf() async {
-    final p = _mutableMe();
+    final all = _mutableAll();
+    final p = all.firstWhere((x) => x.uid == myUid);
     p.revealed = true;
+    // Ange : choisit aléatoirement un AUTRE joueur ALIVE dont la survie
+    // deviendra sa condition de victoire.
+    if (p.character?.abilityEffect == 'ange_sacrifice_heal' && p.angeProtectedUid == null) {
+      final others = all.where((x) => x.uid != p.uid && x.alive).toList();
+      if (others.isNotEmpty) {
+        final chosen = others[Random().nextInt(others.length)];
+        p.angeProtectedUid = chosen.uid;
+      }
+    }
     final isClemence = p.character?.abilityEffect == 'builder_power';
     final isJeanne = p.character?.abilityEffect == 'prophete_mark';
     final offered = isClemence ? _eg.builderDraw3() : <String>[];
-    await _commitPlayer(p, logT('🃏 {name} révèle : {char}', {'name': p.name, 'char': p.character!.name}));
+    await _commitAll(all, logT('🃏 {name} révèle : {char}', {'name': p.name, 'char': p.character!.name}));
     final revealTs = DateTime.now().millisecondsSinceEpoch;
     // Diffuse la réplique de révélation (visible/audible de tous) — combiné
     // avec la transition de phase suivante dans UNE SEULE écriture Firebase
@@ -1638,6 +1755,8 @@ class GameProvider extends ChangeNotifier {
     'alchimiste_potion': 'alchimiste_potion',
     'pigeon_peck': 'pigeon_peck',
     'nautilus_vanish': 'nautilus_vanish',
+    'escanor_burn_zone': 'escanor_burn_zone',
+    'masochiste_force_attack': 'masochiste_force_attack',
     'pere_noel_gift': 'pere_noel_gift',
     'maxence_drunk': 'maxence_drunk',
     'damage3_give_dague': 'marin_dagger',
@@ -1974,6 +2093,16 @@ class GameProvider extends ChangeNotifier {
           pendingTargetAction: 'nautilus_choose_zone');
       return;
     }
+    if (log == 'escanor_choose_zone') {
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+          pendingTargetAction: 'escanor_choose_zone');
+      return;
+    }
+    if (log == 'gourmand_choose_food') {
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+          pendingTargetAction: 'gourmand_choose_food');
+      return;
+    }
     if (log.startsWith('raph_rampage_started:')) {
       final rTargetUid = log.substring('raph_rampage_started:'.length);
       await _raphResolveOnceMulti(actor.uid, rTargetUid);
@@ -1983,6 +2112,12 @@ class GameProvider extends ChangeNotifier {
       final t1uid = log.substring('odin_pick_second:'.length);
       await _fb.setPhase(roomId!, GamePhase.chooseTarget,
           pendingTargetAction: 'odin_pick_second', odinT1Uid: t1uid);
+      return;
+    }
+    if (log.startsWith('masochiste_pick_victim:')) {
+      final t1uidM = log.substring('masochiste_pick_victim:'.length);
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+          pendingTargetAction: 'masochiste_pick_victim', masochisteT1Uid: t1uidM);
       return;
     }
     if (log == 'louis_on_cooldown') {
@@ -1999,7 +2134,20 @@ class GameProvider extends ChangeNotifier {
       final realLog = sep >= 0 ? rest.substring(sep + 1) : '';
       await _commitAll(all, realLog);
       await _fb.setPhase(roomId!, GamePhase.move,
-          disappearedZoneIndex: zoneIdx ?? -1, disappearedTurnsRemaining: 2, clearPending: true);
+          disappearedZoneIndex: zoneIdx ?? -1, disappearedTurnsRemaining: 3,
+          disappearedActivatorUid: actor.uid, clearPending: true);
+      return;
+    }
+    if (log.startsWith('escanor_burning:')) {
+      // Même schéma que Nautilus ci-dessus.
+      final rest = log.substring('escanor_burning:'.length);
+      final sep = rest.indexOf('|');
+      final zoneIdxE = sep >= 0 ? int.tryParse(rest.substring(0, sep)) : null;
+      final realLogE = sep >= 0 ? rest.substring(sep + 1) : '';
+      await _commitAll(all, realLogE);
+      await _fb.setPhase(roomId!, GamePhase.move,
+          burningZoneIndex: zoneIdxE ?? -1, burningTurnsRemaining: 3,
+          burningActivatorUid: actor.uid, clearPending: true);
       return;
     }
     if (log == 'chameleon_draw_light' || log == 'chameleon_draw_dark') {
@@ -2348,6 +2496,72 @@ class GameProvider extends ChangeNotifier {
     await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, odinT1Uid: '__clear__');
   }
 
+  /// Masochiste : victime choisie — finalise l'attaque forcée (le suivi
+  /// des attaquants distincts pour sa condition de victoire est déjà géré
+  /// à l'intérieur du cas 'masochiste_force_attack' d'applyAbility()).
+  /// Gourmand : type de nourriture choisi — résout directement si ce type
+  /// ne nécessite pas de cible (Chocolat/Bucket), sinon ouvre le
+  /// sélecteur de joueur en mémorisant le type choisi.
+  Future<void> gourmandChooseFood(String foodType) async {
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout,
+        extra: 'gourmand_food:$foodType');
+    if (log.startsWith('gourmand_choose_target:')) {
+      await _fb.setPhase(roomId!, GamePhase.chooseTarget,
+          pendingTargetAction: 'gourmand_choose_target', gourmandFoodType: foodType);
+      return;
+    }
+    actor.abilityUsed = true;
+    _eg.applyDeathPassives(all);
+    await _commitAll(all, log);
+    if (!actor.alive && await _checkWin(all, justDiedId: actor.uid)) return;
+    if (await _checkWin(all)) return;
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true);
+  }
+
+  /// Gourmand : cible choisie (pour Araignée/Chauve-souris) — résout
+  /// directement via resolveCard() (dans le cas 'gourmand_fetch_food'
+  /// d'applyAbility()).
+  Future<void> gourmandChooseTarget(Player target) async {
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final foodType = gameState?.gourmandFoodType;
+    if (foodType == null) return;
+    final t2 = all.firstWhere((p) => p.uid == target.uid);
+    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout,
+        target: t2, extra: 'gourmand_food:$foodType');
+    if (log == 'cible_requise') return;
+    actor.abilityUsed = true;
+    _eg.applyDeathPassives(all);
+    await _commitAll(all, log);
+    if (!actor.alive && await _checkWin(all, justDiedId: actor.uid)) return;
+    if (!t2.alive && await _checkWin(all, justDiedId: t2.uid)) return;
+    if (await _checkWin(all)) return;
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, gourmandFoodType: '__clear__');
+  }
+
+  Future<void> masochisteChooseVictim(Player target) async {
+    final all = _mutableAll();
+    final actor = all.firstWhere((p) => p.uid == myUid);
+    final t1uid = gameState?.masochisteT1Uid;
+    if (t1uid == null) return;
+    final t2 = all.firstWhere((p) => p.uid == target.uid);
+    final log = _eg.applyAbility(actor, all, gameState!.terrainLayout,
+        target: t2, extra: 'masochiste_t1:$t1uid');
+    if (log == 'cible_requise') return;
+    actor.abilityUsed = true;
+    _eg.applyDeathPassives(all);
+    await _commitAll(all, log);
+    final t1now = all.firstWhere((p) => p.uid == t1uid, orElse: () => actor);
+    if (!t1now.alive && await _checkWin(all, justDiedId: t1now.uid)) return;
+    if (!t2.alive && await _checkWin(all, justDiedId: t2.uid)) return;
+    // Vérifie aussi la condition de victoire de Masochiste sans mort
+    // associée (elle peut se déclencher sans qu'aucun joueur ne meure).
+    if (await _checkWin(all)) return;
+    await _fb.setPhase(roomId!, GamePhase.move, clearPending: true, masochisteT1Uid: '__clear__');
+  }
+
   /// Voiture de Clem (capacité) ou Portail du Nether (équipement) : échange
   /// de position avec un autre joueur au lieu de se déplacer normalement.
   Future<void> swapPosition(Player target) async {
@@ -2372,6 +2586,17 @@ class GameProvider extends ChangeNotifier {
       if (!p.alive) {
         await _checkWin(all, justDiedId: p.uid);
         return; // mort — ne pas continuer à appliquer l'effet du terrain
+      }
+    }
+    // Escanor : même mécanique que Nautilus, mais avec la brûlure
+    // croissante de Luc plutôt que des dégâts fixes.
+    if (zIdx == gameState?.burningZoneIndex && (gameState?.burningTurnsRemaining ?? 0) > 0) {
+      final all = _mutableAll();
+      final p = all.firstWhere((x) => x.uid == myUid);
+      if (p.lucFireTurnsRemaining <= 0) {
+        p.lucFireTurnsRemaining = 1;
+        p.lucFireSourceUid = gameState?.burningActivatorUid;
+        await _commitAll(all, logT("☀️ {name} prend feu en s'aventurant sur le terrain embrasé !", {'name': p.name}));
       }
     }
     final t = gameState!.terrainLayout[zIdx];
@@ -2752,12 +2977,22 @@ class GameProvider extends ChangeNotifier {
         } else {
           final actualBaz = _eg.applyDamage(t, bazDmg);
           if (isOscarBaz && actualBaz > 0) attacker.oscarXp += actualBaz;
+          if (t.character?.winEffect == 'masochiste_win' && actualBaz > 0 &&
+              !t.masochisteAttackers.contains(attacker.uid)) {
+            t.masochisteAttackers.add(attacker.uid);
+          }
         }
         if (!t.alive) t.killedByUid = attacker.uid;
       }
       log = logT('💥 {name} (Bazooka) — {n} dégâts à tous !', {'name': attacker.name, 'n': '$bazDmg'});
     } else {
-      final res = _eg.resolveAttack(attacker, target, baseDmg, all: all);
+      final woundsBeforeHumM = target.wounds;
+      final res = _eg.resolveAttack(attacker, target, baseDmg, all: all,
+          chaosMode: (gameState?.globalTurnCount ?? 0) >= 10);
+      if (target.character?.winEffect == 'masochiste_win' && target.wounds > woundsBeforeHumM &&
+          !target.masochisteAttackers.contains(attacker.uid)) {
+        target.masochisteAttackers.add(attacker.uid);
+      }
       log = res['log'] as String;
       if (res['scottCountered'] == true) {
         scottCountered = true;
@@ -2869,6 +3104,12 @@ class GameProvider extends ChangeNotifier {
 
   Future<void> endTurn({String? actingUid}) async {
     final uid = actingUid ?? myUid!;
+    // Mode Chaos : incrémente le compteur global de tours à chaque fin de
+    // tour de joueur (même placement qu'en solo — avant toute logique de
+    // tour bonus, pour un comportement cohérent entre les deux modes).
+    final newTurnCount = (gameState?.globalTurnCount ?? 0) + 1;
+    await _fb.setPhase(roomId!, gameState?.phase ?? GamePhase.move, globalTurnCount: newTurnCount);
+    _eg.chaosModeActive = newTurnCount >= 10;
     // Ninja : tours bonus restants
     final bonusLeft = gameState?.bonusTurnsRemaining ?? 0;
     if (bonusLeft > 0) {
@@ -2922,16 +3163,24 @@ class GameProvider extends ChangeNotifier {
     if (p.louisCooldown > 0) p.louisCooldown--;
     await _fb.updatePlayer(roomId!, p);
     players = Map<String, Player>.from(players)..[p.uid] = p;
-    // Nautilus : la zone disparue est un effet GLOBAL (pas lié à un joueur
-    // précis) — décompte à chaque fin de tour, peu importe qui joue. Écrit
-    // séparément (plutôt que de tenter de le glisser dans l'appel setPhase
-    // final, qui a plusieurs points de sortie anticipés selon les cas de
-    // mort en cascade plus bas).
-    if ((gameState?.disappearedTurnsRemaining ?? 0) > 0) {
+    // Nautilus : "jusqu'à son prochain prochain tour" = 2 tours de table
+    // ENTIERS — le décompte ne se fait donc QUE lorsque c'est le tour de
+    // l'ACTIVATEUR lui-même qui se termine, pas à chaque fin de tour
+    // peu importe qui joue (même logique que côté solo).
+    if ((gameState?.disappearedTurnsRemaining ?? 0) > 0 && p.uid == gameState?.disappearedActivatorUid) {
       final newRemaining = gameState!.disappearedTurnsRemaining - 1;
       await _fb.setPhase(roomId!, gameState!.phase,
           disappearedTurnsRemaining: newRemaining,
-          disappearedZoneIndex: newRemaining <= 0 ? -1 : gameState!.disappearedZoneIndex);
+          disappearedZoneIndex: newRemaining <= 0 ? -1 : gameState!.disappearedZoneIndex,
+          disappearedActivatorUid: newRemaining <= 0 ? '__clear__' : gameState!.disappearedActivatorUid);
+    }
+    // Escanor : même logique de minutage que Nautilus.
+    if ((gameState?.burningTurnsRemaining ?? 0) > 0 && p.uid == gameState?.burningActivatorUid) {
+      final newRemainingE = gameState!.burningTurnsRemaining - 1;
+      await _fb.setPhase(roomId!, gameState!.phase,
+          burningTurnsRemaining: newRemainingE,
+          burningZoneIndex: newRemainingE <= 0 ? -1 : gameState!.burningZoneIndex,
+          burningActivatorUid: newRemainingE <= 0 ? '__clear__' : gameState!.burningActivatorUid);
     }
     await _fb.addLog(roomId!, logT('⏩ {name} termine son tour', {'name': p.name}));
     // Effacer fifiGoldenTurn
@@ -3041,6 +3290,27 @@ class GameProvider extends ChangeNotifier {
         // pioche — au lieu d'être gaspillée.
         if (gs?.jeanneReward == 'equip_tenebres') await drawCard(DeckType.tenebres);
       }
+    }
+    // Masochiste : condition de victoire immédiate (4 attaquants distincts)
+    // — peut se déclencher n'importe quand, pas liée à une mort, donc
+    // vérifiée à chaque appel de _checkWin() (même logique que côté solo).
+    final maybeMasochisteM = all.where((p) =>
+        p.alive && p.character?.winEffect == 'masochiste_win' && p.masochisteAttackers.length >= 3).firstOrNull;
+    if (maybeMasochisteM != null) {
+      final msg = '⛓️ ${maybeMasochisteM.name} a été blessé par 3 joueurs différents — ${maybeMasochisteM.name} GAGNE !';
+      await _fb.setGameOver(roomId!, [maybeMasochisteM.uid], msg);
+      return true;
+    }
+    // Gourmand : a-t-il mangé les 4 items de nourriture au moins une fois
+    // chacun ? Même logique immédiate que Masochiste ci-dessus.
+    const gFoodTypesAllM = {'vampirisation', 'veuve_noire', 'low_hp_reveal_heal', 'heal_self_4'};
+    final maybeGourmandM = all.where((p) =>
+        p.alive && p.character?.winEffect == 'gourmand_win' &&
+        gFoodTypesAllM.every((f) => p.foodItemsEaten.contains(f))).firstOrNull;
+    if (maybeGourmandM != null) {
+      final msg = '🍗 ${maybeGourmandM.name} a mangé toutes les nourritures — ${maybeGourmandM.name} GAGNE !';
+      await _fb.setGameOver(roomId!, [maybeGourmandM.uid], msg);
+      return true;
     }
     final res = _eg.checkWin(all, justDiedId: justDiedId);
     if (res != null) {

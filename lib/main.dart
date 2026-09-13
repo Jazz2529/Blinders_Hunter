@@ -48,6 +48,13 @@ void main() async {
   // depuis le bord de l'écran les fait réapparaître temporairement avant
   // de se cacher à nouveau, comportement standard pour un jeu.
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  // Verrouille l'orientation en mode portrait — évite que l'écran ne
+  // tourne pendant une partie sur téléphone/tablette. Sans effet sur
+  // desktop/web (qui ne pivotent pas de toute façon).
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   runApp(
     ChangeNotifierProvider(
       create: (_) => GameProvider(firebaseEnabled: true)..init(),
@@ -182,7 +189,7 @@ class _RootWrapperState extends State<_RootWrapper> with WidgetsBindingObserver 
           // rebuild du Consumer sans faire redémarrer la piste en boucle.
           audio.playGameMusic();
           if (gp.phase == GamePhase.roleReveal) return RoleRevealScreen();
-          return GameScreen();
+          return _MultiChaosOverlayWrapper(gp: gp, child: GameScreen());
         }
         if (gp.roomId != null) {
           audio.playLobbyMusic();
@@ -219,6 +226,83 @@ class _DisplayBadge extends StatelessWidget {
           Text(ds.resolution.label.split(' ')[0], style: cinzel(9, c: kGold)),
         ]),
       ),
+    );
+  }
+}
+
+/// Mode Chaos (multijoueur) : contour rouge pulsant tout autour de l'écran,
+/// dès que 10 tours de jeu se sont écoulés — même principe que la version
+/// solo (_ChaosOverlayWrapper dans solo_screen.dart), enveloppe GameScreen
+/// SANS toucher à sa structure interne.
+class _MultiChaosOverlayWrapper extends StatefulWidget {
+  final GameProvider gp;
+  final Widget child;
+  const _MultiChaosOverlayWrapper({required this.gp, required this.child});
+  @override State<_MultiChaosOverlayWrapper> createState() => _MultiChaosOverlayWrapperState();
+}
+
+class _MultiChaosOverlayWrapperState extends State<_MultiChaosOverlayWrapper>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseAc = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+  bool _popupShown = false; // détection LOCALE (pas synchronisée) — évite toute
+      // course entre clients si on utilisait un indicateur partagé via Firebase
+
+  @override
+  void dispose() { _pulseAc.dispose(); super.dispose(); }
+
+  void _maybeShowChaosPopup(bool active) {
+    if (!active || _popupShown) return;
+    _popupShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierColor: Colors.black.withValues(alpha: 0.75),
+        builder: (dctx) => AlertDialog(
+          backgroundColor: kBg2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Colors.redAccent, width: 2)),
+          title: Text('🔥⛓️ MODE CHAOS ACTIVÉ !', style: cinzel(17, c: Colors.redAccent, fw: FontWeight.w900), textAlign: TextAlign.center),
+          content: Text(
+            "5 tours de table sont écoulés. Le jeu s'accélère : toutes les attaques infligent désormais 2 blessures de plus, jusqu'à la fin de la partie. Un contour rouge autour de l'écran rappelle que le mode Chaos est actif.",
+            style: body(13), textAlign: TextAlign.center),
+          actions: [
+            Center(child: TextButton(onPressed: () => Navigator.pop(dctx),
+              child: Text(ui('btn_close'), style: cinzel(13, c: kGold)))),
+          ],
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([widget.gp, _pulseAc]),
+      builder: (context, _) {
+        final gs = widget.gp.gameState;
+        final playerCount = widget.gp.players.length;
+        final active = gs != null && playerCount > 0 && gs.globalTurnCount >= 5 * playerCount;
+        _maybeShowChaosPopup(active);
+        return Stack(children: [
+          widget.child,
+          if (active)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.red.withValues(alpha: 0.4 + 0.4 * _pulseAc.value),
+                      width: 10,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ]);
+      },
     );
   }
 }

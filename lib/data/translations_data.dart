@@ -242,6 +242,35 @@ const Map<String, String> kLogTemplatesEn = {
 };
 
 const Map<String, String> kGameTranslations = {
+  "Personne ne t'a encore blessé par attaque.": "No one has hurt you with an attack yet.",
+
+  'Unique: infligez 2 blessures au joueur de votre choix': 'Unique: deal 2 damage to a player of your choice',
+
+  "Passif: lorsque vous mourrez en tant que Marié(e), vous ressuscitez en tant que Veuve. Unique: soignez-vous de 2 blessures": "Passive: when you die as the Groom/Bride, you resurrect as the Widow(er). Unique: heal yourself by 2",
+  '💍 {name} se soigne de 2 blessures': '💍 {name} heals 2 wounds',
+  '🖤 {name} inflige 2 blessures à {target}': '🖤 {name} deals 2 damage to {target}',
+
+  "Répétable: subissez 5 blessures pour soigner un joueur de votre choix de 3 blessures": "Repeatable: take 5 damage to heal a player of your choice by 3",
+  "Passif: lorsque vous mourrez en tant que Marié(e), vous ressuscitez en tant que Veuve": "Passive: when you die as the Groom/Bride, you resurrect as the Widow(er)",
+  "Ressuscitée après la mort de Marié(e)": "Resurrected after the Groom/Bride's death",
+  "Lorsque vous vous révélez, un joueur autre que vous est choisi aléatoirement — votre condition de victoire est que ce joueur soit en vie à la fin de la partie": "When you reveal yourself, another player is chosen at random — your win condition becomes that player being alive at the end of the game",
+  "Gagner avec le camp qui a tué Marié(e)": "Win with the faction that killed the Groom/Bride",
+  '😇 {name} se sacrifie (5 blessures) pour soigner {target} de 3': '😇 {name} sacrifices itself (5 damage) to heal {target} by 3',
+  '😇 {name} — le destin de {chosen} est désormais lié au sien': '😇 {name} — {chosen}\'s fate is now tied to their own',
+
+  'Passif: révélé, les items "nourriture" (Araignée Sanguinaire, Chauve-souris Vampire, Barre de Chocolat, Bucket de Poulet) vous rendent des PV au lieu de vous blesser. Unique: allez chercher un item de nourriture de votre choix': 'Passive: revealed, "food" items (Bloody Spider, Vampire Bat, Chocolate Bar, Chicken Bucket) heal you instead of hurting you. Unique: go fetch a food item of your choice',
+  'Manger chaque item "nourriture" au moins 1 fois': 'Eat every "food" item at least once',
+  '🕷 {name} (Gourmand) inflige 2 à {target} et se soigne de 2': '🕷 {name} (Gourmand) deals 2 to {target} and heals 2',
+  '🍗 {name} a mangé toutes les nourritures — {name} GAGNE !': '🍗 {name} has eaten every food item — {name} WINS!',
+
+  'Unique: obligez un joueur de votre choix à attaquer un autre joueur de votre choix': 'Unique: force a player of your choice to attack another player of your choice',
+  "Avoir subi des blessures d'attaque de 3 joueurs différents": "Have taken attack damage from 3 different players",
+  '⛓️ {name} oblige {attacker} à attaquer {victim} !': '⛓️ {name} forces {attacker} to attack {victim}!',
+
+  'Unique: brûlez un terrain de votre choix pendant 2 tours — les joueurs qui s\'y trouvent subissent un effet de flamme (blessures croissantes à chaque tour, comme Luc)': 'Unique: burn a terrain of your choice for 2 turns — players there suffer a flame effect (increasing damage each turn, like Luc)',
+  '☀️ {name} embrase un terrain pendant 2 tours — {affected} prend feu !': '☀️ {name} sets a terrain ablaze for 2 turns — {affected} catches fire!',
+  "☀️ {name} prend feu en s'aventurant sur le terrain embrasé !": "\u2600\ufe0f {name} catches fire venturing onto the blazing terrain!",
+
   'Répétable: déplacez-vous sur le même terrain qu\'un joueur de votre choix': 'Repeatable: move to the same terrain as a player of your choice',
   'Répétable (1 tour de pause entre chaque utilisation): infligez 5 blessures au joueur de votre choix': 'Repeatable (1 turn of pause between each use): deal 5 damage to a player of your choice',
   '🌀 {name} se téléporte auprès de {target} !': '🌀 {name} teleports to {target}!',
@@ -436,7 +465,7 @@ const Map<String, String> kGameTranslations = {
   'Unique: rejoue autant de tours supplémentaires consécutifs qu\'il y a de joueurs morts au moment de l\'activation. Si personne n\'est mort, le pouvoir n\'a aucun effet.': 'Unique: takes as many extra consecutive turns as there are dead players at the moment of activation. If nobody has died, the power has no effect.',
   'Répétable: subissez 1 blessure pour réutiliser l\'effet du terrain où vous êtes': 'Repeatable: take 1 damage to reuse the effect of the zone you\'re on',
   'Passif révélé: portée infinie — vous pouvez attaquer tout joueur sans restriction': 'Revealed passive: infinite range — you can attack any player without restriction',
-  'Passif révélé: si vous n\'avez pas attaqué au tour précédent, votre prochaine attaque infligera 2 blessures de plus': 'Revealed passive: if you didn\'t attack on the previous turn, your next attack deals 2 extra damage',
+  'Passif révélé: si vous n\'avez pas attaqué au tour précédent, votre prochaine attaque infligera 4 blessures de plus': 'Revealed passive: if you didn\'t attack on the previous turn, your next attack deals 4 extra damage',
   'Unique: choisissez un joueur et lancez le D6 — lui infligez le résultat en blessures': 'Unique: choose a player and roll the D6 — deal them that much damage',
   'Répétable: attaquez avec le D4 un joueur à portée': 'Repeatable: attack a player in range using the D4',
   'Unique: passez votre tour pour soigner toutes vos blessures et ne plus subir de blessures jusqu\'au prochain tour': 'Unique: skip your turn to heal all your damage and become immune to damage until your next turn',
@@ -585,6 +614,11 @@ const Map<String, String> kUiStringsFr = {
   'freq_repeatable': '🔄 Chaque tour',
   'freq_once': '🔒 1 fois par partie',
   'title_terrain_damage9': "🏹 Clairière — 2 blessures à la cible",
+  'title_masochiste_attacker': "⛓️ Choix de l'attaquant",
+  'title_masochiste_victim': "⛓️ Choix de celui qui subit l'attaque",
+  'title_odin_first': '🐦‍⬛ Choisissez le premier joueur',
+  'title_odin_second': '🐦‍⬛ Choisissez le second joueur',
+  'title_gourmand_target': '🍗 Choisissez la cible de la nourriture',
   'title_baptiste_target': "✝️ Baptiste — Quel joueur mort ramener à la vie ?",
   'title_terrain_steal': "🗼 Tour du Voleur — voler un équipement",
   'title_set_wounds7': "📍 Marion — placer à 7 blessures",
@@ -1065,6 +1099,11 @@ const Map<String, String> kUiStringsEn = {
   'freq_repeatable': '🔄 Every turn',
   'freq_once': '🔒 Once per game',
   'title_terrain_damage9': "🏹 Clearing — 2 damage to the target",
+  'title_masochiste_attacker': '⛓️ Choose the attacker',
+  'title_masochiste_victim': '⛓️ Choose who gets attacked',
+  'title_odin_first': '🐦‍⬛ Choose the first player',
+  'title_odin_second': '🐦‍⬛ Choose the second player',
+  'title_gourmand_target': '🍗 Choose the food\'s target',
   'title_baptiste_target': "✝️ Baptiste — Which dead player to bring back to life?",
   'title_terrain_steal': "🗼 Thief's Tower — steal an equipment",
   'title_set_wounds7': "📍 Marion — set to 7 wounds",

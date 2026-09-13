@@ -66,10 +66,27 @@ const Map<String, String> kRevealQuotes = {
   'ines': "[True mages masters all magic]",
   'baptiste': "[Fine, I'll heal]",
   'christine': "[No one crosses the uncrowned]",
-  'rudolf': "[No one crosses the uncrowned]",
-  'artisan': "[No one crosses the uncrowned]",
-  'pere_noel': "[No one crosses the uncrowned]",
-  'taureador': "[No one crosses the uncrowned]",
+  'conan': "[The dark lady did not commit this... Unspeakable act]",
+  'henry': "[slurrrrp (yeah i took lv4 slime)]",
+  'odin': "[hehehe Insanity is no excuse for bad manners]",
+  'raph': "[I have given up EVERYTHING, what have you sacrifice]",
+  'zoe': "[Spend too long down here and you start to crack ! (there must have been rats and a rubber room)]",
+  'escanor': "[DIE INSECT]",
+  'emma': "[Let's the Hunt begin]",
+  'louis': "[What !? You think YOU can take me ?!]",
+  'gourmand': "[Fresh out of the Oven hehehe]",
+  'masochiste': "[Let the paiiiin speak to me]",
+  'ange': "[Become the Hero, this world needs]",
+  'blanche': "[Care to dance with Death]",
+  'taureador': "[Be aware of my son and fury]",
+  'pere_noel': "[Gather around everyone, it's time for a celebration]",
+  'rudolf': "[Hiiiiiihihihi (or whatever the horse said)]",
+  'artisan': "[What once was cloudy shall become clear]",
+  'chameleon': "[With Karestia's blessing I will find the truth]",
+  'sorciere': "[Where's my pet ?]",
+  'alchimiste': "[Blblblb barrrrgh bu (Not gonna translate it's not really nice)]",
+  'nautilus': "[Witness the power of Pure Water]",
+  
 
 };
 
@@ -207,7 +224,11 @@ const Map<String, String> kCharacterImages = {
   'escanor': 'assets/images/characters/escanor.png',
   'emma': 'assets/images/characters/emma.png',
   'louis': 'assets/images/characters/louis.png',
-
+  'gourmand': 'assets/images/characters/gourmand.png',
+  'masochiste': 'assets/images/characters/masochiste.png',
+  'ange': 'assets/images/characters/ange.png',
+  'blanche': 'assets/images/characters/blanche.png',
+  'veuve': 'assets/images/characters/blanche.png',
  
 };
 

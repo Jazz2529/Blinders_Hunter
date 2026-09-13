@@ -77,6 +77,13 @@ class GameEngine with AbilityEngine {
   static final GameEngine instance = GameEngine._();
   GameEngine._();
 
+  // Mode Chaos : mis à jour par l'appelant (solo_controller/game_provider)
+  // à chaque tour, AVANT toute résolution d'attaque — permet aux appels
+  // D'ATTAQUE INTERNES au moteur (rafale de Raph, attaque forcée de
+  // Masochiste) de bénéficier automatiquement du bonus sans avoir à faire
+  // transiter un paramètre à travers toute la chaîne applyAbility(...).
+  bool chaosModeActive = false;
+
   final Random _rng = Random();
   @override Random get rng => _rng;
 
@@ -756,6 +763,23 @@ class GameEngine with AbilityEngine {
         }
 
       // ── Nautilus : fait disparaître une zone pendant 2 tours ──
+      // ── Escanor : brûle une zone pendant 2 tours — quiconque s'y trouve
+      // (immédiatement, et quiconque y arrive tant que le brasier dure)
+      // subit l'effet de flamme croissante de Luc. ──
+      case 'escanor_burn_zone':
+        if (extra == null) return 'escanor_choose_zone'; // signal : ouvrir le sélecteur de zone
+        final ezoneIdx = int.tryParse(extra);
+        if (ezoneIdx == null || ezoneIdx < 0 || ezoneIdx > 5) return 'escanor_choose_zone';
+        final affectedEscanor = <String>[];
+        for (final p in all) {
+          if (p.alive && p.zoneIndex == ezoneIdx) {
+            p.lucFireTurnsRemaining = 1;
+            p.lucFireSourceUid = actor.uid;
+            affectedEscanor.add(p.name);
+          }
+        }
+        return 'escanor_burning:$ezoneIdx|' + logTCore('☀️ {name} embrase un terrain pendant 2 tours — {affected} prend feu !', {'name': actor.name, 'affected': affectedEscanor.isEmpty ? "personne dessus" : affectedEscanor.join(', ')});
+
       case 'nautilus_vanish':
         if (extra == null) return 'nautilus_choose_zone'; // signal : ouvrir le sélecteur de zone
         final zoneIdx = int.tryParse(extra);
@@ -817,9 +841,78 @@ class GameEngine with AbilityEngine {
         return logTCore('🔄 {name} échange les blessures de {t1} ({w1}) et {t2} ({w2}) !',
             {'name': actor.name, 't1': t1.name, 'w1': '$w1', 't2': target.name, 'w2': '$w2'});
 
-      // ── Emma : se téléporte sur le même terrain qu'une cible — réutilise
+      // ── Masochiste : force un joueur choisi (T1) à attaquer un autre
+      // joueur choisi (T2) — sélection en 2 étapes, même schéma qu'Odin. ──
+      // ── Gourmand : va chercher directement l'un des 4 items de
+      // nourriture, sans passer par une pioche normale. Flux en 2-3
+      // étapes : choix du type de nourriture, puis (si la carte le
+      // nécessite) choix d'une cible, puis résolution via resolveCard()
+      // pour réutiliser exactement la même logique que la pioche normale
+      // (y compris le passif de conversion dégâts→soin ci-dessus). ──
+      case 'gourmand_fetch_food':
+        if (extra == null || !extra.startsWith('gourmand_food:')) {
+          return 'gourmand_choose_food'; // étape 1 : choisir le type de nourriture
+        }
+        final gFoodType = extra.substring('gourmand_food:'.length);
+        const gFoodCardIds = {
+          'vampirisation': 'T08', 'veuve_noire': 'T10',
+          'low_hp_reveal_heal': 'L12', 'heal_self_4': 'L16',
+        };
+        final gCardId = gFoodCardIds[gFoodType];
+        if (gCardId == null) return 'gourmand_choose_food';
+        final gAllCards = [...kLumiereCards, ...kTenebresCards];
+        final gCard = gAllCards.firstWhere((c) => c.id == gCardId);
+        if ((gFoodType == 'vampirisation' || gFoodType == 'veuve_noire') && target == null) {
+          return 'gourmand_choose_target:$gFoodType'; // étape 2 : choisir une cible
+        }
+        final gRes = resolveCard(gCard, actor, all, layout, target: target);
+        return gRes['log'] as String? ?? '';
+
+      // ── Blanche (Marié·e) : capacité unique — se soigne de 2 blessures. ──
+      case 'blanche_marie_passive':
+        applyHeal(actor, 2);
+        return logTCore('💍 {name} se soigne de 2 blessures', {'name': actor.name});
+
+      // ── Veuve (Blanche transformée) : capacité unique — inflige 2
+      // blessures au joueur de son choix. ──
+      case 'veuve_avenge':
+        if (target == null) return 'cible_requise';
+        applyDamage(target, 2);
+        if (!target.alive) target.killedByUid = actor.uid;
+        return logTCore('🖤 {name} inflige 2 blessures à {target}', {'name': actor.name, 'target': target.name});
+
+      case 'masochiste_force_attack':
+        if (extra == null || !extra.startsWith('masochiste_t1:')) {
+          if (target == null) return 'cible_requise'; // étape 1 : choisir l'attaquant forcé
+          return 'masochiste_pick_victim:${target.uid}'; // signal : demander la victime
+        }
+        if (target == null) return 'cible_requise'; // étape 2 : choisir la victime
+        final mT1uid = extra.substring('masochiste_t1:'.length);
+        final mAttacker = all.firstWhere((p) => p.uid == mT1uid, orElse: () => target);
+        if (mAttacker.uid == target.uid) return 'cible_requise'; // ne peut pas s'attaquer lui-même
+        final mRoll = rollAttack();
+        final mWoundsBefore = target.wounds;
+        final mRes = resolveAttackFull(mAttacker, target, mRoll['damage']!, all);
+        // Masochiste : si la victime forcée porte elle-même la condition
+        // de victoire "masochiste_win" (cas rare mais possible), mémorise
+        // l'attaquant forcé comme l'un de ses agresseurs distincts.
+        if (target.character?.winEffect == 'masochiste_win' && target.wounds > mWoundsBefore &&
+            !target.masochisteAttackers.contains(mAttacker.uid)) {
+          target.masochisteAttackers.add(mAttacker.uid);
+        }
+        final mLog = mRes['log'] as String? ?? '';
+        return logTCore('⛓️ {name} oblige {attacker} à attaquer {victim} !', {'name': actor.name, 'attacker': mAttacker.name, 'victim': target.name}) + '\n' + mLog;
+
       // le signal 'trigger_terrain' existant (Marin), qui redéclenche
       // l'effet de la zone COURANTE, laquelle vient d'être mise à jour. ──
+      // ── Ange : se blesse de 5 pour soigner une cible choisie de 3
+      // (répétable). ──
+      case 'ange_sacrifice_heal':
+        if (target == null) return 'cible_requise';
+        applyDamage(actor, 5);
+        applyHeal(target, 3);
+        return logTCore('😇 {name} se sacrifie (5 blessures) pour soigner {target} de 3', {'name': actor.name, 'target': target.name});
+
       case 'emma_teleport_to':
         if (target == null) return 'cible_requise';
         actor.zoneIndex = target.zoneIndex;
@@ -833,7 +926,13 @@ class GameEngine with AbilityEngine {
         if (target == null) return 'cible_requise';
         final dealtLouis = applyDamage(target, 5);
         if (!target.alive) target.killedByUid = actor.uid;
-        actor.louisCooldown = 1;
+        // IMPORTANT : le décompte de fin de tour se déclenche À LA FIN DU
+        // TOUR ACTUEL — c'est-à-dire juste après cette utilisation, puisque
+        // c'est le tour de Louis lui-même qui se termine. Avec une valeur
+        // de 1, le décompte l'annulerait IMMÉDIATEMENT (1→0 dès la fin de
+        // CE tour), rendant la recharge inexistante. La valeur 2 compense
+        // ce décompte "gratuit" pour bloquer réellement SON prochain tour.
+        actor.louisCooldown = 2;
         return logTCore('💢 {name} inflige 5 blessures à {target} — {dmg} dégâts !', {'name': actor.name, 'target': target.name, 'dmg': '$dealtLouis'});
 
       // ── Pigeon (transformation de la Sorcière) : picore 1 dégât ──
@@ -1088,6 +1187,9 @@ class GameEngine with AbilityEngine {
         for (final p in all) { if (p.alive && p.uid != actor.uid) applyDamage(p, 2); }
         return {'log': logTCore('⚡ Éclair Purificateur — tous les autres joueurs subissent 2 blessures', {}), 'needsTarget': false};
       case 'low_hp_reveal_heal':
+        if (actor.character?.abilityEffect == 'gourmand_fetch_food' && !actor.foodItemsEaten.contains('low_hp_reveal_heal')) {
+          actor.foodItemsEaten.add('low_hp_reveal_heal');
+        }
         if (actor.character!.hp <= 11) {
           actor.revealed = true; actor.wounds = 0;
           return {'log': logTCore("🍫 {name} ({hp} PV max ≤ 11) se révèle et soigne toutes ses blessures", {'name': actor.name, 'hp': '${actor.character!.hp}'}), 'needsTarget': false};
@@ -1101,6 +1203,9 @@ class GameEngine with AbilityEngine {
         return {'log': logTCore("🪞 Miroir Divin — {name} n'est pas Shadow, aucun effet", {'name': actor.name}), 'needsTarget': false};
       case 'heal_self_4':
         applyHeal(actor, 4);
+        if (actor.character?.abilityEffect == 'gourmand_fetch_food' && !actor.foodItemsEaten.contains('heal_self_4')) {
+          actor.foodItemsEaten.add('heal_self_4');
+        }
         return {'log': logTCore('🍗 {name} se soigne de 4', {'name': actor.name}), 'needsTarget': false};
       case 'heal_all_except_self_2':
         for (final p in all) { if (p.alive && p.uid != actor.uid) applyHeal(p, 2); }
@@ -1203,6 +1308,9 @@ class GameEngine with AbilityEngine {
         applyDamage(target, 2, isTenebresCard: true);
         if (!target.alive) target.killedByUid = actor.uid;
         applyHeal(actor, 1);
+        if (actor.character?.abilityEffect == 'gourmand_fetch_food' && !actor.foodItemsEaten.contains('vampirisation')) {
+          actor.foodItemsEaten.add('vampirisation');
+        }
         return {'log': '🦇 ${actor.name} vampirise ${target.name}', 'needsTarget': false};
       case 'blue_shell':
         if (target.revealed &&
@@ -1217,8 +1325,20 @@ class GameEngine with AbilityEngine {
       case 'veuve_noire':
         applyDamage(target, 2, isTenebresCard: true);
         if (!target.alive) target.killedByUid = actor.uid;
-        applyDamage(actor, 2, isTenebresCard: true);
-        return {'log': '🕷 ${actor.name} inflige 2 à ${target.name} et subit 2', 'needsTarget': false};
+        // Gourmand révélé : cette "nourriture" le soigne au lieu de le
+        // blesser, plutôt que le "puis subissez 2 blessures" normal.
+        final isGourmandVN = actor.revealed && (actor.copiedEffect ?? actor.character?.abilityEffect) == 'gourmand_fetch_food';
+        if (isGourmandVN) {
+          applyHeal(actor, 2);
+        } else {
+          applyDamage(actor, 2, isTenebresCard: true);
+        }
+        if (actor.character?.abilityEffect == 'gourmand_fetch_food' && !actor.foodItemsEaten.contains('veuve_noire')) {
+          actor.foodItemsEaten.add('veuve_noire');
+        }
+        return {'log': isGourmandVN
+            ? '🕷 ${actor.name} (Gourmand) inflige 2 à ${target.name} et se soigne de 2'
+            : '🕷 ${actor.name} inflige 2 à ${target.name} et subit 2', 'needsTarget': false};
       case 'peau_banane':
         if (actor.equipment.isEmpty) { applyDamage(actor, 1, isTenebresCard: true); return {'log': '🍌 ${actor.name} sans équipement — subit 1', 'needsTarget': false}; }
         if (actor.equipment.length > 1) {
@@ -1342,8 +1462,10 @@ class GameEngine with AbilityEngine {
   // ─── Attaque ─────────────────────────────
   // Retourne {log, bazookaTargets} si bazooka actif
   Map<String, dynamic> resolveAttackFull(Player attacker, Player target,
-      int baseDmg, List<Player> all, {int? attackCount}) {
+      int baseDmg, List<Player> all, {int? attackCount, bool chaosMode = false}) {
     int dmg = baseDmg;
+    // Mode Chaos : +2 dégâts sur TOUTES les attaques après 10 tours.
+    if ((chaosMode || chaosModeActive) && dmg > 0) dmg += 2;
 
     // Équipements attaquant
     if (attacker.lance && dmg > 0) dmg += 2;
@@ -1405,10 +1527,12 @@ class GameEngine with AbilityEngine {
       if (dmg > 0) applyHeal(target, dmg);
       return {'log': '🕊 Carla soigne ${target.name} de $dmg au lieu de blesser', 'actualDmg': 0};
     }
-    // Fifi Été: +2 si pas attaqué le tour d'avant
+    // Théo : +4 si pas attaqué le tour d'avant (commentaire corrigé — ce
+    // n'est PAS Fifi Été malgré l'ancien commentaire, seul Théo utilise
+    // cet effet).
     if (effectiveAbility(attacker) == 'no_attack_buff'
         && attacker.revealed && attacker.bonusMaxHp > 0) {
-      dmg += 2; attacker.bonusMaxHp = 0; // consume le buff
+      dmg += 4; attacker.bonusMaxHp = 0; // consume le buff
     }
     // Oscar : "Feu" activé — +2 dégâts sur sa prochaine attaque
     if (attacker.oscarFireBonus) {
@@ -1630,8 +1754,10 @@ class GameEngine with AbilityEngine {
   }
 
   // Compat: legacy string version
-  Map<String, dynamic> resolveAttack(Player attacker, Player target, int baseDmg, {List<Player>? all}) {
+  Map<String, dynamic> resolveAttack(Player attacker, Player target, int baseDmg, {List<Player>? all, bool chaosMode = false}) {
     int dmg = baseDmg;
+    // Mode Chaos : +2 dégâts sur TOUTES les attaques après 10 tours.
+    if ((chaosMode || chaosModeActive) && dmg > 0) dmg += 2;
     if (attacker.lance && dmg > 0) dmg += 2;
     if (attacker.lanceLonginus && dmg > 0 &&
         attacker.character?.faction == Faction.hunter && attacker.revealed) dmg += 2;
@@ -1662,11 +1788,11 @@ class GameEngine with AbilityEngine {
       if (dmg > 0) applyHeal(target, dmg);
       return {'log': '🕊 ${attacker.name} (Carla) soigne ${target.name} de $dmg au lieu de blesser', 'scottCountered': false};
     }
-    // Théo / Fifi Été : +2 si pas attaqué le tour d'avant — manquait ici
-    // (seule resolveAttackFull, utilisée par le joueur humain, l'avait),
-    // donc jamais consommé/appliqué pour un Théo joué par un bot.
+    // Théo : +4 si pas attaqué le tour d'avant — manquait ici (seule
+    // resolveAttackFull, utilisée par le joueur humain, l'avait), donc
+    // jamais consommé/appliqué pour un Théo joué par un bot.
     if (atkEff == 'no_attack_buff' && attacker.revealed && attacker.bonusMaxHp > 0) {
-      dmg += 2; attacker.bonusMaxHp = 0; // consume le buff
+      dmg += 4; attacker.bonusMaxHp = 0; // consume le buff
     }
     // Oscar : "Feu" activé — +2 dégâts sur sa prochaine attaque
     if (attacker.oscarFireBonus) {
@@ -1993,6 +2119,11 @@ class GameEngine with AbilityEngine {
         ...deadHunters.map((p) => p.uid), // les Hunters morts gagnent aussi
         ...alive.where((p) {
           final we = p.character!.winEffect;
+          if (we == 'ange_protect_win') {
+            final protectedP = players.where((x) => x.uid == p.angeProtectedUid).firstOrNull;
+            return protectedP != null && protectedP.alive;
+          }
+          if (we == 'veuve_win') return p.veuveAlignedFaction == 'hunter';
           return we == 'survive' || we == 'kill_christine_or_hunters';
         }).map((p) => p.uid),
       }.toList();
@@ -2008,6 +2139,11 @@ class GameEngine with AbilityEngine {
         ...deadShadows.map((p) => p.uid), // les Shadows morts gagnent aussi
         ...alive.where((p) {
           final we = p.character!.winEffect;
+          if (we == 'ange_protect_win') {
+            final protectedP = players.where((x) => x.uid == p.angeProtectedUid).firstOrNull;
+            return protectedP != null && protectedP.alive;
+          }
+          if (we == 'veuve_win') return p.veuveAlignedFaction == 'shadow';
           return we == 'survive';
         }).map((p) => p.uid),
       }.toList();
@@ -2232,6 +2368,46 @@ class GameEngine with AbilityEngine {
       // Bob : revient à la vie avec 1 PV MAX de moins (8 → 7 → 6…) — sauf
       // si ce total tomberait à 0 ou moins, auquel cas il reste mort pour
       // de bon cette fois.
+      // Blanche : meurt en tant que Marié(e) → ressuscite transformée en
+      // Veuve, dont la condition de victoire est liée au CAMP de son
+      // tueur (mémorisé AVANT que killedByUid ne soit effacé).
+      if (eff == 'blanche_marie_passive') {
+        final killerFaction = p.killedByUid != null
+            ? all.where((x) => x.uid == p.killedByUid).firstOrNull?.character?.faction
+            : null;
+        p.veuveAlignedFaction = switch (killerFaction) {
+          Faction.hunter => 'hunter',
+          Faction.shadow => 'shadow',
+          Faction.neutral => 'neutral',
+          null => null, // mort sans tueur identifié (poison, etc.) — condition de victoire alors impossible à remplir
+        };
+        // Texte de condition de victoire DYNAMIQUE — indique explicitement
+        // le camp visé plutôt qu'une formulation générique.
+        final campLabel = switch (p.veuveAlignedFaction) {
+          'hunter' => 'les Hunters',
+          'shadow' => 'les Shadows',
+          'neutral' => 'un joueur Neutre',
+          _ => 'un camp indéterminé (mort sans tueur identifié — condition impossible)',
+        };
+        // Comme les Pigeons de Sorcière, Veuve n'existe JAMAIS dans
+        // kAllCharacters (le pool sélectionnable) — elle est construite
+        // ici, en ligne, uniquement au moment de la transformation.
+        // L'icône change (🖤) mais son illustration RESTE celle de
+        // Blanche (gérée séparément via kCharacterImages).
+        p.character = CharacterCard(
+          id: 'veuve', name: 'Veuve', faction: Faction.neutral, hp: 10, icon: '🖤',
+          ability: 'Unique: infligez 2 blessures au joueur de votre choix',
+          abilityEffect: 'veuve_avenge',
+          winCondition: 'Gagner avec $campLabel (le camp qui a tué Marié(e))', winEffect: 'veuve_win',
+        );
+        p.maxHpModifier = 0;
+        p.wounds = 0;
+        p.alive = true;
+        p.killedByUid = null;
+        p.deathPassiveProcessed = false; // au cas où Veuve mourrait aussi un jour, ne redéclenche pas ce passif
+        p.abilityUsed = false; // débloque immédiatement sa nouvelle capacité unique
+        p.revealed = true;
+      }
       if (eff == 'bob_resurrect') {
         final newMaxHp = effectiveMaxHp(p) - 1;
         if (newMaxHp > 0) {
@@ -2978,6 +3154,10 @@ class GameEngine with AbilityEngine {
         final t1uid = log.substring('odin_pick_second:'.length);
         return {'log': '', 'special': 'odin_pick_second', 'odinT1Uid': t1uid};
       }
+      if (log.startsWith('masochiste_pick_victim:')) {
+        final t1uid = log.substring('masochiste_pick_victim:'.length);
+        return {'log': '', 'special': 'masochiste_pick_victim', 'masochisteT1Uid': t1uid};
+      }
       if (log == 'louis_on_cooldown') return {'log': '', 'special': 'louis_on_cooldown'};
       if (log == 'chameleon_draw_light') return {'log': '', 'special': 'chameleon_draw_light'};
       if (log == 'chameleon_draw_dark') return {'log': '', 'special': 'chameleon_draw_dark'};
@@ -2990,6 +3170,19 @@ class GameEngine with AbilityEngine {
         final zoneIdx = int.tryParse(sep >= 0 ? rest.substring(0, sep) : rest);
         final realLog = sep >= 0 ? rest.substring(sep + 1) : '';
         return {'log': realLog, 'special': 'nautilus_vanished', 'nautilusZone': zoneIdx};
+      }
+      if (log == 'escanor_choose_zone') return {'log': '', 'special': 'escanor_choose_zone'};
+      if (log == 'gourmand_choose_food') return {'log': '', 'special': 'gourmand_choose_food'};
+      if (log.startsWith('gourmand_choose_target:')) {
+        final foodType = log.substring('gourmand_choose_target:'.length);
+        return {'log': '', 'special': 'gourmand_choose_target', 'gourmandFoodType': foodType};
+      }
+      if (log.startsWith('escanor_burning:')) {
+        final rest = log.substring('escanor_burning:'.length);
+        final sep = rest.indexOf('|');
+        final zoneIdx = int.tryParse(sep >= 0 ? rest.substring(0, sep) : rest);
+        final realLog = sep >= 0 ? rest.substring(sep + 1) : '';
+        return {'log': realLog, 'special': 'escanor_burning', 'escanorZone': zoneIdx};
       }
       return {'log': log, 'special': null};
     } catch (e) {

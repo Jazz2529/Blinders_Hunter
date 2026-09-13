@@ -15,6 +15,7 @@ import '../models/models.dart';
 import '../widgets/theme.dart';
 import '../widgets/shine_effect.dart';
 import '../services/persistence.dart';
+import '../data/cosmetics_data.dart';
 import '../services/i18n.dart';
 import '../widgets/token_widget.dart';
 import '../widgets/player_status_widget.dart';
@@ -414,6 +415,7 @@ class _GameScreenState extends State<GameScreen> {
       final isMyTurn = gp.isMyTurn;
       final gs = gp.gameState;
       final playerData = gp.playerList.where((p) => p.alive).map((p) => {
+        'uid': p.uid,
         'zoneIndex': p.zoneIndex,
         'tokenId': p.token,
         'alive': p.alive,
@@ -485,6 +487,59 @@ class _GameScreenState extends State<GameScreen> {
             }),
           ]),
           actions:[
+            // Masochiste uniquement : bouton pour consulter les joueurs
+            // distincts qui l'ont déjà blessé (condition de victoire : 3).
+            Builder(builder: (bctx) {
+              final me2 = gp.me;
+              if (me2?.character?.id != 'masochiste') return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: TextButton(
+                  onPressed: () => showMasochisteAttackersPanel(ctx, me2!, gp.players.values.toList()),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.redAccent.withValues(alpha: 0.15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('⛓️', style: TextStyle(fontSize: 15)),
+                    const SizedBox(width: 4),
+                    Text('${me2!.masochisteAttackers.length}/3', style: cinzel(12, c: kRed)),
+                  ]),
+                ),
+              );
+            }),
+            // Gourmand uniquement : bouton pour consulter les items de
+            // nourriture déjà mangés (condition de victoire : les 4).
+            Builder(builder: (bctx) {
+              final me5 = gp.me;
+              if (me5?.character?.id != 'gourmand') return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: TextButton(
+                  onPressed: () => showGourmandFoodPanel(ctx, me5!),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.orangeAccent.withValues(alpha: 0.15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('🍗', style: TextStyle(fontSize: 15)),
+                    const SizedBox(width: 4),
+                    Text('${me5!.foodItemsEaten.length}/4', style: cinzel(12, c: Colors.orangeAccent)),
+                  ]),
+                ),
+              );
+            }),
+            // Emotes : accessible à TOUS les joueurs, à tout moment (pas
+            // une action de jeu, juste une réaction sociale).
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: IconButton(
+                icon: const Text('😀', style: TextStyle(fontSize: 20)),
+                onPressed: () => showEmotePickerDialog(ctx, gp),
+              ),
+            ),
             IconButton(
               icon: const Icon(Icons.settings, color: kGold),
               onPressed: () => showDialog(context: ctx, builder: (_) => const SettingsDialog()),
@@ -532,6 +587,8 @@ class _GameScreenState extends State<GameScreen> {
                       humanZoneIndex: gp.me?.zoneIndex ?? 0,
                       showAdjacent: true,
                       disappearedZoneIndex: g.disappearedZoneIndex,
+                      burningZoneIndex: g.burningZoneIndex,
+                      emotes: gp.emotes,
                     ),
                     if (overlay == 'artcade_flames')
                       Positioned(left: tx, top: ty, width: tileW, height: tileH,
@@ -1102,10 +1159,15 @@ Future<void> showMultiPlayerCard(BuildContext ctx, Player p, GameProvider gp) as
     final maximeTarget = (isMe && shown.id == 'maxime' && p.maximeFirstAttackerUid != null)
         ? gp.players[p.maximeFirstAttackerUid]
         : null;
+    final angeProtected = (isMe && shown.id == 'ange' && p.angeProtectedUid != null)
+        ? gp.players[p.angeProtectedUid]
+        : null;
     await showFullCardDialog(ctx, shown, hpOverride: shown.hp + p.maxHpModifier,
       oscarXpOverride: drunkChar == null && shown.id == 'oscar' ? p.oscarXp : null,
       maximeTargetName: (isMe && shown.id == 'maxime')
         ? (maximeTarget?.name ?? ui('nobody_yet')) : null,
+      angeProtectedName: (isMe && shown.id == 'ange')
+        ? (angeProtected?.name ?? ui('nobody_yet')) : null,
       megFormOverride: drunkChar == null && shown.abilityEffect == 'meg_shapeshift' ? p.megForm : null,
       mathieuAttackCount: drunkChar == null && (p.copiedEffect ?? shown.abilityEffect) == 'third_attack_bonus' ? p.attackCount : null,
       skinOverride: drunkChar == null ? p.equippedCharacterSkin : null,
@@ -1964,6 +2026,45 @@ class _ActionPanelState extends State<_ActionPanel> {
             );
           }).toList();
         }
+        if (pta == 'escanor_choose_zone') {
+          if (!gp.isMyTurn) {
+            return [Text('☀️ ${gp.currentPlayer?.name ?? "Escanor"} choisit une zone…',
+              style: cinzel(13, c: kGold))];
+          }
+          final burning = gp.gameState?.burningZoneIndex;
+          final layoutE = gp.gameState?.terrainLayout ?? [];
+          return List.generate(6, (i) => i)
+              .where((i) => i != burning)
+              .map((i) {
+            final t = layoutE[i];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: BHButton(label: '${t.icon} ${tr(t.name)}',
+                onTap: () => _act(() => gp.useAbility(extra: '$i'))),
+            );
+          }).toList();
+        }
+        if (pta == 'gourmand_choose_food') {
+          if (!gp.isMyTurn) {
+            return [Text('🍗 ${gp.currentPlayer?.name ?? "Gourmand"} choisit une nourriture…',
+              style: cinzel(13, c: kGold))];
+          }
+          const gFoodLabelsM = {
+            'vampirisation': '🦇 Chauve-souris Vampire',
+            'veuve_noire': '🕷 Araignée Sanguinaire',
+            'low_hp_reveal_heal': '🍫 Barre de Chocolat',
+            'heal_self_4': '🍗 Bucket de Poulet',
+          };
+          final meG = gp.me;
+          return gFoodLabelsM.entries.map((entry) {
+            final eaten = meG?.foodItemsEaten.contains(entry.key) ?? false;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: BHButton(label: eaten ? '${entry.value} ✅' : entry.value,
+                  onTap: () => _act(() => gp.gourmandChooseFood(entry.key))),
+            );
+          }).toList();
+        }
         // Corne des Woods — étape 2 : filtrer aux joueurs à portée du joueur forcé
         List<Player> all;
         if (pta == 'corne_des_woods_victim') {
@@ -2002,6 +2103,10 @@ class _ActionPanelState extends State<_ActionPanel> {
           all = gp.players.values.where((p) => p.alive && p.uid != gp.myUid && p.equipment.isNotEmpty).toList();
         } else if (pta == 'ability_default_odin_swap_wounds' || pta == 'odin_pick_second') {
           // Odin : peut se cibler LUI-MÊME pour l'un ou l'autre des 2 joueurs.
+          all = gp.players.values.where((p) => p.alive).toList();
+        } else if (pta == 'ability_default_masochiste_force_attack' || pta == 'masochiste_pick_victim') {
+          // Masochiste : même exception que Odin — les deux choix peuvent
+          // être lui-même.
           all = gp.players.values.where((p) => p.alive).toList();
         } else {
           all = gp.players.values.where((p)=>p.alive&&p.uid!=gp.myUid).toList();
@@ -2044,6 +2149,11 @@ class _ActionPanelState extends State<_ActionPanel> {
         if (pta == 'casino_win') title = ui('title_casino_win');
         if (pta == 'ability_vlad_adjacent') title = ui('title_ability_vlad_adjacent');
         if (pta == 'equip_choice') title = ui('title_equip_choice');
+        if (pta == 'ability_default_masochiste_force_attack') title = ui('title_masochiste_attacker');
+        if (pta == 'masochiste_pick_victim') title = ui('title_masochiste_victim');
+        if (pta == 'ability_default_odin_swap_wounds') title = ui('title_odin_first');
+        if (pta == 'odin_pick_second') title = ui('title_odin_second');
+        if (pta == 'gourmand_choose_target') title = ui('title_gourmand_target');
         // Richard II : afficher les zones du plateau
         if ((pta == 'swap_zone_pick1' || pta == 'swap_zone_pick2') && gp.isMyTurn) {
           final myZoneIdx = gp.me?.zoneIndex ?? 0;
@@ -2165,6 +2275,16 @@ class _ActionPanelState extends State<_ActionPanel> {
                 // Odin : premier joueur déjà choisi (gp.gameState.odinT1Uid)
                 // — le second vient d'être choisi.
                 await gp.odinChooseSecond(t);
+              } else if (pta == 'masochiste_pick_victim') {
+                // Masochiste : attaquant forcé déjà choisi
+                // (gp.gameState.masochisteT1Uid) — la victime vient d'être
+                // choisie.
+                await gp.masochisteChooseVictim(t);
+              } else if (pta == 'gourmand_choose_target') {
+                // Gourmand : type de nourriture déjà choisi
+                // (gp.gameState.gourmandFoodType) — la cible vient d'être
+                // choisie.
+                await gp.gourmandChooseTarget(t);
               } else if (pta != null && pta.startsWith('vision_') ||
                   pta == 'banane_demonique' || pta == 'vampirisation' ||
                   pta == 'blue_shell' || pta == 'veuve_noire' ||
@@ -4252,4 +4372,140 @@ class _CharacterPoolScreenState extends State<CharacterPoolScreen> {
       ]),
     );
   }
+}
+
+// ─── Masochiste : panneau des attaquants distincts ────────────────────────
+/// Liste des joueurs ayant déjà blessé Masochiste par attaque (condition de
+/// victoire : 3 différents) — même schéma que le panneau de charme de
+/// Victor, mais visible sans caractère "secret" particulier.
+void showMasochisteAttackersPanel(BuildContext ctx, Player masochiste, List<Player> allPlayers) {
+  showDialog(
+    context: ctx,
+    builder: (dctx) => AlertDialog(
+      backgroundColor: kBg2,
+      title: Text('⛓️ Attaquants — ${masochiste.masochisteAttackers.length}/3', style: cinzel(15, c: kRed)),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: masochiste.masochisteAttackers.isEmpty
+          ? Text(tr("Personne ne t'a encore blessé par attaque."), style: body(13, c: kTextSub))
+          : Column(mainAxisSize: MainAxisSize.min,
+              children: masochiste.masochisteAttackers.map((uid) {
+                final atk = allPlayers.where((p) => p.uid == uid).firstOrNull;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(children: [
+                    const Text('🗡', style: TextStyle(fontSize: 14)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(atk != null ? (atk.alive ? atk.name : '${atk.name} 💀') : '?',
+                      style: body(13, c: kText))),
+                  ]),
+                );
+              }).toList(),
+            ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dctx),
+          child: Text(ui('btn_close'), style: cinzel(12, c: kGold))),
+      ],
+    ),
+  );
+}
+
+// ─── Gourmand : panneau des nourritures mangées ───────────────────────────
+/// Liste des 4 items de nourriture, avec indicateur ✅ pour ceux déjà
+/// mangés au moins une fois (condition de victoire : les 4) — même schéma
+/// que le panneau des attaquants de Masochiste ci-dessus.
+void showGourmandFoodPanel(BuildContext ctx, Player gourmand) {
+  const gFoodLabelsPanelM = {
+    'vampirisation': '🦇 Chauve-souris Vampire',
+    'veuve_noire': '🕷 Araignée Sanguinaire',
+    'low_hp_reveal_heal': '🍫 Barre de Chocolat',
+    'heal_self_4': '🍗 Bucket de Poulet',
+  };
+  showDialog(
+    context: ctx,
+    builder: (dctx) => AlertDialog(
+      backgroundColor: kBg2,
+      title: Text('🍗 Nourritures — ${gourmand.foodItemsEaten.length}/4', style: cinzel(15, c: Colors.orangeAccent)),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(mainAxisSize: MainAxisSize.min,
+          children: gFoodLabelsPanelM.entries.map((entry) {
+            final eaten = gourmand.foodItemsEaten.contains(entry.key);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                Expanded(child: Text(entry.value, style: body(13, c: eaten ? kText : kTextSub))),
+                Text(eaten ? '✅' : '❌', style: const TextStyle(fontSize: 16)),
+              ]),
+            );
+          }).toList(),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dctx),
+          child: Text(ui('btn_close'), style: cinzel(12, c: kGold))),
+      ],
+    ),
+  );
+}
+
+// ─── Emotes : sélecteur ────────────────────────────────────────────────────
+/// Affiche la grille des emotes disponibles (gratuits toujours visibles,
+/// personnalisés grisés tant qu'ils ne sont pas achetés en boutique).
+void showEmotePickerDialog(BuildContext ctx, GameProvider gp) {
+  final owned = Prefs.ownedCosmetics();
+  // N'affiche que les emotes DÉBLOQUÉS (gratuits ou achetés) — les
+  // personnalisés pas encore débloqués n'apparaissent pas du tout ici,
+  // plutôt que d'être grisés (ils restent visibles dans la boutique).
+  final emoteItems = kCosmeticsCatalog.where((c) =>
+      c.category == CosmeticCategory.emote && (c.cost == 0 || owned.contains(c.id))).toList();
+  showDialog(
+    context: ctx,
+    builder: (dctx) => AlertDialog(
+      backgroundColor: kBg2,
+      title: Text('😀 Emotes', style: cinzel(16, c: kGold2)),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: GridView.count(
+          crossAxisCount: 4,
+          shrinkWrap: true,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          children: emoteItems.map((item) {
+            final unlocked = item.cost == 0 || owned.contains(item.id);
+            return InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                if (!unlocked) {
+                  ScaffoldMessenger.of(dctx).showSnackBar(
+                    SnackBar(content: Text('🔒 ${item.name} — disponible en boutique (${item.cost} 🪙)')));
+                  return;
+                }
+                gp.sendEmote(item.id);
+                Navigator.pop(dctx);
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: unlocked ? kBg3 : kBg3.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: unlocked ? kGold.withValues(alpha: 0.4) : Colors.transparent),
+                ),
+                child: Center(
+                  child: Opacity(
+                    opacity: unlocked ? 1.0 : 0.35,
+                    child: Text(item.fallbackEmoji, style: const TextStyle(fontSize: 26)),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dctx),
+          child: Text(ui('btn_close'), style: cinzel(12, c: kGold))),
+      ],
+    ),
+  );
 }

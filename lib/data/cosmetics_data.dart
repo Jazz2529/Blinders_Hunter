@@ -3,7 +3,7 @@
 // pour personnages, jetons et terrains. Chaque item pointe vers un fichier
 // à fournir séparément (même convention que les illustrations de base).
 
-enum CosmeticCategory { character, token, terrain }
+enum CosmeticCategory { character, token, terrain, emote }
 
 class CosmeticItem {
   final String id;          // identifiant unique du cosmétique
@@ -266,7 +266,19 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     imagePath: 'assets/images/characters/emma-legend.png', exclusive: true),
   CosmeticItem(id: 'louis-legend', name: 'Louis - Légende',
     category: CosmeticCategory.character, targetId: 'louis', cost: 0,
-    imagePath: 'assets/images/characters/louis-legend.png', exclusive: true),    
+    imagePath: 'assets/images/characters/louis-legend.png', exclusive: true),  
+  CosmeticItem(id: 'gourmand-legend', name: 'Gourmand - Légende',
+    category: CosmeticCategory.character, targetId: 'gourmand', cost: 0,
+    imagePath: 'assets/images/characters/gourmand-legend.png', exclusive: true),
+  CosmeticItem(id: 'masochiste-legend', name: 'Masochiste - Légende',
+    category: CosmeticCategory.character, targetId: 'masochiste', cost: 0,
+    imagePath: 'assets/images/characters/masochiste-legend.png', exclusive: true),
+  CosmeticItem(id: 'ange-legend', name: 'Ange - Légende',
+    category: CosmeticCategory.character, targetId: 'ange', cost: 0,
+    imagePath: 'assets/images/characters/ange-legend.png', exclusive: true),
+  CosmeticItem(id: 'blanche-legend', name: 'Blanche - Légende',
+    category: CosmeticCategory.character, targetId: 'blanche', cost: 0,
+    imagePath: 'assets/images/characters/blanche-legend.png', exclusive: true),      
 
   // ── Personnages ──────────────────────────────────────────────────────
  
@@ -281,6 +293,10 @@ const List<CosmeticItem> kCosmeticsCatalog = [
   CosmeticItem(id: 'amelia-tarot', name: 'Amelia - Reine Denier',
     category: CosmeticCategory.character, targetId: 'amelia', cost: 150,
     imagePath: 'assets/images/characters/amelia-tarot.png'), 
+
+  CosmeticItem(id: 'ange-tarot', name: 'Ange - 2',
+    category: CosmeticCategory.character, targetId: 'ange', cost: 150,
+    imagePath: 'assets/images/characters/ange-tarot.png'),  
 
   CosmeticItem(id: 'artisan-tarot', name: 'Arachnée - 6',
     category: CosmeticCategory.character, targetId: 'artisan', cost: 150,
@@ -301,6 +317,10 @@ const List<CosmeticItem> kCosmeticsCatalog = [
   CosmeticItem(id: 'baptiste-tarot', name: 'Baptiste - Cavalier Coupe',
     category: CosmeticCategory.character, targetId: 'baptiste', cost: 150,
     imagePath: 'assets/images/characters/baptiste-tarot.png'), 
+
+  CosmeticItem(id: 'blanche-tarot', name: 'Blanche - 2',
+    category: CosmeticCategory.character, targetId: 'blanche', cost: 150,
+    imagePath: 'assets/images/characters/blanche-tarot.png'),   
 
   CosmeticItem(id: 'chameleon-tarot', name: 'Benjamin - 5',
     category: CosmeticCategory.character, targetId: 'chameleon', cost: 150,
@@ -388,7 +408,11 @@ const List<CosmeticItem> kCosmeticsCatalog = [
 
   CosmeticItem(id: 'gege-tarot', name: 'Gege - XVIII.The Moon',
     category: CosmeticCategory.character, targetId: 'gege', cost: 150,
-    imagePath: 'assets/images/characters/gege-tarot.png'),   
+    imagePath: 'assets/images/characters/gege-tarot.png'),
+
+  CosmeticItem(id: 'gourmand-tarot', name: 'Gourmand - 2',
+    category: CosmeticCategory.character, targetId: 'gourmand', cost: 150,
+    imagePath: 'assets/images/characters/gourmand-tarot.png'),     
     
   CosmeticItem(id: 'hailey-tarot', name: 'Hailey - 7',
     category: CosmeticCategory.character, targetId: 'hailey', cost: 150,
@@ -449,6 +473,10 @@ const List<CosmeticItem> kCosmeticsCatalog = [
   CosmeticItem(id: 'marin-tarot', name: 'Marin - Roi Denier',
     category: CosmeticCategory.character, targetId: 'marin', cost: 150,
     imagePath: 'assets/images/characters/marin-tarot.png'), 
+
+  CosmeticItem(id: 'masochiste-tarot', name: 'Masochiste - 2',
+    category: CosmeticCategory.character, targetId: 'masochiste', cost: 150,
+    imagePath: 'assets/images/characters/masochiste-tarot.png'),  
 
   CosmeticItem(id: 'marion-tarot', name: 'Marion - Reine Coupe',
     category: CosmeticCategory.character, targetId: 'marion', cost: 150,
@@ -711,7 +739,111 @@ const List<CosmeticItem> kCosmeticsCatalog = [
     category: CosmeticCategory.terrain, targetId: 'damage9', cost: 250,
     imagePath: 'assets/images/terrains/salon29.png'),
 
+  // ── Émotes GRATUITES (débloquées d'office, pas d'achat nécessaire) ──
+  CosmeticItem(id: 'emote_heart_shadow', name: 'Cœur Shadow',
+    category: CosmeticCategory.emote, cost: 0,
+    imagePath: '', fallbackEmoji: '❤️'),
+  CosmeticItem(id: 'emote_heart_neutre', name: 'Cœur Neutre',
+    category: CosmeticCategory.emote, cost: 0,
+    imagePath: '', fallbackEmoji: '🩵'),
+  CosmeticItem(id: 'emote_heart_shadow', name: 'Cœur Shadow',
+    category: CosmeticCategory.emote, cost: 0,
+    imagePath: '', fallbackEmoji: '💛'),    
+  CosmeticItem(id: 'emote_laugh', name: 'Rire',
+    category: CosmeticCategory.emote, cost: 0,
+    imagePath: '', fallbackEmoji: '😂'),
+  CosmeticItem(id: 'emote_angry', name: 'Colère',
+    category: CosmeticCategory.emote, cost: 0,
+    imagePath: '', fallbackEmoji: '😡'),
+  CosmeticItem(id: 'emote_cry', name: 'Pleurs',
+    category: CosmeticCategory.emote, cost: 0,
+    imagePath: '', fallbackEmoji: '😭'),
+  CosmeticItem(id: 'emote_thumbsup', name: 'Pouce levé',
+    category: CosmeticCategory.emote, cost: 0,
+    imagePath: '', fallbackEmoji: '👍'),
+  CosmeticItem(id: 'emote_skull', name: 'Crâne',
+    category: CosmeticCategory.emote, cost: 0,
+    imagePath: '', fallbackEmoji: '💀'),
+
+  // ── Émotes PERSONNALISÉES (achetables en boutique) — imagePath à
+  // fournir séparément, comme pour les autres cosmétiques ; fallbackEmoji
+  // sert de repli si l'image manque. ──
+  CosmeticItem(id: 'emote_custom_fire', name: 'Emote Feu',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '🔥'),
+  CosmeticItem(id: 'emote_custom_crown', name: 'Emote Couronne',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '👑'),
+  CosmeticItem(id: 'emote_custom_ghost', name: 'Emote Fantôme',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '👻'),
+  CosmeticItem(id: 'emote_custom_100', name: 'Emote 100',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '💯'),
+  CosmeticItem(id: 'emote_custom_ange', name: 'Emote Ange',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '😇'),
+  CosmeticItem(id: 'emote_custom_gel', name: 'Emote Ice Cold',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '🥶'),
+  CosmeticItem(id: 'emote_chaleur', name: 'Emote Chaleur',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '🥵'),
+  CosmeticItem(id: 'emote_custom_chockbar', name: 'Emote Chockbar de BZ',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '😱'),  
+  CosmeticItem(id: 'emote_custom_dead', name: 'Emote Dead',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '😵'),  
+  CosmeticItem(id: 'emote_custom_clown', name: 'Emote Clown',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '🤡'),   
+  CosmeticItem(id: 'emote_custom_caca', name: 'Emote Caca',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '💩'),   
+  CosmeticItem(id: 'emote_custom_love', name: 'Emote Love',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '😍'),  
+  CosmeticItem(id: 'emote_custom_rompiche', name: 'Emote Rompiche',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '😴'), 
+  CosmeticItem(id: 'emote_custom_fond', name: 'Emote Fondu',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '🫠'),  
+  CosmeticItem(id: 'emote_custom_aigreur', name: 'Emote Aigreur',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '😒'),
+  CosmeticItem(id: 'emote_custom_fatigue', name: 'Emote Fatigue',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '🫩'),
+  CosmeticItem(id: 'emote_wow', name: 'Emote Wow',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '🤯'),
+  CosmeticItem(id: 'emote_custom_sideye', name: 'Emote Side Eye',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '👀'),  
+  CosmeticItem(id: 'emote_custom_mary', name: 'Emote Mary me',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '💍'),  
+  CosmeticItem(id: 'emote_custom_deaddead', name: 'Emote 6 pied sous terre',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '🪦'),   
+  CosmeticItem(id: 'emote_custom_clippy', name: 'Emote Clippy',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '📎'),   
+  CosmeticItem(id: 'emote_custom_time', name: 'Emote Time',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '⏳'),  
+  CosmeticItem(id: 'emote_custom_renversé', name: 'Emote renversé',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '🙃'), 
+  CosmeticItem(id: 'emote_custom_hehe', name: 'Emote Hehe',
+    category: CosmeticCategory.emote, cost: 60,
+    imagePath: '', fallbackEmoji: '🤤'),  
+
+                      
 ];
 
 List<CosmeticItem> cosmeticsFor(CosmeticCategory cat, String targetId) =>
     kCosmeticsCatalog.where((c) => c.category == cat && c.targetId == targetId).toList();
+

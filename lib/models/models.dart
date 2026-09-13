@@ -212,6 +212,10 @@ class Player {
   int henryDamageBonus; // Henry : bonus de dégâts cumulatif (+2 par Shadow tué)
   String? raphRepeatTargetUid; // Raph : cible en cours de "rafale" (pouvoir unique), null = inactif
   int louisCooldown; // Louis : tours restants avant de pouvoir réutiliser sa capacité (0 = disponible)
+  List<String> masochisteAttackers; // Masochiste : uids distincts des joueurs qui l'ont déjà blessé par attaque (condition de victoire : 4 différents)
+  List<String> foodItemsEaten; // Gourmand : types de cartes "nourriture" déjà mangés au moins 1 fois (condition de victoire : les 4)
+  String? angeProtectedUid; // Ange : joueur choisi aléatoirement lors de sa révélation (condition de victoire : il doit être en vie à la fin)
+  String? veuveAlignedFaction; // Veuve (Blanche transformée) : camp de son tueur — gagne si CE camp gagne (stocké en String : 'hunter'/'shadow'/'neutral')
   int drunkTurnsRemaining = 0; // Maxence : tours restants ivre (vision brouillée, sur SON écran uniquement)
   int drunkSeed = 0;           // Maxence : graine fixe pour que le brouillage reste cohérent pendant les 2 tours
   int tomBonusDmg = 0; // Tom : dégâts bonus PERMANENTS cumulés, +2 à chaque Shadow qu'il élimine
@@ -307,6 +311,8 @@ class Player {
     this.henryDamageBonus = 0,
     this.raphRepeatTargetUid,
     this.louisCooldown = 0,
+    this.angeProtectedUid,
+    this.veuveAlignedFaction,
     this.drunkTurnsRemaining = 0,
     this.drunkSeed = 0,
     this.tomBonusDmg = 0,
@@ -339,7 +345,11 @@ class Player {
     this.abilityLockedByUid,
     this.megForm,
     List<GameCard>? equipment,
+    List<String>? masochisteAttackers,
+    List<String>? foodItemsEaten,
   }) : equipment = equipment ?? [],
+       masochisteAttackers = masochisteAttackers ?? [],
+       foodItemsEaten = foodItemsEaten ?? [],
        remiEquipmentChoices = remiEquipmentChoices ?? [],
        privatelyKnownBy = privatelyKnownBy ?? [],
        charmLevels = charmLevels ?? {};
@@ -381,6 +391,8 @@ class Player {
     'henryDamageBonus': henryDamageBonus,
     'raphRepeatTargetUid': raphRepeatTargetUid,
     'louisCooldown': louisCooldown,
+    'angeProtectedUid': angeProtectedUid,
+    'veuveAlignedFaction': veuveAlignedFaction,
     'drunkTurnsRemaining': drunkTurnsRemaining,
     'drunkSeed': drunkSeed,
     'tomBonusDmg': tomBonusDmg,
@@ -414,6 +426,8 @@ class Player {
     'abilityLockedByUid': abilityLockedByUid,
     'megForm': megForm,
     'equipment': equipment.map((e) => e.toJson()).toList(),
+    'masochisteAttackers': masochisteAttackers,
+    'foodItemsEaten': foodItemsEaten,
   };
 
   factory Player.fromJson(Map<String, dynamic> j) => Player(
@@ -480,6 +494,8 @@ class Player {
     henryDamageBonus: (j['henryDamageBonus'] as int?) ?? 0,
     raphRepeatTargetUid: j['raphRepeatTargetUid'] as String?,
     louisCooldown: (j['louisCooldown'] as int?) ?? 0,
+    angeProtectedUid: j['angeProtectedUid'] as String?,
+    veuveAlignedFaction: j['veuveAlignedFaction'] as String?,
     drunkTurnsRemaining: (j['drunkTurnsRemaining'] as int?) ?? 0,
     drunkSeed: (j['drunkSeed'] as int?) ?? 0,
     tomBonusDmg: (j['tomBonusDmg'] as int?) ?? 0,
@@ -516,6 +532,8 @@ class Player {
     equipment: ((j['equipment'] as List?) ?? [])
         .map((e) => GameCard.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(),
+    masochisteAttackers: ((j['masochisteAttackers'] as List?) ?? []).map((e) => e as String).toList(),
+    foodItemsEaten: ((j['foodItemsEaten'] as List?) ?? []).map((e) => e as String).toList(),
   );
 
   Player copy() => Player.fromJson(toJson());
@@ -562,6 +580,10 @@ class GameState {
   final String? builderEffect2;
   final List<String> builderOffered;     // 3 effets proposés au tour courant
   final int? disappearedZoneIndex; // Nautilus : index du terrain actuellement disparu (null = aucun)
+  final String? disappearedActivatorUid; // Nautilus : qui a activé la disparition — le décompte ne se fait qu'à SON propre tour (2 tours de table entiers, pas 2 tours de joueur quelconques)
+  final int? burningZoneIndex; // Escanor : index du terrain actuellement en feu (null = aucun)
+  final int burningTurnsRemaining; // Escanor : tours restants avant extinction
+  final String? burningActivatorUid; // Escanor : qui a activé le brasier — même logique que Nautilus (décompte à SON propre tour uniquement)
   final int chameleonDrawsRemaining; // Chameleon : nombre de tirages encore à faire (0 = aucun en cours)
   final String? chameleonDeck; // Chameleon : deck en cours ('lumiere' ou 'tenebres'), nom de DeckType
   final List<String> conanOffered; // Conan : les 3 options tirées, en attente du choix de 2
@@ -570,6 +592,9 @@ class GameState {
   final String? conanOpt1; // Conan : première option offerte à la cible
   final String? conanOpt2; // Conan : seconde option offerte à la cible
   final String? odinT1Uid; // Odin : uid du premier joueur choisi, en attente du second
+  final String? masochisteT1Uid; // Masochiste : uid de l'attaquant choisi, en attente de la victime
+  final String? gourmandFoodType; // Gourmand : type de nourriture choisi, en attente d'une cible (si nécessaire)
+  final int globalTurnCount; // Mode Chaos : nombre total de tours de joueur écoulés depuis le début de la partie (au-delà de 10, +2 dégâts sur toutes les attaques + contour rouge)
   final int disappearedTurnsRemaining; // Nautilus : tours restants avant réapparition
   final List<String> haileyOffered;      // Hailey : 3 Hunters non joués proposés au tour courant
   // Jeanne (Prophétesse)
@@ -644,6 +669,10 @@ class GameState {
     this.builderEffect2,
     this.builderOffered = const [],
     this.disappearedZoneIndex,
+    this.disappearedActivatorUid,
+    this.burningZoneIndex,
+    this.burningTurnsRemaining = 0,
+    this.burningActivatorUid,
     this.chameleonDrawsRemaining = 0,
     this.chameleonDeck,
     this.conanOffered = const [],
@@ -652,6 +681,9 @@ class GameState {
     this.conanOpt1,
     this.conanOpt2,
     this.odinT1Uid,
+    this.masochisteT1Uid,
+    this.gourmandFoodType,
+    this.globalTurnCount = 0,
     this.disappearedTurnsRemaining = 0,
     this.haileyOffered = const [],
     this.markedPlayerUid,
@@ -715,6 +747,10 @@ class GameState {
     'builderEffect2': builderEffect2,
     'builderOffered': builderOffered,
     'disappearedZoneIndex': disappearedZoneIndex,
+    'disappearedActivatorUid': disappearedActivatorUid,
+    'burningZoneIndex': burningZoneIndex,
+    'burningTurnsRemaining': burningTurnsRemaining,
+    'burningActivatorUid': burningActivatorUid,
     'chameleonDrawsRemaining': chameleonDrawsRemaining,
     'chameleonDeck': chameleonDeck,
     'conanOffered': conanOffered,
@@ -723,6 +759,9 @@ class GameState {
     'conanOpt1': conanOpt1,
     'conanOpt2': conanOpt2,
     'odinT1Uid': odinT1Uid,
+    'masochisteT1Uid': masochisteT1Uid,
+    'gourmandFoodType': gourmandFoodType,
+    'globalTurnCount': globalTurnCount,
     'disappearedTurnsRemaining': disappearedTurnsRemaining,
     'haileyOffered': haileyOffered,
     'markedPlayerUid': markedPlayerUid,
@@ -799,6 +838,10 @@ class GameState {
     builderEffect2: j['builderEffect2'] as String?,
     builderOffered: List<String>.from((j['builderOffered'] as List?) ?? []),
     disappearedZoneIndex: j['disappearedZoneIndex'] as int?,
+    disappearedActivatorUid: j['disappearedActivatorUid'] as String?,
+    burningZoneIndex: j['burningZoneIndex'] as int?,
+    burningTurnsRemaining: (j['burningTurnsRemaining'] as int?) ?? 0,
+    burningActivatorUid: j['burningActivatorUid'] as String?,
     chameleonDrawsRemaining: (j['chameleonDrawsRemaining'] as int?) ?? 0,
     chameleonDeck: j['chameleonDeck'] as String?,
     conanOffered: List<String>.from((j['conanOffered'] as List?) ?? []),
@@ -807,6 +850,9 @@ class GameState {
     conanOpt1: j['conanOpt1'] as String?,
     conanOpt2: j['conanOpt2'] as String?,
     odinT1Uid: j['odinT1Uid'] as String?,
+    masochisteT1Uid: j['masochisteT1Uid'] as String?,
+    gourmandFoodType: j['gourmandFoodType'] as String?,
+    globalTurnCount: (j['globalTurnCount'] as int?) ?? 0,
     disappearedTurnsRemaining: (j['disappearedTurnsRemaining'] as int?) ?? 0,
     haileyOffered: List<String>.from((j['haileyOffered'] as List?) ?? []),
     markedPlayerUid: j['markedPlayerUid'] as String?,

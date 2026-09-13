@@ -60,7 +60,15 @@ class SoloState {
   String? conanOpt1; // Conan : première option offerte à la cible
   String? conanOpt2; // Conan : seconde option offerte à la cible
   String? odinT1Uid; // Odin : uid du premier joueur choisi, en attente du second
+  String? masochisteT1Uid; // Masochiste : uid de l'attaquant choisi, en attente de la victime
+  String? gourmandFoodType; // Gourmand : type de nourriture choisi, en attente d'une cible (si nécessaire)
+  int globalTurnCount = 0; // Mode Chaos : nombre total de tours de joueur écoulés (déclenché après 5 tours de table entiers, soit 5×nb joueurs)
+  bool chaosJustActivated = false; // Mode Chaos : indicateur ponctuel (consommé par l'UI) — vient tout juste de se déclencher, affiche une explication
   int? disappearedZoneIndex; // Nautilus : index du terrain actuellement disparu (null = aucun)
+  String? disappearedActivatorUid; // Nautilus : qui a activé la disparition — le décompte ne se fait qu'à SON propre tour
+  int? burningZoneIndex; // Escanor : index du terrain actuellement en feu (null = aucun)
+  int burningTurnsRemaining = 0; // Escanor : tours restants avant extinction
+  String? burningActivatorUid; // Escanor : qui a activé le brasier
   int chameleonDrawsRemaining = 0; // Chameleon : nombre de tirages encore à faire (2 cartes à jouer normalement, l'une après l'autre)
   DeckType? chameleonDeck; // Chameleon : deck en cours de tirage (Lumière ou Ténèbres)
   int disappearedTurnsRemaining = 0; // Nautilus : tours restants avant réapparition
@@ -818,6 +826,21 @@ class SoloController extends ChangeNotifier {
   // ─── Tour suivant ────────────────────────
   Future<void> nextTurn() async {
     if (state == null || state!.isOver || _stopped) return;
+    // Mode Chaos : incrémente le compteur global de tours à chaque fin de
+    // tour de joueur (peu importe qui) — le seuil est calculé en TOURS DE
+    // TABLE ENTIERS (5 × nombre de joueurs), pas en tours individuels.
+    state!.globalTurnCount++;
+    final chaosThreshold = 5 * state!.players.length;
+    final wasChaosActive = _eg.chaosModeActive;
+    // Synchronise le champ du moteur — c'est LUI qui est réellement
+    // consulté par resolveAttack/resolveAttackFull (y compris les appels
+    // internes, comme la rafale de Raph ou l'attaque forcée de Masochiste).
+    _eg.chaosModeActive = state!.globalTurnCount >= chaosThreshold;
+    // Vient de se déclencher (transition false → true) : annonce-le.
+    if (_eg.chaosModeActive && !wasChaosActive) {
+      _log(logT('🔥⛓️ MODE CHAOS ACTIVÉ ! 5 tours de table sont écoulés — toutes les attaques infligent désormais 2 blessures de plus jusqu\'à la fin de la partie !', {}), cls: 'important');
+      state!.chaosJustActivated = true;
+    }
     // Felipe : si son tour de sursis se termine SANS qu'il ait éliminé
     // personne (applyDeathPassives l'aurait déjà sauvé sinon), il meurt
     // maintenant — son sursis n'était que pour CE tour.
@@ -847,12 +870,24 @@ class SoloController extends ChangeNotifier {
     if (outgoing.conanNoAttackTurns > 0) outgoing.conanNoAttackTurns--;
     // Louis : décompte son tour de pause obligatoire.
     if (outgoing.louisCooldown > 0) outgoing.louisCooldown--;
-    // Nautilus : la zone disparue est un effet GLOBAL (pas lié à un joueur
-    // précis) — décompte à chaque fin de tour, peu importe qui joue.
-    if (state!.disappearedTurnsRemaining > 0) {
+    // Nautilus : "jusqu'à son prochain prochain tour" = 2 tours de table
+    // ENTIERS, pas 2 tours de joueur quelconques — le décompte ne se fait
+    // donc QUE lorsque c'est le tour de l'ACTIVATEUR lui-même qui se
+    // termine, pas à chaque fin de tour peu importe qui joue.
+    if (state!.disappearedTurnsRemaining > 0 && outgoing.uid == state!.disappearedActivatorUid) {
       state!.disappearedTurnsRemaining--;
       if (state!.disappearedTurnsRemaining <= 0) {
         state!.disappearedZoneIndex = null;
+        state!.disappearedActivatorUid = null;
+      }
+    }
+    // Escanor : même logique de minutage que Nautilus — ne décompte qu'au
+    // tour de l'activateur lui-même.
+    if (state!.burningTurnsRemaining > 0 && outgoing.uid == state!.burningActivatorUid) {
+      state!.burningTurnsRemaining--;
+      if (state!.burningTurnsRemaining <= 0) {
+        state!.burningZoneIndex = null;
+        state!.burningActivatorUid = null;
       }
     }
     // 🍀 Fifi — le "tour parfait" ne dure qu'UN tour : on le consomme ici,
@@ -943,6 +978,13 @@ class SoloController extends ChangeNotifier {
         await _checkWin(justDiedId: bot.uid);
         return;
       }
+    }
+    // Escanor : même mécanique que côté humain — le terrain en feu
+    // inflige la brûlure croissante de Luc à l'arrivée.
+    if (bot.zoneIndex == state!.burningZoneIndex && state!.burningTurnsRemaining > 0 && bot.lucFireTurnsRemaining <= 0) {
+      bot.lucFireTurnsRemaining = 1;
+      bot.lucFireSourceUid = state!.burningActivatorUid;
+      _log(logT("☀️ {name} prend feu en s'aventurant sur le terrain embrasé !", {'name': bot.name}), cls: 'bot');
     }
     final terrain = state!.terrainLayout[bot.zoneIndex];
     if (terrain.effect == 'choice') {
@@ -1095,6 +1137,7 @@ class SoloController extends ChangeNotifier {
       final needsTarget = _abilityNeedsTarget(bot.character!.abilityEffect);
       Player? target;
       Player? odinTarget2; // Odin : second joueur prévu (calculé en même temps que le premier, pour une stratégie cohérente)
+      String? gourmandFoodChoice; // Gourmand : type de nourriture prévu (calculé à l'avance, comme la zone de Nautilus)
       if (bot.character!.abilityEffect == 'copy_ability') {
         // Tommy (bot) : choisit un joueur révélé au pouvoir copiable, au hasard.
         final candidates = state!.players.where((x) =>
@@ -1122,6 +1165,37 @@ class SoloController extends ChangeNotifier {
           final pool = state!.players.where((p) => p.alive).toList()..shuffle(_rng);
           if (pool.length >= 2) { target = pool[0]; odinTarget2 = pool[1]; }
         }
+      } else if (bot.character!.abilityEffect == 'masochiste_force_attack') {
+        // Masochiste (bot) : stratégie mixte — une chance sur deux de
+        // forcer un joueur (qui ne l'a pas encore blessé) à l'attaquer
+        // LUI-MÊME (progresse sa condition de victoire), sinon force 2
+        // AUTRES joueurs au hasard à s'affronter (chaos classique).
+        final others = state!.players.where((p) => p.alive && p.uid != bot.uid).toList();
+        if (others.isNotEmpty) {
+          final freshAttackers = others.where((p) => !bot.masochisteAttackers.contains(p.uid)).toList();
+          if (freshAttackers.isNotEmpty && _rng.nextBool()) {
+            target = freshAttackers[_rng.nextInt(freshAttackers.length)];
+            odinTarget2 = bot; // réutilise le même mécanisme de "2e cible pré-calculée"
+          } else if (others.length >= 2) {
+            final pool = List<Player>.from(others)..shuffle(_rng);
+            target = pool[0];
+            odinTarget2 = pool[1];
+          }
+        }
+      } else if (bot.character!.abilityEffect == 'gourmand_fetch_food') {
+        // Gourmand (bot) : choisit en priorité un type de nourriture PAS
+        // ENCORE mangé (progresse sa condition de victoire) ; si les 4
+        // sont déjà mangés (ne devrait pas arriver, il aurait déjà
+        // gagné), en reprend un au hasard.
+        const gAllTypes = ['vampirisation', 'veuve_noire', 'low_hp_reveal_heal', 'heal_self_4'];
+        final gUnEaten = gAllTypes.where((f) => !bot.foodItemsEaten.contains(f)).toList();
+        gourmandFoodChoice = gUnEaten.isNotEmpty
+            ? gUnEaten[_rng.nextInt(gUnEaten.length)]
+            : gAllTypes[_rng.nextInt(gAllTypes.length)];
+        if (gourmandFoodChoice == 'vampirisation' || gourmandFoodChoice == 'veuve_noire') {
+          final others = state!.players.where((p) => p.alive && p.uid != bot.uid).toList();
+          if (others.isNotEmpty) target = others[_rng.nextInt(others.length)];
+        }
       } else if (needsTarget) {
         target = _ai.bestTarget(bot, state!.players, difficulty, context: bot.character!.abilityEffect);
       }
@@ -1131,6 +1205,9 @@ class SoloController extends ChangeNotifier {
       if (bot.character!.abilityEffect == 'move_adjacent_choice') {
         final adjZones = kAdjacences[bot.zoneIndex];
         extraParam = adjZones[_rng.nextInt(adjZones.length)].toString();
+      }
+      if (bot.character!.abilityEffect == 'gourmand_fetch_food' && gourmandFoodChoice != null) {
+        extraParam = 'gourmand_food:$gourmandFoodChoice';
       }
       var log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, target: target, extra: extraParam);
       // Chameleon (bot) : zone 4-5 — choisit au hasard l'un des 5 autres
@@ -1224,7 +1301,38 @@ class SoloController extends ChangeNotifier {
           final rest = log.substring('nautilus_vanished:'.length);
           final sep = rest.indexOf('|');
           state!.disappearedZoneIndex = sep >= 0 ? int.tryParse(rest.substring(0, sep)) : null;
-          state!.disappearedTurnsRemaining = 2;
+          // 3 (pas 2) : compense le décompte qui se déclenche dès la fin de
+          // CE tour d'activation (voir le commentaire détaillé au point de
+          // décompte) — donne bien 2 tours de table ENTIERS de délai.
+          state!.disappearedTurnsRemaining = 3;
+          state!.disappearedActivatorUid = bot.uid;
+          log = sep >= 0 ? rest.substring(sep + 1) : '';
+        }
+      }
+      if (log == 'escanor_choose_zone') {
+        // Escanor (bot) : même logique que Nautilus — vise la zone
+        // comptant le plus d'ennemis révélés, sinon au hasard.
+        final zoneCounts = <int, int>{};
+        for (final p in state!.players) {
+          if (!p.alive || p.uid == bot.uid || !p.revealed || p.character == null) continue;
+          if (_ai._isEnemy(bot, p.character!.faction)) {
+            zoneCounts[p.zoneIndex] = (zoneCounts[p.zoneIndex] ?? 0) + 1;
+          }
+        }
+        int chosenZoneE;
+        if (zoneCounts.isNotEmpty) {
+          chosenZoneE = zoneCounts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+        } else {
+          final options = List.generate(6, (i) => i)..remove(bot.zoneIndex);
+          chosenZoneE = options[_rng.nextInt(options.length)];
+        }
+        log = _eg.applyAbility(bot, state!.players, state!.terrainLayout, extra: '$chosenZoneE');
+        if (log.startsWith('escanor_burning:')) {
+          final rest = log.substring('escanor_burning:'.length);
+          final sep = rest.indexOf('|');
+          state!.burningZoneIndex = sep >= 0 ? int.tryParse(rest.substring(0, sep)) : null;
+          state!.burningTurnsRemaining = 3;
+          state!.burningActivatorUid = bot.uid;
           log = sep >= 0 ? rest.substring(sep + 1) : '';
         }
       }
@@ -1262,6 +1370,16 @@ class SoloController extends ChangeNotifier {
             target: odinTarget2, extra: 'odin_t1:$t1uid') ?? '';
         final t1now = state!.players.firstWhere((p) => p.uid == t1uid, orElse: () => bot);
         if (!t1now.alive) { await _checkWin(justDiedId: t1now.uid); }
+        if (!odinTarget2.alive) { await _checkWin(justDiedId: odinTarget2.uid); }
+      }
+      if (log.startsWith('masochiste_pick_victim:') && odinTarget2 != null) {
+        // Masochiste (bot) : finalise l'attaque forcée avec la victime
+        // déjà calculée stratégiquement plus haut.
+        final t1uidM = log.substring('masochiste_pick_victim:'.length);
+        log = _eg.applyAbility(bot, state!.players, state!.terrainLayout,
+            target: odinTarget2, extra: 'masochiste_t1:$t1uidM') ?? '';
+        final t1nowM = state!.players.firstWhere((p) => p.uid == t1uidM, orElse: () => bot);
+        if (!t1nowM.alive) { await _checkWin(justDiedId: t1nowM.uid); }
         if (!odinTarget2.alive) { await _checkWin(justDiedId: odinTarget2.uid); }
       }
       abilityLog = log;
@@ -1592,7 +1710,12 @@ class SoloController extends ChangeNotifier {
         // le seuil des 3 attaques (une attaque en étant caché ne compte pas).
         if (bot.revealed) bot.attackCount++;
         _ai.recordAttack(bot, tgt);
+        final woundsBeforeBot = tgt.wounds;
         final attackRes = _eg.resolveAttack(bot, tgt, dmg, all: state!.players);
+        if (tgt.character?.winEffect == 'masochiste_win' && tgt.wounds > woundsBeforeBot &&
+            !tgt.masochisteAttackers.contains(bot.uid)) {
+          tgt.masochisteAttackers.add(bot.uid);
+        }
         final log = attackRes['log'] as String;
         _log(log);
         if ((bot.copiedEffect ?? bot.character?.abilityEffect ?? '') == 'third_attack_bonus'
@@ -1654,6 +1777,16 @@ class SoloController extends ChangeNotifier {
     state!.pendingRevealAnimation = p.uid;
     audio.playReveal();
     _log(logT('🃏 {name} révèle : {char}', {'name': p.name, 'char': p.character!.name}), cls: 'player');
+    // Ange : choisit aléatoirement un AUTRE joueur dont la survie
+    // deviendra sa condition de victoire.
+    if (p.character?.abilityEffect == 'ange_sacrifice_heal' && p.angeProtectedUid == null) {
+      final others = state!.players.where((x) => x.uid != p.uid && x.alive).toList();
+      if (others.isNotEmpty) {
+        final chosen = others[_rng.nextInt(others.length)];
+        p.angeProtectedUid = chosen.uid;
+        _log(logT('😇 {name} — le destin de {chosen} est désormais lié au sien', {'name': p.name, 'chosen': chosen.name}), cls: 'player');
+      }
+    }
     // Clémence : démarrer le pouvoir constructeur juste après la révélation
     if (p.character?.abilityEffect == 'builder_power') {
       state!.builderStep = 1;
@@ -2624,6 +2757,33 @@ class SoloController extends ChangeNotifier {
           s.pendingTargetAction = 'nautilus_choose_zone';
           s.phase = GamePhase.chooseTarget; notifyListeners(); return;
         }
+        // Escanor : ouvre l'écran de choix de ZONE — même schéma que Nautilus.
+        if (special == 'escanor_choose_zone') {
+          s.pendingTargetAction = 'escanor_choose_zone';
+          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+        }
+        // Escanor : la zone choisie vient de brûler — active l'état.
+        if (special == 'escanor_burning') {
+          s.burningZoneIndex = res['escanorZone'] as int?;
+          s.burningTurnsRemaining = 3; // compense le décompte immédiat en fin de CE tour
+          s.burningActivatorUid = p.uid;
+          if (log.isNotEmpty) _log(log, cls: 'player');
+          s.pendingTargetAction = null;
+          if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
+          notifyListeners(); return;
+        }
+        // Gourmand : ouvre l'écran de choix du TYPE de nourriture.
+        if (special == 'gourmand_choose_food') {
+          s.pendingTargetAction = 'gourmand_choose_food';
+          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+        }
+        // Gourmand : type choisi (nécessite une cible) — ouvre le
+        // sélecteur de joueur, en mémorisant le type choisi.
+        if (special == 'gourmand_choose_target') {
+          s.gourmandFoodType = res['gourmandFoodType'] as String?;
+          s.pendingTargetAction = 'gourmand_choose_target';
+          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+        }
         // Louis : capacité encore en recharge — message informatif, pas
         // de cible demandée, passe simplement au déplacement.
         if (special == 'louis_on_cooldown') {
@@ -2643,9 +2803,17 @@ class SoloController extends ChangeNotifier {
           s.pendingTargetAction = 'odin_pick_second';
           s.phase = GamePhase.chooseTarget; notifyListeners(); return;
         }
+        // Masochiste : premier joueur choisi (l'attaquant forcé) — ouvre
+        // le choix de la victime.
+        if (special == 'masochiste_pick_victim') {
+          s.masochisteT1Uid = res['masochisteT1Uid'] as String?;
+          s.pendingTargetAction = 'masochiste_pick_victim';
+          s.phase = GamePhase.chooseTarget; notifyListeners(); return;
+        }
         if (special == 'nautilus_vanished') {
           s.disappearedZoneIndex = res['nautilusZone'] as int?;
-          s.disappearedTurnsRemaining = 2;
+          s.disappearedTurnsRemaining = 3; // compense le décompte immédiat en fin de CE tour
+          s.disappearedActivatorUid = p.uid;
           if (log.isNotEmpty) _log(log, cls: 'player');
           s.pendingTargetAction = null;
           if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
@@ -3087,6 +3255,17 @@ class SoloController extends ChangeNotifier {
         _checkWin(justDiedId: p.uid);
       }
     }
+    // Escanor : le terrain en feu inflige l'effet de flamme croissante de
+    // Luc à quiconque s'y trouve, pendant les 2 tours où il brûle. Même
+    // point central que Nautilus ci-dessus.
+    if (zIdx == state!.burningZoneIndex && state!.burningTurnsRemaining > 0) {
+      final p = state!.current;
+      if (p.lucFireTurnsRemaining <= 0) { // évite de rétrograder un niveau de brûlure déjà plus élevé
+        p.lucFireTurnsRemaining = 1;
+        p.lucFireSourceUid = state!.burningActivatorUid;
+        _log(logT('☀️ {name} prend feu en s\'aventurant sur le terrain embrasé !', {'name': p.name}), cls: 'player');
+      }
+    }
     final terrain = state!.terrainLayout[zIdx];
     switch (terrain.effect) {
       case 'vision':   humanDrawCard(DeckType.vision); return;
@@ -3415,8 +3594,44 @@ class SoloController extends ChangeNotifier {
     final log = res['log'] as String? ?? '';
     if (res['special'] == 'nautilus_vanished') {
       s.disappearedZoneIndex = res['nautilusZone'] as int?;
-      s.disappearedTurnsRemaining = 2;
+      s.disappearedTurnsRemaining = 3; // compense le décompte immédiat en fin de CE tour
+      s.disappearedActivatorUid = s.current.uid;
     }
+    if (log.isNotEmpty) _log(log, cls: 'player');
+    s.pendingTargetAction = null;
+    if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
+    notifyListeners();
+  }
+
+  /// Escanor : résout le choix de la zone à embraser — même schéma que
+  /// Nautilus.
+  void humanChooseEscanorZone(int zoneIdx) {
+    final s = state!;
+    final res = _eg.applyAbilityFull(s.current, s.players, s.terrainLayout, extra: '$zoneIdx');
+    final log = res['log'] as String? ?? '';
+    if (res['special'] == 'escanor_burning') {
+      s.burningZoneIndex = res['escanorZone'] as int?;
+      s.burningTurnsRemaining = 3;
+      s.burningActivatorUid = s.current.uid;
+    }
+    if (log.isNotEmpty) _log(log, cls: 'player');
+    s.pendingTargetAction = null;
+    if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
+    notifyListeners();
+  }
+
+  /// Gourmand : type de nourriture choisi — résout directement si ce type
+  /// ne nécessite pas de cible (Chocolat/Bucket), sinon ouvre le
+  /// sélecteur de joueur en mémorisant le type choisi.
+  void humanChooseGourmandFood(String foodType) {
+    final s = state!;
+    final res = _eg.applyAbilityFull(s.current, s.players, s.terrainLayout, extra: 'gourmand_food:$foodType');
+    if (res['special'] == 'gourmand_choose_target') {
+      s.gourmandFoodType = res['gourmandFoodType'] as String?;
+      s.pendingTargetAction = 'gourmand_choose_target';
+      notifyListeners(); return;
+    }
+    final log = res['log'] as String? ?? '';
     if (log.isNotEmpty) _log(log, cls: 'player');
     s.pendingTargetAction = null;
     if (!s.isOver && !s.turnEndedByDeath) { s.phase = GamePhase.move; }
@@ -3493,6 +3708,44 @@ class SoloController extends ChangeNotifier {
         final t1 = state!.players.firstWhere((p) => p.uid == t1uidCheck, orElse: () => target);
         if (!t1.alive) _checkWin(justDiedId: t1.uid);
       }
+      if (!target.alive) _checkWin(justDiedId: target.uid);
+      if (!state!.isOver && !state!.turnEndedByDeath) { state!.phase = GamePhase.move; }
+      notifyListeners();
+      return;
+    }
+    if (state!.pendingTargetAction == 'masochiste_pick_victim') {
+      // Masochiste : attaquant forcé déjà choisi (state!.masochisteT1Uid)
+      // — la victime vient d'être choisie, résout directement l'attaque
+      // forcée (le jet de dés et l'attaque complète sont gérés dans le
+      // cas 'masochiste_force_attack' de applyAbility()).
+      final res = _eg.applyAbilityFull(state!.current, state!.players, state!.terrainLayout,
+          target: target, extra: 'masochiste_t1:${state!.masochisteT1Uid}');
+      final log = res['log'] as String? ?? '';
+      if (log.isNotEmpty) _log(log, cls: 'player');
+      state!.pendingTargetAction = null;
+      final t1uidCheckM = state!.masochisteT1Uid;
+      state!.masochisteT1Uid = null;
+      if (t1uidCheckM != null) {
+        final t1m = state!.players.firstWhere((p) => p.uid == t1uidCheckM, orElse: () => target);
+        if (!t1m.alive) _checkWin(justDiedId: t1m.uid);
+      }
+      if (!target.alive) _checkWin(justDiedId: target.uid);
+      if (!state!.isOver && !state!.turnEndedByDeath) { state!.phase = GamePhase.move; }
+      notifyListeners();
+      return;
+    }
+    if (state!.pendingTargetAction == 'gourmand_choose_target') {
+      // Gourmand : type de nourriture déjà choisi (state!.gourmandFoodType)
+      // — la cible vient d'être choisie, résout directement via
+      // resolveCard() (dans le cas 'gourmand_fetch_food' d'applyAbility()).
+      final res = _eg.applyAbilityFull(state!.current, state!.players, state!.terrainLayout,
+          target: target, extra: 'gourmand_food:${state!.gourmandFoodType}');
+      final log = res['log'] as String? ?? '';
+      if (log.isNotEmpty) _log(log, cls: 'player');
+      state!.pendingTargetAction = null;
+      state!.gourmandFoodType = null;
+      final gActor = state!.current;
+      if (!gActor.alive) _checkWin(justDiedId: gActor.uid);
       if (!target.alive) _checkWin(justDiedId: target.uid);
       if (!state!.isOver && !state!.turnEndedByDeath) { state!.phase = GamePhase.move; }
       notifyListeners();
@@ -3595,7 +3848,15 @@ class SoloController extends ChangeNotifier {
     final isMathieuThird = (attacker.copiedEffect ?? attacker.character?.abilityEffect ?? '') == 'third_attack_bonus'
         && attacker.attackCount >= 3;
     _ai.recordAttack(attacker, target);
+    final woundsBefore = target.wounds;
     final res = _eg.resolveAttackFull(attacker, target, actualDmg, state!.players, attackCount: attacker.attackCount - 1);
+    // Masochiste : mémorise les attaquants distincts (uniquement si des
+    // blessures ont réellement été subies — un jet bloqué/dévié ne compte
+    // pas).
+    if (target.character?.winEffect == 'masochiste_win' && target.wounds > woundsBefore &&
+        !target.masochisteAttackers.contains(attacker.uid)) {
+      target.masochisteAttackers.add(attacker.uid);
+    }
     _log(res['log'] as String, cls: 'player');
     if (!target.alive) { _log(logT('💀 {name} est éliminé !', {'name': target.name}), cls: 'death'); }
     // Mathieu 3e attaque : animation + voice line (au moment précis de l'activation)
@@ -3673,8 +3934,13 @@ class SoloController extends ChangeNotifier {
     for (final target in targets) {
       // Mathieu : seules les attaques faites une fois révélé comptent.
       if (attacker.revealed) attacker.attackCount++;
+      final woundsBeforeB = target.wounds;
       final res = _eg.resolveAttackFull(attacker, target, actualDmg,
           state!.players, attackCount: attacker.attackCount - 1);
+      if (target.character?.winEffect == 'masochiste_win' && target.wounds > woundsBeforeB &&
+          !target.masochisteAttackers.contains(attacker.uid)) {
+        target.masochisteAttackers.add(attacker.uid);
+      }
       _log(res['log'] as String, cls: 'player');
       if (!target.alive) {
         _log(logT('💀 {name} est éliminé !', {'name': target.name}), cls: 'death');
@@ -3844,6 +4110,32 @@ class SoloController extends ChangeNotifier {
         notifyListeners(); return;
       }
     }
+    // Masochiste : vérifie si le seuil de 4 attaquants distincts est atteint
+    // — condition qui peut se déclencher n'importe quand (pas liée à une
+    // mort), donc vérifiée à chaque appel de _checkWin(), même schéma
+    // immédiat que Léo ci-dessus.
+    final maybeMasochiste = state!.players.where((p) =>
+        p.alive && p.character?.winEffect == 'masochiste_win' && p.masochisteAttackers.length >= 3).firstOrNull;
+    if (maybeMasochiste != null) {
+      state!.phase = GamePhase.gameOver;
+      state!.winnerIds = [maybeMasochiste.uid];
+      state!.winnerMessage = '⛓️ ${maybeMasochiste.name} a été blessé par 3 joueurs différents — ${maybeMasochiste.name} GAGNE !';
+      _log(logT('🏆 {msg}', {'msg': state!.winnerMessage ?? ''}), cls: 'important');
+      notifyListeners(); return;
+    }
+    // Gourmand : a-t-il mangé les 4 items de nourriture au moins une fois
+    // chacun ? Même schéma immédiat que Masochiste ci-dessus.
+    const gFoodTypesAll = {'vampirisation', 'veuve_noire', 'low_hp_reveal_heal', 'heal_self_4'};
+    final maybeGourmand = state!.players.where((p) =>
+        p.alive && p.character?.winEffect == 'gourmand_win' &&
+        gFoodTypesAll.every((f) => p.foodItemsEaten.contains(f))).firstOrNull;
+    if (maybeGourmand != null) {
+      state!.phase = GamePhase.gameOver;
+      state!.winnerIds = [maybeGourmand.uid];
+      state!.winnerMessage = '🍗 ${maybeGourmand.name} a mangé toutes les nourritures — ${maybeGourmand.name} GAGNE !';
+      _log(logT('🏆 {msg}', {'msg': state!.winnerMessage ?? ''}), cls: 'important');
+      notifyListeners(); return;
+    }
     final res = _eg.checkWin(state!.players, justDiedId: justDiedId);
     if (res != null) {
       state!.phase = GamePhase.gameOver;
@@ -3951,7 +4243,7 @@ class SoloController extends ChangeNotifier {
     'swap_equipment','damien_serve','copy_ability','d4_heal_neighbors',
     'lock_ability_while_alive','steal_max_hp','luc_ignite','baptiste_revive','maxence_drunk',
     'store_damage_nils','d4_bonus_attack','rudolf_freeze','taureador_provoke','artisan_copy_equip','pere_noel_gift','sorciere_pigeon','chameleon_terrain_power','alchimiste_potion','pigeon_peck',
-    'nautilus_vanish','conan_choice','raph_shadow_rampage','odin_swap_wounds','emma_teleport_to','louis_burst_damage',
+    'nautilus_vanish','conan_choice','raph_shadow_rampage','odin_swap_wounds','emma_teleport_to','louis_burst_damage','escanor_burn_zone','masochiste_force_attack',
   ].contains(eff);
 
   // Liste synchronisée avec le switch needsTarget de resolveCard() —

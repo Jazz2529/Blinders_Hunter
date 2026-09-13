@@ -6,6 +6,7 @@ import '../models/models.dart';
 import '../data/game_data.dart';
 import '../data/characters_data.dart';
 import '../data/tokens_data.dart';
+import '../data/cosmetics_data.dart';
 import '../services/i18n.dart';
 import 'theme.dart';
 
@@ -21,6 +22,8 @@ class GameBoard extends StatelessWidget {
   final void Function(int)? onZoneTap;
   final Map<int, String> trappedZones;
   final int? disappearedZoneIndex; // Nautilus : terrain submergé (null = aucun)
+  final int? burningZoneIndex; // Escanor : terrain en feu (null = aucun)
+  final Map<String, dynamic> emotes; // uid -> {emoteId, ts} — envoyés via le bouton emote
 
   const GameBoard({
     super.key,
@@ -32,6 +35,8 @@ class GameBoard extends StatelessWidget {
     this.onZoneTap,
     this.trappedZones = const {},
     this.disappearedZoneIndex,
+    this.burningZoneIndex,
+    this.emotes = const {},
   });
 
   @override
@@ -75,6 +80,8 @@ class GameBoard extends StatelessWidget {
                 onTap: onZoneTap != null ? () => onZoneTap!(i) : null,
                 trapIcon: trappedZones[i],
                 isEngulfed: i == disappearedZoneIndex,
+                isBurning: i == burningZoneIndex,
+                emotes: emotes,
               ),
             );
           }),
@@ -94,6 +101,8 @@ class TerrainTile extends StatelessWidget {
   final VoidCallback? onTap;
   final String? trapIcon;
   final bool isEngulfed; // Nautilus : terrain submergé — dangereux mais accessible
+  final bool isBurning; // Escanor : terrain en feu — dangereux mais accessible
+  final Map<String, dynamic> emotes; // uid -> {emoteId, ts} — voir GameBoard
 
   const TerrainTile({
     super.key,
@@ -105,6 +114,8 @@ class TerrainTile extends StatelessWidget {
     this.onTap,
     this.trapIcon,
     this.isEngulfed = false,
+    this.isBurning = false,
+    this.emotes = const {},
   });
 
   @override
@@ -238,7 +249,7 @@ class TerrainTile extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _TokensOverlay(players: zonePlayers, scale: scale),
+                      _TokensOverlay(players: zonePlayers, scale: scale, emotes: emotes),
                     ],
                   ),
                 ),
@@ -282,6 +293,33 @@ class TerrainTile extends StatelessWidget {
                     border: Border.all(color: Colors.blueAccent, width: 1.5),
                   ),
                   child: Text('🌊', style: TextStyle(fontSize: 16 * scale)),
+                ),
+              ),
+            ],
+            // Escanor : terrain en feu — même principe que le terrain
+            // submergé de Nautilus ci-dessus, mais en rouge/feu pour
+            // signaler la brûlure croissante à quiconque s'y aventure.
+            if (isBurning) ...[
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: Colors.red.withValues(alpha: 0.35),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 4, left: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.redAccent, width: 1.5),
+                  ),
+                  child: Text('🔥', style: TextStyle(fontSize: 16 * scale)),
                 ),
               ),
             ],
@@ -344,9 +382,10 @@ class _TerrainImg extends StatelessWidget {
 
 // ─── Jetons overlay ──────────────────────────────────────────────────────────
 class _TokensOverlay extends StatelessWidget {
-  final List<Map<String, dynamic>> players; // {tokenId, revealed, faction}
+  final List<Map<String, dynamic>> players; // {uid, tokenId, revealed, faction}
   final double scale;
-  const _TokensOverlay({required this.players, this.scale = 1.0});
+  final Map<String, dynamic> emotes; // uid -> {emoteId, ts} — voir GameBoard
+  const _TokensOverlay({required this.players, this.scale = 1.0, this.emotes = const {}});
 
   @override
   Widget build(BuildContext context) {
@@ -370,6 +409,19 @@ class _TokensOverlay extends StatelessWidget {
           final faction = p['faction'] as String? ?? '';
           final token = findToken(tokenId);
           final imgPath = token?.imagePath;
+          // Emotes : bulle au-dessus du jeton pendant les 3 secondes qui
+          // suivent l'envoi — expiration gérée ici, côté client, pas par
+          // le serveur (voir sendEmote/watchEmotes dans firebase_service).
+          final uid = p['uid'] as String?;
+          String? emoteEmoji;
+          if (uid != null && emotes.containsKey(uid)) {
+            final ev = Map<String, dynamic>.from(emotes[uid] as Map);
+            final ts = ev['ts'] as int? ?? 0;
+            if (DateTime.now().millisecondsSinceEpoch - ts < 3000) {
+              final item = kCosmeticsCatalog.where((c) => c.id == ev['emoteId']).firstOrNull;
+              emoteEmoji = item?.fallbackEmoji;
+            }
+          }
 
           // Couleur du cadre selon faction si révélé
           Color borderColor = Colors.white;
@@ -395,19 +447,40 @@ class _TokensOverlay extends StatelessWidget {
 
           return Positioned(
             left: e.key * (tileSize - overlap),
-            child: Container(
-              width: tileSize, height: tileSize,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: borderColor, width: borderWidth),
-                boxShadow: shadows,
-              ),
-              child: ClipOval(
-                child: imgPath != null
-                  ? Image.asset(imgPath, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _fallback(token?.fallbackEmoji ?? '?'))
-                  : _fallback('?'),
-              ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: tileSize, height: tileSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: borderColor, width: borderWidth),
+                    boxShadow: shadows,
+                  ),
+                  child: ClipOval(
+                    child: imgPath != null
+                      ? Image.asset(imgPath, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _fallback(token?.fallbackEmoji ?? '?'))
+                      : _fallback('?'),
+                  ),
+                ),
+                if (emoteEmoji != null)
+                  Positioned(
+                    top: -tileSize * 0.55,
+                    left: 0, right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: EdgeInsets.all(2 * scale),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.75),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white70, width: 1),
+                        ),
+                        child: Text(emoteEmoji, style: TextStyle(fontSize: 14 * scale)),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           );
         }).toList(),

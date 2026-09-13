@@ -13,11 +13,6 @@ const List<CharacterCard> kAllCharacters = [
     ability:'Passif révélé: lance 2 fois les dés de déplacement et choisit le résultat',
     abilityEffect:'double_move_dice', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
-  
-  CharacterCard(id:'alchimiste', name:'Alchimiste', faction:Faction.hunter, hp:11, icon:'⚗️',
-    ability:'Répétable: préparez une potion parmi 3 tirées au hasard et offrez-la à un joueur de votre choix — soin 3, blessure 3, force (+1 dégât infligé pendant 2 tours), faiblesse (-1 dégât infligé pendant 2 tours), intellect (téléportation sur le terrain de votre choix), résistance (-1 dégât subi pendant 2 tours), poison (2 dégâts par tour pendant 2 tours), gel (pendant 2 tours), flou (ivresse pendant 1 tour), feu (brûlure croissante), ou provocation',
-    abilityEffect:'alchimiste_potion', abilityRepeatable:true,
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
   CharacterCard(id:'amelia', name:'Amélia', faction:Faction.hunter, hp:11, icon:'🌸',
     ability:'Unique: inflige 2 blessures à tous les Shadows révélés ET soigne de 2 tous les Hunters révélés.',
@@ -47,17 +42,17 @@ const List<CharacterCard> kAllCharacters = [
   CharacterCard(id:'baptiste', name:'Baptiste', faction:Faction.hunter, hp:11, icon:'✝️',
     ability:'Unique: infligez-vous jusqu\'à X blessures (dans la limite de vos PV restants) pour ramener à la vie un joueur mort, qui revient avec autant de blessures que vous vous êtes infligées.',
     abilityEffect:'baptiste_revive', abilityRepeatable:false,
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'), 
+
+  CharacterCard(id:'chameleon', name:'Benjamin', faction:Faction.hunter, hp:13, icon:'🦎',
+    ability:'Unique: pouvoir différent selon la zone où vous vous trouvez — 2-3: obligez un joueur de votre choix à se révéler • 4-5: choisissez l\'un des 5 autres pouvoirs de zone • 6: piochez 2 cartes Lumière • 8: piochez 2 cartes Ténèbres • 9: infligez 2 blessures à tous les autres joueurs • 10: récupérez tous les équipements de tous les autres joueurs',
+    abilityEffect:'chameleon_terrain_power',
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),     
 
   CharacterCard(id:'carla', name:'Carla', faction:Faction.hunter, hp:11, icon:'🎗️',
     ability:'Passif révélé: si vous attaquez un Hunter révélé, il est soigné du même montant au lieu d\'être blessé',
     abilityEffect:'heal_hunter_on_attack', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
-
-  CharacterCard(id:'chameleon', name:'Chameleon', faction:Faction.hunter, hp:10, icon:'🦎',
-    ability:'Unique: pouvoir différent selon la zone où vous vous trouvez — 2-3: obligez un joueur de votre choix à se révéler • 4-5: choisissez l\'un des 5 autres pouvoirs de zone • 6: piochez 2 cartes Lumière • 8: piochez 2 cartes Ténèbres • 9: infligez 2 blessures à tous les autres joueurs • 10: récupérez tous les équipements de tous les autres joueurs',
-    abilityEffect:'chameleon_terrain_power',
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
 
   CharacterCard(id:'christine', name:'Christine', faction:Faction.hunter, hp:13, icon:'🗺️',
     ability:'Répétable: au lieu de vous déplacer normalement, choisissez directement un des 2 terrains adjacents et déplacez-vous-y',
@@ -89,6 +84,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'heal_per_equip_eot', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
+  CharacterCard(id:'alchimiste', name:'Flubs', faction:Faction.hunter, hp:11, icon:'⚗️',
+    ability:'Répétable: préparez une potion parmi 3 tirées au hasard et offrez-la à un joueur de votre choix — soin 3, blessure 3, force (+1 dégât infligé pendant 2 tours), faiblesse (-1 dégât infligé pendant 2 tours), intellect (téléportation sur le terrain de votre choix), résistance (-1 dégât subi pendant 2 tours), poison (2 dégâts par tour pendant 2 tours), gel (pendant 2 tours), flou (ivresse pendant 1 tour), feu (brûlure croissante), ou provocation',
+    abilityEffect:'alchimiste_potion', abilityRepeatable:true,
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+  
   CharacterCard(id:'gege', name:'Gège le Fantôme', faction:Faction.hunter, hp:14, icon:'👻',
     ability:'Passif: ne peut pas attaquer, mais attaque automatiquement chaque fois qu\'un Hunter révélé attaque',
     abilityEffect:'gege_passive', abilityRepeatable:true,
@@ -114,6 +114,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'set_wounds7',
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
 
+  CharacterCard(id:'sorciere', name:'Mathylde', faction:Faction.hunter, hp:10, icon:'🧙',
+    ability:'Unique: transformez un joueur de votre choix en pigeon — sa carte personnage passe à 12 PV max et son pouvoir devient répétable : "Inflige 1 blessure au joueur de son choix" (son camp et sa condition de victoire restent inchangés)',
+    abilityEffect:'sorciere_pigeon',
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),   
+
   CharacterCard(id:'meg', name:'Meg', faction:Faction.hunter, hp:12, icon:'🐺',
     ability:'Unique: choisissez une forme — Offensive (+1 blessure infligée) ou Défensive (-1 blessure reçue). Elle alterne automatiquement entre les deux formes au début de chacun de vos tours suivants.',
     abilityEffect:'meg_shapeshift', abilityRepeatable:false,
@@ -133,6 +138,11 @@ const List<CharacterCard> kAllCharacters = [
     ability:'Répétable: choisissez un joueur pour lui offrir un cadeau — 40% de chance d\'obtenir un équipement aléatoire, 40% de chance de soigner 3 blessures, 20% d\'infliger 3 blessures',
     abilityEffect:'pere_noel_gift', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
+
+  CharacterCard(id:'taureador', name:'Pierre', faction:Faction.hunter, hp:13, icon:'🐂',
+    ability:'Unique: provoquez un joueur de votre choix — s\'il attaque quelqu\'un d\'autre que vous avant de vous attaquer, il subit 3 blessures',
+    abilityEffect:'taureador_provoke',
+    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),   
   
   CharacterCard(id:'raph_soleil', name:'Raph du Soleil Levant', faction:Faction.hunter, hp:12, icon:'🥷',
     ability:'Répétable: subissez 2 blessures pour soigner un joueur de votre choix de 3 blessures',
@@ -158,17 +168,6 @@ const List<CharacterCard> kAllCharacters = [
     ability:'Passif: si un joueur l\'attaque, il contre-attaque automatiquement (lance ses propres dés)',
     abilityEffect:'counter_attack_passive', abilityRepeatable:true,
     winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),
-
-  CharacterCard(id:'sorciere', name:'Sorcière', faction:Faction.hunter, hp:10, icon:'🧙',
-    ability:'Unique: transformez un joueur de votre choix en pigeon — sa carte personnage passe à 12 PV max et son pouvoir devient répétable : "Inflige 1 blessure au joueur de son choix" (son camp et sa condition de victoire restent inchangés)',
-    abilityEffect:'sorciere_pigeon',
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
-
-  CharacterCard(id:'taureador', name:'Pierre', faction:Faction.hunter, hp:13, icon:'🐂',
-    ability:'Unique: provoquez un joueur de votre choix — s\'il attaque quelqu\'un d\'autre que vous avant de vous attaquer, il subit 3 blessures',
-    abilityEffect:'taureador_provoke',
-    winCondition:'Tous les Shadows sont morts', winEffect:'hunters_win'),  
-
 
     // ══════════ SHADOWS (20) ══════════
 
@@ -207,6 +206,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'emma_teleport_to', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
 
+  CharacterCard(id:'escanor', name:'Escanor', faction:Faction.shadow, hp:13, icon:'☀️',
+    ability:'Unique: brûlez un terrain de votre choix pendant 2 tours — les joueurs qui s\'y trouvent subissent un effet de flamme (blessures croissantes à chaque tour, comme Luc)',
+    abilityEffect:'escanor_burn_zone',
+    winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
+  
   CharacterCard(id:'fifi_shadow', name:'Fifi', faction:Faction.shadow, hp:13, icon:'🍀',
     ability:'Unique: ce tour, tous vos dés sont au maximum (7 déplacement, 5 dégâts attaque)',
     abilityEffect:'choose_all_dice',
@@ -303,7 +307,7 @@ const List<CharacterCard> kAllCharacters = [
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),  
 
   CharacterCard(id:'theo', name:'Theo', faction:Faction.shadow, hp:12, icon:'🗲',
-    ability:'Passif révélé: si vous n\'avez pas attaqué au tour précédent, votre prochaine attaque infligera 2 blessures de plus',
+    ability:'Passif révélé: si vous n\'avez pas attaqué au tour précédent, votre prochaine attaque infligera 4 blessures de plus',
     abilityEffect:'no_attack_buff', abilityRepeatable:true,
     winCondition:'Tous les Hunters sont morts', winEffect:'shadows_win'),
 
@@ -331,6 +335,17 @@ const List<CharacterCard> kAllCharacters = [
 
   // ══════════ NEUTRES (8) ══════════
 
+  CharacterCard(id:'ange', name:'Ange', faction:Faction.neutral, hp:12, icon:'😇',
+    ability:"Répétable: subissez 5 blessures pour soigner un joueur de votre choix de 3 blessures",
+    abilityEffect:'ange_sacrifice_heal', abilityRepeatable:true,
+    winCondition:"Lorsque vous vous révélez, un joueur autre que vous est choisi aléatoirement — votre condition de victoire est que ce joueur soit en vie à la fin de la partie",
+    winEffect:'ange_protect_win'),
+
+  CharacterCard(id:'blanche', name:'Blanche', faction:Faction.neutral, hp:8, icon:'👰',
+    ability:"Passif: lorsque vous mourrez en tant que Marié(e), vous ressuscitez en tant que Veuve. Unique: soignez-vous de 2 blessures",
+    abilityEffect:'blanche_marie_passive',
+    winCondition:"Être en vie à la fin de la partie", winEffect:'survive'),  
+  
   CharacterCard(id:'cambou', name:'Cambou', faction:Faction.neutral, hp:11, icon:'🌙',
     ability:'Unique: passez votre tour pour soigner toutes vos blessures et ne plus subir de blessures jusqu\'au prochain tour',
     abilityEffect:'full_heal_shield_turn', abilityRepeatable:false,
@@ -346,6 +361,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'fanny_none', abilityRepeatable:false,
     winCondition:'Aucune tant que vous n\'avez éliminé personne', winEffect:'fanny_none'),  
 
+  CharacterCard(id:'gourmand', name:'Gourmand', faction:Faction.neutral, hp:11, icon:'🍗',
+    ability:'Passif: révélé, les items "nourriture" (Araignée Sanguinaire, Chauve-souris Vampire, Barre de Chocolat, Bucket de Poulet) vous rendent des PV au lieu de vous blesser. Unique: allez chercher un item de nourriture de votre choix',
+    abilityEffect:'gourmand_fetch_food',
+    winCondition:'Manger chaque item "nourriture" au moins 1 fois', winEffect:'gourmand_win'),
+  
   CharacterCard(id:'jason', name:'Jason', faction:Faction.neutral, hp:12, icon:'🦎',
     ability:'Passif: insensible aux cartes Vision. À sa révélation, choisit un Hunter et un Shadow en jeu, et affiche le reveal de l\'un des deux au choix.',
     abilityEffect:'chameleon_passive', abilityRepeatable:true,
@@ -361,6 +381,11 @@ const List<CharacterCard> kAllCharacters = [
     abilityEffect:'double_attack_if_tanky', abilityRepeatable:true,
     winCondition:'Éliminer un joueur avec 13 PV ou plus', winEffect:'kill_hp13plus'),
 
+  CharacterCard(id:'masochiste', name:'Masochiste', faction:Faction.neutral, hp:14, icon:'⛓️',
+    ability:'Unique: obligez un joueur de votre choix à attaquer un autre joueur de votre choix',
+    abilityEffect:'masochiste_force_attack',
+    winCondition:"Avoir subi des blessures d'attaque de 3 joueurs différents", winEffect:'masochiste_win'),
+  
   CharacterCard(id:'maxime', name:'Maxime', faction:Faction.neutral, hp:11, icon:'🗡️',
     ability:'Passif: votre première attaque après vous être révélé inflige le double de blessures.',
     abilityEffect:'maxime_double_first', abilityRepeatable:true,
@@ -391,12 +416,12 @@ const List<CharacterCard> kAllCharacters = [
   CharacterCard(id:'victor', name:'Victor', faction:Faction.neutral, hp:13, icon:'💘',
     ability:'Passif révélé: une fois révélé, chaque attaque augmente de 30% la barre de charme du joueur attaqué, et de 10% celle de tous les joueurs sur votre zone. À 100%, un joueur ne peut plus vous attaquer. Vous seul voyez ces barres.',
     abilityEffect:'victor_charm', abilityRepeatable:true,
-    winCondition:'Avoir charmé 2 joueurs à 100%', winEffect:'victor_charm2'),  
+    winCondition:'Avoir charmé 2 joueurs à 100%', winEffect:'victor_charm2'),
 
   
 ];
 
-// ─── Terrains ────────────────────────────────────────────────────────────────
+// ── Terrains ────────────────────────────────────────────────────────────────
 const List<Terrain> kAllTerrains = [
   Terrain(num:'2-3', id:0, name:'Bibliothèque', effect:'vision',   desc:'Piochez une carte Vision',    icon:'🔮'),
   Terrain(num:'4-5', id:1, name:'Hall',  effect:'choice',   desc:'Piochez une carte de votre choix', icon:'🏪'),

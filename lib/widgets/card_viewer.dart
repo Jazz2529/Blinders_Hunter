@@ -12,7 +12,7 @@ import 'shine_effect.dart';
 /// panneau d'infos : nom, faction, PV, capacité et condition de victoire.
 /// Sur écran étroit (téléphone), l'illustration passe au-dessus du texte.
 /// Tap n'importe où pour fermer.
-Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride, int? oscarXpOverride, String? maximeTargetName, String? megFormOverride, int? mathieuAttackCount, String? skinOverride, int? winsOverride, String? copiedAbilityText}) {
+Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverride, int? oscarXpOverride, String? maximeTargetName, String? angeProtectedName, String? megFormOverride, int? mathieuAttackCount, String? skinOverride, int? winsOverride, String? copiedAbilityText}) {
   return showDialog(
     context: ctx,
     barrierColor: Colors.black.withValues(alpha: 0.88),
@@ -24,8 +24,8 @@ Future<void> showFullCardDialog(BuildContext ctx, CharacterCard c, {int? hpOverr
         behavior: HitTestBehavior.opaque,
         child: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride, winsOverride: winsOverride, copiedAbilityText: copiedAbilityText)
-                   : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride, winsOverride: winsOverride, copiedAbilityText: copiedAbilityText),
+            narrow ? _NarrowLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, angeProtectedName: angeProtectedName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride, winsOverride: winsOverride, copiedAbilityText: copiedAbilityText)
+                   : _WideLayout(c: c, size: size, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, angeProtectedName: angeProtectedName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, skinOverride: skinOverride, winsOverride: winsOverride, copiedAbilityText: copiedAbilityText),
             const SizedBox(height: 12),
             Text(ui('tap_close_screen'), style: body(12, c: kTextDim)),
           ]),
@@ -212,12 +212,13 @@ class _WideLayout extends StatelessWidget {
   final int? hpOverride;
   final int? oscarXpOverride;
   final String? maximeTargetName;
+  final String? angeProtectedName;
   final String? megFormOverride;
   final int? mathieuAttackCount;
   final String? skinOverride;
   final int? winsOverride;
   final String? copiedAbilityText;
-  const _WideLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount, this.skinOverride, this.winsOverride, this.copiedAbilityText});
+  const _WideLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.angeProtectedName, this.megFormOverride, this.mathieuAttackCount, this.skinOverride, this.winsOverride, this.copiedAbilityText});
 
   @override
   Widget build(BuildContext ctx) {
@@ -236,7 +237,7 @@ class _WideLayout extends StatelessWidget {
       SizedBox(width: 320,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: imgH),
-          child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, copiedAbilityText: copiedAbilityText),
+          child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, angeProtectedName: angeProtectedName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, copiedAbilityText: copiedAbilityText),
         )),
     ]);
   }
@@ -249,12 +250,13 @@ class _NarrowLayout extends StatelessWidget {
   final int? hpOverride;
   final int? oscarXpOverride;
   final String? maximeTargetName;
+  final String? angeProtectedName;
   final String? megFormOverride;
   final int? mathieuAttackCount;
   final String? skinOverride;
   final int? winsOverride;
   final String? copiedAbilityText;
-  const _NarrowLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount, this.skinOverride, this.winsOverride, this.copiedAbilityText});
+  const _NarrowLayout({required this.c, required this.size, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.angeProtectedName, this.megFormOverride, this.mathieuAttackCount, this.skinOverride, this.winsOverride, this.copiedAbilityText});
 
   @override
   Widget build(BuildContext ctx) {
@@ -271,7 +273,7 @@ class _NarrowLayout extends StatelessWidget {
       child: Column(children: [
         _CardImage(c: c, w: imgW, h: imgH, skinOverride: skinOverride, winsOverride: winsOverride),
         const SizedBox(height: 12),
-        Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, copiedAbilityText: copiedAbilityText)),
+        Expanded(child: _InfoPanel(c: c, fc: fc, hpOverride: hpOverride, oscarXpOverride: oscarXpOverride, maximeTargetName: maximeTargetName, angeProtectedName: angeProtectedName, megFormOverride: megFormOverride, mathieuAttackCount: mathieuAttackCount, copiedAbilityText: copiedAbilityText)),
       ]),
     );
   }
@@ -338,10 +340,11 @@ class _InfoPanel extends StatelessWidget {
   final int? hpOverride;
   final int? oscarXpOverride;
   final String? maximeTargetName;
+  final String? angeProtectedName;
   final String? megFormOverride;
   final int? mathieuAttackCount;
   final String? copiedAbilityText;
-  const _InfoPanel({required this.c, required this.fc, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.megFormOverride, this.mathieuAttackCount, this.copiedAbilityText});
+  const _InfoPanel({required this.c, required this.fc, this.hpOverride, this.oscarXpOverride, this.maximeTargetName, this.angeProtectedName, this.megFormOverride, this.mathieuAttackCount, this.copiedAbilityText});
 
   @override
   Widget build(BuildContext ctx) {
@@ -427,6 +430,20 @@ class _InfoPanel extends StatelessWidget {
                     border: Border.all(color: kRed, width: 1.5)),
                   child: Text('🎯 Cible : $maximeTargetName',
                     style: cinzel(13, c: kRed, fw: FontWeight.w900)),
+                )),
+              ],
+              // Ange : rappelle qui est le joueur dont la survie est liée
+              // à la sienne (condition de victoire) — même schéma que
+              // Maxime ci-dessus.
+              if (angeProtectedName != null) ...[
+                const SizedBox(height: 8),
+                Center(child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.lightBlueAccent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.lightBlueAccent, width: 1.5)),
+                  child: Text('😇 Protège : $angeProtectedName',
+                    style: cinzel(13, c: Colors.lightBlueAccent, fw: FontWeight.w900)),
                 )),
               ],
               // Meg : forme actuelle (Offensive/Défensive) — info PUBLIQUE,

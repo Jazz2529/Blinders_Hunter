@@ -29,7 +29,7 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(length: 4, vsync: this);
     _refresh();
   }
 
@@ -71,7 +71,9 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
   /// reste moins de 2, en donne autant que possible. Affiche un petit
   /// écran de révélation une fois l'achat effectué.
   void _openChest() {
-    final remaining = kCosmeticsCatalog.where((c) => !owned.contains(c.id) && !c.exclusive).toList();
+    final remaining = kCosmeticsCatalog.where((c) =>
+        !owned.contains(c.id) && !c.exclusive &&
+        !(c.category == CosmeticCategory.emote && c.cost == 0)).toList();
     if (remaining.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ui('shop_chest_all_unlocked'))));
@@ -87,7 +89,7 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
     final won = remaining.take(kChestItemCount).toList();
     for (final item in won) {
       Prefs.unlockCosmetic(item.id);
-      if (item.category != CosmeticCategory.token) {
+      if (item.category != CosmeticCategory.token && item.category != CosmeticCategory.emote) {
         Prefs.equipCosmetic(item.slotKey, item.id);
       }
     }
@@ -125,6 +127,7 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
             Tab(text: ui('shop_tab_characters')),
             Tab(text: ui('shop_tab_tokens')),
             Tab(text: ui('shop_tab_terrains')),
+            const Tab(text: 'Emotes'),
           ],
         ),
       ),
@@ -136,6 +139,7 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
             _grid(CosmeticCategory.character),
             _grid(CosmeticCategory.token),
             _grid(CosmeticCategory.terrain),
+            _grid(CosmeticCategory.emote),
           ],
         )),
       ]),
@@ -143,7 +147,9 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
   });
 
   Widget _grid(CosmeticCategory cat) {
-    final items = kCosmeticsCatalog.where((c) => c.category == cat && !c.exclusive).toList();
+    final items = kCosmeticsCatalog.where((c) =>
+        c.category == cat && !c.exclusive &&
+        (cat != CosmeticCategory.emote || c.cost > 0)).toList();
     if (items.isEmpty) {
       return Center(child: Text(ui('shop_no_items_yet'), style: body(13, c: kTextDim)));
     }
@@ -259,11 +265,11 @@ class _ShopCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: isOwned
-                ? (item.category == CosmeticCategory.token
-                    // Les jetons n'ont rien à "équiper" : une fois débloqués,
-                    // ils apparaissent directement comme choix supplémentaire
-                    // dans le sélecteur de jeton, au même titre que les
-                    // jetons de base — pas de bascule ici.
+                ? ((item.category == CosmeticCategory.token || item.category == CosmeticCategory.emote)
+                    // Les jetons et emotes n'ont rien à "équiper" : une fois
+                    // débloqués, ils apparaissent directement comme choix
+                    // supplémentaire dans leur sélecteur respectif — pas de
+                    // bascule ici.
                     ? BHButton(label: '✓ Débloqué — dispo dans le sélecteur', gold: true, onTap: null)
                     : BHButton(
                         label: isEquipped ? '✓ Équipé' : 'Équiper',
